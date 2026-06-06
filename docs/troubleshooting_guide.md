@@ -261,7 +261,7 @@ AI 分析结果中，关注以下信号：
 | Bot 回复后很快又回复 | `energy_decay_rate` | ↑ | 精力系统 |
 | Bot 回复一次就消失了 | `energy_decay_rate` | ↓ | 精力系统 |
 | Bot 精力恢复太慢 | `energy_recovery_rate` | ↑ | 精力系统 |
-| 群里复读时 Bot 也跟着复读 | `repeat_suppress_factor` | ↓ | 基础设置 |
+| 群里复读时 Bot 频繁触发回复 | `repeat_suppress_factor` | ↓ | 基础设置 |
 | 冷场了 Bot 也不救场 | `rescue_idle_threshold` | ↓ | 冷场救场 |
 | Bot 救场太频繁 | `rescue_cooldown` | ↑ | 冷场救场 |
 | Bot 总是打断别人说话 | `debounce_wait_prob` | ↑ | 消息防抖 |
@@ -340,7 +340,7 @@ Telegram 和 QQ（通过 aiocqhttp 适配器接入）。两个平台功能一致
 1. **精力耗尽**：精力降至 0 时概率唤醒关闭，使用 `/wakeup_energy` 检查
 2. **心流状态降级**：长时间无互动导致退回旁观状态，回复概率大幅降低
 3. **冷却期**：冷场救场后进入冷却期
-4. **复读抑制**：群内正在复读时概率大幅降低
+4. **复读抑制**：群友正在复读时概率大幅降低，避免打断复读氛围
 
 注意：即使精力为 0，命中名称或关键词时机器人仍会回复。
 
