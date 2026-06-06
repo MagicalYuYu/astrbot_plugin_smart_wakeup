@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import math
 import random
 import re
@@ -61,7 +62,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.0.0",
+    "1.0.1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -284,6 +285,11 @@ class LingxiPlugin(Star):
         # _summary_checkpoint: {group_id: number of rounds already summarized}
         self._summary_checkpoint: dict[str, int] = {}
 
+        # 输出去重缓存：防止 LLM 工具调用或重复响应导致同一内容被多次发送
+        # _sent_content_cache: {group_id: deque of (fingerprint, timestamp)}
+        self._sent_content_cache: dict[str, deque] = {}
+        self._DEDUP_WINDOW = 30  # 去重时间窗口（秒）
+
         # 三大系统状态
         self._energy_states: dict[str, ChatEnergy] = {}
         self._flow_states: dict[str, ChatFlowState] = {}
@@ -339,7 +345,46 @@ class LingxiPlugin(Star):
             },
         }
 
-        # ─── 分段模块 ───
+        # ─── 输出去重 ───
+
+    def _content_fingerprint(self, text: str) -> str:
+        """生成内容指纹用于去重，归一化后取 MD5"""
+        normalized = re.sub(r'\s+', ' ', text.strip().lower())[:500]
+        return hashlib.md5(normalized.encode()).hexdigest()
+
+    def _is_duplicate_content(self, group_id: str, text: str) -> bool:
+        """检查该群是否在去重窗口内已发送过相同内容"""
+        fingerprint = self._content_fingerprint(text)
+        now = time.time()
+
+        if group_id not in self._sent_content_cache:
+            self._sent_content_cache[group_id] = deque()
+            return False
+
+        cache = self._sent_content_cache[group_id]
+
+        # 清理过期条目
+        while cache and now - cache[0][1] > self._DEDUP_WINDOW:
+            cache.popleft()
+
+        # 检查是否重复
+        for fp, _ in cache:
+            if fp == fingerprint:
+                return True
+
+        return False
+
+    def _record_sent_content(self, group_id: str, text: str):
+        """记录已发送内容到去重缓存"""
+        fingerprint = self._content_fingerprint(text)
+        now = time.time()
+
+        if group_id not in self._sent_content_cache:
+            self._sent_content_cache[group_id] = deque()
+
+        self._sent_content_cache[group_id].append((fingerprint, now))
+
+    # ─── 分段模块 ───
         splitter_config = self.config.get("splitter", {})
         self.splitter_enabled = splitter_config.get("enabled", False)
 
@@ -1263,11 +1308,12 @@ class LingxiPlugin(Star):
 
         # base_prob 由心流状态决定，支持群组覆盖
         # 参与度插值：从旁观概率平滑过渡到关注概率
+        # 使用平方曲线使插值更保守，避免高参与度时旁观概率被拉得过高
         if flow.state == FlowState.BYSTANDER and flow.engagement > 0:
-            # 参与度插值：从旁观概率平滑过渡到关注概率
             bystander_prob = self._get_group_param(group_id, "flow_bystander_prob", self.flow_bystander_prob)
             attentive_prob = self._get_group_param(group_id, "flow_attentive_prob", self.flow_attentive_prob)
-            base_prob = bystander_prob + (attentive_prob - bystander_prob) * flow.engagement
+            engagement_factor = flow.engagement ** 2  # 平方曲线：参与度越高，边际增益越小
+            base_prob = bystander_prob + (attentive_prob - bystander_prob) * engagement_factor
         elif flow.state == FlowState.BYSTANDER:
             base_prob = self._get_group_param(group_id, "flow_bystander_prob", self.flow_bystander_prob)
         elif flow.state == FlowState.ATTENTIVE:
@@ -2629,6 +2675,18 @@ class LingxiPlugin(Star):
             f"chain组件数={len(result.chain)}"
         )
 
+        # ─── 输出去重：防止 LLM 工具调用或重复响应导致同一内容被多次发送 ───
+        group_id = event.message_obj.group_id
+        if group_id and post_filter_text:
+            if self._is_duplicate_content(group_id, post_filter_text):
+                logger.warning(
+                    f"[Dedup] 检测到重复输出，已拦截 | 群={group_id} "
+                    f"内容='{post_filter_text[:80]}'"
+                )
+                result.chain.clear()
+                return
+            self._record_sent_content(group_id, post_filter_text)
+
         # ─── 分段模块处理 ───
         if self.splitter_enabled:
             await self._splitter_process(event)
@@ -3705,6 +3763,7 @@ class LingxiPlugin(Star):
         self._conversation_history.clear()
         self._conversation_summaries.clear()
         self._summary_checkpoint.clear()
+        self._sent_content_cache.clear()
         self._bot_user_ids.clear()
         self._last_context_ts.clear()
         logger.info(
