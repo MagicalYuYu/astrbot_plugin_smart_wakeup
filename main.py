@@ -62,7 +62,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.0.1",
+    "1.0.2",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -157,7 +157,7 @@ class LingxiPlugin(Star):
 
         # 低信息量消息过滤配置
         self.ignore_media_messages = basic.get("ignore_media_messages", True)
-        media_patterns_str = basic.get("media_message_patterns", "[图片]|[动画表情]|[表情]|[视频]|[语音]")
+        media_patterns_str = basic.get("media_message_patterns", "[图片]|[动画表情]|[表情]|[视频]|[语音]|Sticker:")
         self.media_message_patterns = [p.strip() for p in media_patterns_str.split("|") if p.strip()] if media_patterns_str else []
 
         # 复读抑制配置
@@ -345,46 +345,7 @@ class LingxiPlugin(Star):
             },
         }
 
-        # ─── 输出去重 ───
-
-    def _content_fingerprint(self, text: str) -> str:
-        """生成内容指纹用于去重，归一化后取 MD5"""
-        normalized = re.sub(r'\s+', ' ', text.strip().lower())[:500]
-        return hashlib.md5(normalized.encode()).hexdigest()
-
-    def _is_duplicate_content(self, group_id: str, text: str) -> bool:
-        """检查该群是否在去重窗口内已发送过相同内容"""
-        fingerprint = self._content_fingerprint(text)
-        now = time.time()
-
-        if group_id not in self._sent_content_cache:
-            self._sent_content_cache[group_id] = deque()
-            return False
-
-        cache = self._sent_content_cache[group_id]
-
-        # 清理过期条目
-        while cache and now - cache[0][1] > self._DEDUP_WINDOW:
-            cache.popleft()
-
-        # 检查是否重复
-        for fp, _ in cache:
-            if fp == fingerprint:
-                return True
-
-        return False
-
-    def _record_sent_content(self, group_id: str, text: str):
-        """记录已发送内容到去重缓存"""
-        fingerprint = self._content_fingerprint(text)
-        now = time.time()
-
-        if group_id not in self._sent_content_cache:
-            self._sent_content_cache[group_id] = deque()
-
-        self._sent_content_cache[group_id].append((fingerprint, now))
-
-    # ─── 分段模块 ───
+        # ─── 分段模块 ───
         splitter_config = self.config.get("splitter", {})
         self.splitter_enabled = splitter_config.get("enabled", False)
 
@@ -399,6 +360,7 @@ class LingxiPlugin(Star):
         self.strip_trailing_punct_chars = splitter_config.get("strip_trailing_punct_chars", "。；;：:、")
 
         # 分段高级参数：优先从 advanced.splitter_advanced 读取，回退到 splitter（兼容旧配置）
+        advanced = self.config.get("advanced", {})
         splitter_adv = advanced.get("splitter_advanced", {})
         self.max_segments = splitter_adv.get("max_segments", splitter_config.get("max_segments", 7))
         self.min_segment_length = splitter_adv.get("min_segment_length", splitter_config.get("min_segment_length", 10))
@@ -443,6 +405,45 @@ class LingxiPlugin(Star):
             f"用户概率覆盖: {len(self.user_prob_overrides)} 个用户 | "
             f"分段: {'启用' if self.splitter_enabled else '关闭'}"
         )
+
+        # ─── 输出去重 ───
+
+    def _content_fingerprint(self, text: str) -> str:
+        """生成内容指纹用于去重，归一化后取 MD5"""
+        normalized = re.sub(r'\s+', ' ', text.strip().lower())[:500]
+        return hashlib.md5(normalized.encode()).hexdigest()
+
+    def _is_duplicate_content(self, group_id: str, text: str) -> bool:
+        """检查该群是否在去重窗口内已发送过相同内容"""
+        fingerprint = self._content_fingerprint(text)
+        now = time.time()
+
+        if group_id not in self._sent_content_cache:
+            self._sent_content_cache[group_id] = deque()
+            return False
+
+        cache = self._sent_content_cache[group_id]
+
+        # 清理过期条目
+        while cache and now - cache[0][1] > self._DEDUP_WINDOW:
+            cache.popleft()
+
+        # 检查是否重复
+        for fp, _ in cache:
+            if fp == fingerprint:
+                return True
+
+        return False
+
+    def _record_sent_content(self, group_id: str, text: str):
+        """记录已发送内容到去重缓存"""
+        fingerprint = self._content_fingerprint(text)
+        now = time.time()
+
+        if group_id not in self._sent_content_cache:
+            self._sent_content_cache[group_id] = deque()
+
+        self._sent_content_cache[group_id].append((fingerprint, now))
 
     def _is_reply_to_bot(self, event: AstrMessageEvent) -> bool:
         """检测消息是否是回复BOT的消息
@@ -553,18 +554,40 @@ class LingxiPlugin(Star):
         if self.debug_mode:
             logger.info(f"[调试] {msg}")
 
-    def _is_low_info_message(self, message_str: str) -> bool:
+    def _is_low_info_message(self, message_str: str, message_chain=None) -> bool:
         """判断消息是否为低信息量消息（纯媒体/纯emoji/颜文字），应跳过唤醒判定
 
         判断流程：
         1. message_str 为空或仅含空白字符 → 低信息量
-        2. 移除所有媒体标签（如 [图片]、Sticker: 等）
-        3. 移除所有 emoji 字符
-        4. 检查剩余文本是否包含有效内容（中文字符或连续字母数字词）
+        2. 检测消息链是否为纯 Sticker（Image + Plain("Sticker: xxx")）→ 低信息量
+        3. 移除所有媒体标签（如 [图片]、Sticker: 等）
+        4. 移除所有 emoji 字符
+        5. 检查剩余文本是否包含有效内容（中文字符或连续字母数字词）
            - 若无有效内容 → 低信息量（如颜文字 (¬_¬)、纯标点等）
         """
         if not message_str or not message_str.strip():
             return True
+
+        # 检测消息链是否为纯 Sticker 组合（Image + Plain("Sticker: xxx")）
+        if message_chain is not None:
+            has_image = False
+            sticker_emoji = False
+            has_other_content = False
+            for comp in message_chain:
+                comp_type = type(comp).__name__
+                if comp_type == "Image":
+                    has_image = True
+                elif isinstance(comp, Plain):
+                    text = getattr(comp, "text", "")
+                    if text.startswith("Sticker:"):
+                        sticker_emoji = True
+                    elif text.strip():
+                        has_other_content = True
+                else:
+                    # 有非 Image/Plain 组件（如 Reply 等），不是纯 Sticker
+                    has_other_content = True
+            if has_image and sticker_emoji and not has_other_content:
+                return True
 
         stripped = message_str.strip()
 
@@ -1759,8 +1782,11 @@ class LingxiPlugin(Star):
             else:
                 self._debug(f"前缀检查通过 | 消息不以 '{self.command_prefix}' 开头，继续判定")
 
-        # 2.5 低信息量消息过滤：纯图片/表情包/emoji不进入判定
-        if self.ignore_media_messages and self._is_low_info_message(message_str):
+        # 2.5 低信息量消息过滤：纯图片/表情包/emoji/Sticker不进入判定
+        if self.ignore_media_messages and self._is_low_info_message(
+            message_str,
+            message_chain=event.message_obj.message if event.message_obj else None
+        ):
             self._debug(f"低信息量过滤 | 消息为纯媒体/emoji，跳过判定 内容='{message_str[:30]}'")
             return
 

@@ -1,5 +1,14 @@
 # 更新日志
 
+## 1.0.2 (2026-06-07)
+
+### Bug 修复
+
+- **致命缩进错误修复**：v1.0.1 添加输出去重方法时缩进错误，导致分段模块代码被嵌套进 `_record_sent_content` 方法体内，引发 `NameError: name 'advanced' is not defined`。此错误使分段器、概率插值优化、分段高级参数全部未生效，现已修复
+- **概率插值修复生效**：旁观状态的参与度插值从线性改为平方曲线（`engagement²`），此前因缩进错误未生效，现已正常工作
+- **Telegram Sticker 处理**：Sticker（贴纸表情包）不再触发正常对话流程。新增消息链级别 Sticker 检测，将纯 Sticker 组合（Image + Plain("Sticker: xxx")）归入低信息量消息，与图片、emoji 同类处理
+- **媒体标签过滤补充**：`media_message_patterns` 默认值新增 `Sticker:` 前缀匹配
+
 ## 1.0.1 (2026-06-06)
 
 ### Bug 修复
