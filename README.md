@@ -4,7 +4,7 @@
 
 **心有灵犀，不唤自来**
 
-让 Bot 拥有自然的社交节律——叫名字就回，聊得来也会主动搭话，累了就歇，冷场了还会救场。
+唤名即应，投缘便聊；群冷场了就来，聊久了也会累—— 由精力系统、心流状态、冷场救场与消息防抖默契配合而成的节律，让BOT拥有了自然的社交呼吸。
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
