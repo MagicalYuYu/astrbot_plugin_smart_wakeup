@@ -19,19 +19,6 @@ A name-based natural wakeup plugin for AstrBot — powered by an energy system, 
 
 ---
 
-## Design Philosophy
-
-> **Answers When Called** · **Chats When Connected** · **Rescues the Silence** · **Rests When Tired**
-
-Four principles, eight words, woven into every design decision behind Lingxi.
-
-- **Answers When Called** — Always responds when its name is mentioned: a fundamental sense of presence
-- **Chats When Connected** — Joins the conversation naturally when keywords are hit or probability passes; not random noise, but knowing when you need a reply
-- **Rescues the Silence** — Steps in when the group chat goes quiet, like a friend noticing an awkward silence
-- **Rests When Tired** — Stays quiet when energy runs low; no forced presence, letting the social rhythm breathe naturally
-
----
-
 ## What It Does
 
 - 🔔 **Answers When Called** — Triggers on messages containing the bot's name or aliases, case-insensitive
@@ -46,40 +33,12 @@ Four principles, eight words, woven into every design decision behind Lingxi.
 - ⌨️ **Types Like a Real Person** — Long replies are split into natural segments with realistic pacing and trailing punctuation cleanup
 - 🛡️ **Stays in Character** — Thinking tag filter, duplicate output prevention, group filtering, command prefix skipping, and output deduplication
 
----
-
-## How It Works
-
-```mermaid
-flowchart TD
-    A[Group message arrives] --> B[Logged to message buffer]
-    B --> C{Group Filter}
-    C -->|Blacklisted / Not whitelisted| D[Skip]
-    C -->|Allowed| E{Command Prefix Skip}
-    E -->|Starts with /| F[Skip]
-    E -->|Normal message| G{Low-Information Filter}
-    G -->|Pure image/sticker/emoji| H[Skip]
-    G -->|Valid message| I[Update flow state]
-    I --> J{Wakeup Check}
-    J -->|Name hit| K[Definite reply]
-    J -->|Keyword hit + probability| L[Probabilistic reply]
-    J -->|Probabilistic wakeup| M[Dynamic probability calc]
-    J -->|Idle rescue| N[Timeout + cooldown check]
-    J -->|Repeat chain| O[Drastic probability drop]
-    K & L & M & N --> P{Per-User Override}
-    P --> Q[Message debounce]
-    Q --> R[Context construction]
-    R --> S[LLM generates reply]
-    S --> T[Output filtering & splitting]
-    T --> U[Record to conversation history]
-```
-
 <details>
 <summary><strong>Full Feature List</strong></summary>
 
 | Module | Description |
 |:-------|:------------|
-| Name Wakeup | Triggers when a message contains the bot's name or aliases (`|`-separated), case-insensitive |
+| Name Wakeup | Triggers when a message contains the bot's name or aliases (`\|`-separated), case-insensitive |
 | Probabilistic Wakeup | May reply even without being named; probability dynamically computed from energy, flow, and engagement using a squared curve interpolation |
 | Energy System | Simulates social fatigue — each reply costs energy, which recovers over time; depletion pauses proactive replies |
 | Flow State Machine | Bystander → Attentive → Flow → Fatigued — four states dynamically adjust reply strategy and probability |
@@ -112,7 +71,7 @@ After installation, configure via **AstrBot WebUI → Plugin Management → Ling
 
 | Setting | Description | Required |
 |:--------|:------------|:--------:|
-| `bot_name` | Bot name/aliases, `|`-separated, e.g. `Bot|Assistant` | Yes |
+| `bot_name` | Bot name/aliases, `\|`-separated, e.g. `Bot\|Assistant` | Yes |
 | `probability_wakeup` | Enable probabilistic wakeup — the bot may reply even without being named | No |
 | `splitter.enabled` | Enable message splitting — long replies are sent in natural segments | No |
 
@@ -230,6 +189,32 @@ The splitting module strips trailing neutral punctuation (periods, semicolons, c
 |:---------|:------------|
 | [Usage Guide](docs/usage_guide.md) | Full configuration, how it works, scenario behavior matrix (Chinese) |
 | [Troubleshooting & Debug Guide](docs/troubleshooting_guide.md) | Fault diagnosis, AI-assisted debugging, parameter tuning, issue reporting (Chinese) |
+
+## How It Works
+
+```mermaid
+flowchart TD
+    A[Group message arrives] --> B[Logged to message buffer]
+    B --> C{Group Filter}
+    C -->|Blacklisted / Not whitelisted| D[Skip]
+    C -->|Allowed| E{Command Prefix Skip}
+    E -->|Starts with /| F[Skip]
+    E -->|Normal message| G{Low-Information Filter}
+    G -->|Pure image/sticker/emoji| H[Skip]
+    G -->|Valid message| I[Update flow state]
+    I --> J{Wakeup Check}
+    J -->|Name hit| K[Definite reply]
+    J -->|Keyword hit + probability| L[Probabilistic reply]
+    J -->|Probabilistic wakeup| M[Dynamic probability calc]
+    J -->|Idle rescue| N[Timeout + cooldown check]
+    J -->|Repeat chain| O[Drastic probability drop]
+    K & L & M & N --> P{Per-User Override}
+    P --> Q[Message debounce]
+    Q --> R[Context construction]
+    R --> S[LLM generates reply]
+    S --> T[Output filtering & splitting]
+    T --> U[Record to conversation history]
+```
 
 ## Acknowledgments
 
