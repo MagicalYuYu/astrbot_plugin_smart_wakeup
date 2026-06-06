@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE / 开发工具
+.trae/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 内部参考（含他人代码）
+参考/
+
+# 调试日志（可能含群 ID、用户名等敏感信息）
+docs/Logs/
+
+# 开发文档（内部参考）
+docs/astrbot_plugin_dev_tutorial.md
+
+# 环境与密钥
+.env
+*.key
+*.pem
+*.token
+
+# 操作系统
+.DS_Store
+Thumbs.db

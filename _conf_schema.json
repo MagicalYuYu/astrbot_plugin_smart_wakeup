@@ -1,0 +1,630 @@
+{
+    "basic": {
+        "description": "🧩 基础设置",
+        "type": "object",
+        "hint": "插件核心配置：机器人名称、关键词、上下文管理和基本行为开关。",
+        "items": {
+            "bot_name": {
+                "description": "🏷️ 机器人名称/别名",
+                "type": "string",
+                "default": "010",
+                "hint": "当群聊消息包含此名称时触发确定性回复。多个别名用 | 分隔，如：Bot|小助手|助手。匹配不区分大小写。"
+            },
+            "keywords": {
+                "description": "🔍 关注关键词",
+                "type": "string",
+                "default": "",
+                "hint": "当群聊消息包含这些关键词时按概率回复。多个关键词用 | 分隔，如：天气|美食|游戏。留空不启用。名称触发为确定性回复，关键词触发为概率性回复。"
+            },
+            "keyword_reply_prob": {
+                "description": "🎲 关键词回复概率",
+                "type": "float",
+                "default": 0.5,
+                "hint": "命中关键词时的基础回复概率（0~1），还会与精力、心流、用户概率等因子综合计算。"
+            },
+            "enable_private_chat": {
+                "description": "💬 启用私聊唤醒",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后私聊中提到机器人名称也会触发回复，默认仅群聊生效。"
+            },
+            "context_messages_count": {
+                "description": "📜 上下文消息数量",
+                "type": "int",
+                "default": 10,
+                "hint": "唤醒时提供给 LLM 的最近群聊消息条数。数量越多理解越好，但 token 消耗越高。建议 10~50，最多 200。"
+            },
+            "context_truncation_enabled": {
+                "description": "✂️ 启用消息截断与过滤",
+                "type": "bool",
+                "default": true,
+                "hint": "启用后对注入上下文的消息进行截断和过滤，减少 token 消耗。"
+            },
+            "context_truncation_max_len": {
+                "description": "📏 消息截断长度",
+                "type": "int",
+                "default": 60,
+                "hint": "单条消息超过此字符数时截断。"
+            },
+            "context_truncation_keep_len": {
+                "description": "✂️ 截断保留长度",
+                "type": "int",
+                "default": 30,
+                "hint": "截断后保留的字符数。"
+            },
+            "context_min_length": {
+                "description": "📏 最短消息长度",
+                "type": "int",
+                "default": 3,
+                "hint": "过滤短于此长度的消息（纯表情/标点等低信息量内容）。"
+            },
+            "incremental_context_enabled": {
+                "description": "📈 启用增量上下文注入",
+                "type": "bool",
+                "default": true,
+                "hint": "仅注入上次回复后的新消息，避免重复内容写入对话历史。"
+            },
+            "incremental_context_min_new": {
+                "description": "📈 增量最少新消息数",
+                "type": "int",
+                "default": 5,
+                "hint": "新增消息少于此数时补充旧消息，确保上下文充足。"
+            },
+            "context_compression_enabled": {
+                "description": "🗜️ 启用上下文摘要压缩",
+                "type": "bool",
+                "default": true,
+                "hint": "将群聊上下文压缩后再注入主模型，大幅减少 token 消耗。使用独立的小模型执行压缩。"
+            },
+            "compression_model": {
+                "description": "🤖 压缩模型提供商 ID",
+                "type": "string",
+                "default": "",
+                "hint": "压缩使用的模型提供商 ID（如 Volcengine/doubao-seed-2-0-lite-260215），留空则使用当前 LLM 提供者。填写完整的提供商 ID，不是模型名称。"
+            },
+            "model_routing_enabled": {
+                "description": "🔀 启用智能模型路由",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后简单消息由小模型生成回复，复杂消息由大模型生成。默认关闭——小模型仅用于上下文压缩，所有回复由大模型生成以保证质量。"
+            },
+            "routing_small_model": {
+                "description": "🤖 路由目标小模型提供商 ID",
+                "type": "string",
+                "default": "",
+                "hint": "路由目标小模型提供商 ID（如 Volcengine/doubao-seed-2-0-lite-260215），留空则不路由。填写完整的提供商 ID，不是模型名称。"
+            },
+            "cascade_upgrade_enabled": {
+                "description": "⬆️ 启用级联升级",
+                "type": "bool",
+                "default": false,
+                "hint": "小模型回复质量不足时自动升级到大模型重新生成（实验性功能）。"
+            },
+            "anomaly_detection_enabled": {
+                "description": "🚨 启用 Token 消耗异常检测",
+                "type": "bool",
+                "default": true,
+                "hint": "当消耗超出正常范围时输出告警日志。"
+            },
+            "anomaly_sigma_threshold": {
+                "description": "📊 异常检测 σ 阈值",
+                "type": "float",
+                "default": 2.0,
+                "hint": "当前小时消耗超过 均值+N 倍标准差时告警。"
+            },
+            "anomaly_prompt_ratio_threshold": {
+                "description": "📊 Prompt 占比阈值",
+                "type": "float",
+                "default": 0.95,
+                "hint": "Prompt token 占总 token 比超过此值时建议优化上下文注入。"
+            },
+            "bypass_core_context": {
+                "description": "🔄 绕过核心上下文（推荐开启）",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后唤醒触发的消息将清空核心对话历史，仅使用插件自管理的上下文（消息缓冲区+增量注入+摘要压缩），这是控制 token 消耗的关键方案。仅影响唤醒消息，正常 @ 对话仍使用核心上下文。"
+            },
+            "conversation_memory_enabled": {
+                "description": "🧠 启用分层对话记忆",
+                "type": "bool",
+                "default": true,
+                "hint": "保留最近 N 轮原文对话，更早的对话压缩为摘要，使 Bot 能进行连贯的多轮对话。"
+            },
+            "recent_rounds_keep": {
+                "description": "🧠 保留最近 N 轮原文",
+                "type": "int",
+                "default": 10,
+                "hint": "保留最近 N 轮对话的原文（每轮包含用户消息和 Bot 回复），超过此数量的旧对话将被压缩为摘要。"
+            },
+            "summary_rounds_max": {
+                "description": "📝 摘要覆盖最大轮数",
+                "type": "int",
+                "default": 30,
+                "hint": "摘要覆盖的最大轮数，超过此数量的最旧对话将被丢弃。设为 0 则只保留 recent_rounds_keep 轮，不生成摘要。"
+            },
+            "summary_model": {
+                "description": "🤖 摘要模型提供商 ID",
+                "type": "string",
+                "default": "",
+                "hint": "对话摘要使用的模型提供商 ID，留空则使用 compression_model 配置的模型。"
+            },
+            "probability_wakeup": {
+                "description": "🎲 启用概率唤醒",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后即使消息未包含名称或关键词，Bot 也有概率主动回复。概率由心流状态和精力系统动态计算。"
+            },
+            "command_prefix_enabled": {
+                "description": "🚫 启用指令前缀跳过",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后以指令前缀开头的消息将跳过所有唤醒判定。回复 Bot 消息时不受此限制。"
+            },
+            "command_prefix": {
+                "description": "🚫 指令前缀",
+                "type": "string",
+                "default": "/",
+                "hint": "消息以此前缀开头时跳过唤醒判定，默认 / 即系统指令前缀。可自定义如 ! 或 #。仅当「启用指令前缀跳过」开启时生效。"
+            },
+            "ignore_media_messages": {
+                "description": "🖼️ 忽略纯媒体消息",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后纯图片、表情包、emoji 等无有效文本的消息将被自动跳过，不进入唤醒判定。"
+            },
+            "media_message_patterns": {
+                "description": "🖼️ 媒体标签过滤模式",
+                "type": "string",
+                "default": "[图片]|[动画表情]|[表情]|[视频]|[语音]|Sticker:",
+                "hint": "需要过滤的媒体标签模式，多个模式用 | 分隔。仅当「忽略纯媒体消息」开启时生效。消息文本仅包含这些标签时才被过滤。"
+            },
+            "repeat_suppress_enabled": {
+                "description": "🔇 启用复读抑制",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后当检测到复读消息时大幅降低概率唤醒概率，避免 Bot 对复读链高频回复。复读消息仍会作为上下文记录。"
+            },
+            "repeat_suppress_factor": {
+                "description": "🔇 复读抑制系数",
+                "type": "float",
+                "default": 0.1,
+                "hint": "复读消息的概率唤醒概率乘以此系数。0.1 表示降至正常的 10%。范围 0.0~1.0，0.0=完全屏蔽复读触发，1.0=不抑制。"
+            },
+            "repeat_min_length": {
+                "description": "🔇 复读最小匹配长度",
+                "type": "int",
+                "default": 4,
+                "hint": "部分复读检测的最小匹配字符数，短于此长度的文本不进行子串复读检测，避免误判。"
+            },
+            "wake_command_prefix": {
+                "description": "⚡ LLM 聊天唤醒前缀",
+                "type": "string",
+                "default": "",
+                "hint": "与 AstrBot 系统设置中的「LLM 聊天额外唤醒前缀」保持一致，直接填写额外部分即可（不含斜杠）。例如系统额外前缀设为 chat，此处也填 chat。留空则不添加额外前缀。"
+            },
+            "debug_mode": {
+                "description": "🔧 调试模式",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后在后台日志中输出详细的判定过程信息，用于排查问题。正常使用时建议关闭以减少日志量。"
+            }
+        }
+    },
+    "group_filter": {
+        "description": "🔒 群组过滤",
+        "type": "object",
+        "hint": "控制插件在哪些群聊中生效。可使用白名单（仅指定群生效）或黑名单（排除指定群）。",
+        "items": {
+            "whitelist_enabled": {
+                "description": "✅ 启用群聊白名单",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后仅在白名单群聊中启用唤醒。关闭则所有群聊均启用（黑名单群除外）。"
+            },
+            "enabled_groups": {
+                "description": "📋 白名单群聊列表",
+                "type": "list",
+                "default": [],
+                "hint": "仅在这些群聊中启用唤醒。填写群聊 ID：Telegram 群 ID 通常为负数（如 -1001234567890），QQ 群 ID 为正数。"
+            },
+            "blocked_groups": {
+                "description": "🚫 黑名单群组列表",
+                "type": "list",
+                "default": [],
+                "hint": "这些群聊将不会触发唤醒，优先级高于白名单。"
+            }
+        }
+    },
+    "energy": {
+        "description": "⚡ 精力系统",
+        "type": "object",
+        "hint": "控制 Bot 的回复频率，避免过度参与。每次回复消耗精力，精力越低回复概率越低；随时间自动恢复。",
+        "items": {
+            "energy_decay_rate": {
+                "description": "🔋 精力消耗速率",
+                "type": "float",
+                "default": 0.15,
+                "hint": "每次回复消耗的精力值。值越大越容易累，发言越少。建议 0.05~0.5。"
+            },
+            "energy_recovery_rate": {
+                "description": "💚 精力恢复速率",
+                "type": "float",
+                "default": 0.02,
+                "hint": "每分钟自动恢复的精力值。值越大恢复越快，能更频繁发言。建议 0.005~0.1。"
+            }
+        }
+    },
+    "flow": {
+        "description": "🌊 心流状态机",
+        "type": "object",
+        "hint": "根据群聊活跃度动态调整回复概率。状态从低到高：旁观→关注→心流→疲劳，状态越高回复概率越大。疲劳时暂停概率唤醒。",
+        "items": {
+            "flow_bystander_prob": {
+                "description": "👁️ 旁观状态回复概率",
+                "type": "float",
+                "default": 0.08,
+                "hint": "群聊冷清、话题无关时的回复概率。默认 8%。"
+            },
+            "flow_attentive_prob": {
+                "description": "👀 关注状态回复概率",
+                "type": "float",
+                "default": 0.20,
+                "hint": "群聊活跃、话题相关时的回复概率。默认 20%。"
+            },
+            "flow_flow_prob": {
+                "description": "🔥 心流状态回复概率",
+                "type": "float",
+                "default": 0.40,
+                "hint": "群聊高度活跃、深度参与时的回复概率。默认 40%。"
+            },
+            "engagement_decay_per_minute": {
+                "description": "📉 参与度衰减速率",
+                "type": "float",
+                "default": 0.08,
+                "hint": "每分钟参与度衰减量。0.08 表示约 12 分钟从满参与度衰减到 0。值越大衰减越快。建议 0.05~0.20。"
+            },
+            "engagement_refresh_on_reply": {
+                "description": "📈 回复时参与度刷新量",
+                "type": "float",
+                "default": 0.3,
+                "hint": "概率唤醒或冷场救场回复后参与度增加的量。0.3 表示每次回复补充 30%。建议 0.1~0.5。"
+            },
+            "fatigue_coefficient": {
+                "description": "😴 疲劳系数",
+                "type": "float",
+                "default": 0.3,
+                "hint": "每轮对话增加的防抖等待倍率。0.3 表示每多聊一轮防抖等待增加 30%。0 则无疲劳效果。建议 0.1~0.5。"
+            },
+            "fatigue_max_multiplier": {
+                "description": "😴 疲劳最大倍率上限",
+                "type": "float",
+                "default": 3.0,
+                "hint": "防抖等待最多延长到几倍。3.0 表示最多 3 倍。建议 2.0~5.0。"
+            }
+        }
+    },
+    "rescue": {
+        "description": "🆘 冷场救场",
+        "type": "object",
+        "hint": "当群聊冷场一段时间后出现新消息，Bot 会主动参与对话打破沉默。有冷却期避免频繁救场。",
+        "items": {
+            "rescue_enabled": {
+                "description": "🆘 启用冷场救场",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后群聊冷场一段时间后出现新消息时，Bot 会主动参与对话。"
+            },
+            "rescue_idle_threshold": {
+                "description": "⏱️ 冷场判定时间（秒）",
+                "type": "int",
+                "default": 300,
+                "hint": "群聊超过此时间无消息后视为冷场。默认 300 秒（5 分钟），建议 180~600 秒。"
+            },
+            "rescue_cooldown": {
+                "description": "⏳ 救场冷却时间（秒）",
+                "type": "int",
+                "default": 1800,
+                "hint": "两次冷场救场之间的最短间隔。默认 1800 秒（30 分钟），建议 900~3600 秒。"
+            }
+        }
+    },
+    "debounce": {
+        "description": "⏲️ 消息防抖",
+        "type": "object",
+        "hint": "等待用户停止发送消息后再判定是否回复，避免打断用户补充发言。不同触发类型可设置不同等待时间。",
+        "items": {
+            "debounce_enabled": {
+                "description": "⏲️ 启用消息防抖",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后 Bot 会等待用户停止发言后再判定是否回复。"
+            },
+            "force_debounce": {
+                "description": "🔒 强制防抖",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后所有触发类型统一走防抖流程，避免快速连续触发导致重复唤醒。关闭则名称匹配和回复 Bot 消息可跳过防抖立即判定。"
+            },
+            "debounce_wait_name": {
+                "description": "🏷️ 名称触发等待时间（秒）",
+                "type": "int",
+                "default": 5,
+                "hint": "命中机器人名称后的防抖等待时间。"
+            },
+            "debounce_wait_prob": {
+                "description": "🎲 概率唤醒等待时间（秒）",
+                "type": "int",
+                "default": 10,
+                "hint": "概率唤醒时的防抖等待时间，建议 5~15 秒。"
+            },
+            "debounce_wait_rescue": {
+                "description": "🆘 冷场救场等待时间（秒）",
+                "type": "int",
+                "default": 3,
+                "hint": "冷场救场时的防抖等待时间，建议 2~5 秒。"
+            }
+        }
+    },
+    "filter_settings": {
+        "description": "🧹 过滤设置",
+        "type": "object",
+        "hint": "控制回复内容的过滤规则。",
+        "items": {
+            "filter_thinking_tags": {
+                "description": "🧹 过滤思考标签（推荐开启）",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后过滤回复中思考标签（如 <think>...</think>、</think>）包裹的思考内容。某些模型会在回复中先输出草稿再用 </think> 分隔最终版，开启此选项可避免草稿泄露给用户。"
+            }
+        }
+    },
+    "splitter": {
+        "description": "✂️ 消息分段",
+        "type": "object",
+        "hint": "将长回复智能分段发送，模拟真人输入节奏。默认关闭，按需开启。",
+        "items": {
+            "enabled": {
+                "description": "✂️ 启用消息分段",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后 Bot 的长回复会被智能分段发送，配合延迟模拟真人输入节奏。默认关闭。"
+            },
+            "strip_trailing_punct_enabled": {
+                "description": "✂️ 剔除末尾标点",
+                "type": "bool",
+                "default": true,
+                "hint": "分段后自动剔除每段末尾的指定标点，使回复更符合自然聊天习惯。如'今天天气不错。'→'今天天气不错'"
+            },
+            "strip_trailing_punct_chars": {
+                "description": "✂️ 剔除标点字符集",
+                "type": "string",
+                "default": "。；;：:、",
+                "hint": "需要从段末剔除的标点字符。默认剔除句号、分号、冒号、顿号等语气中性标点。仅应包含分段正则中会作为分段点的标点，逗号不在分段正则中故不应在此剔除。问号和感叹号有语气功能，默认保留。"
+            },
+            "split_regex": {
+                "description": "📐 分段正则",
+                "type": "string",
+                "default": "[。？！?!\\n.…]+",
+                "hint": "匹配到这些标点时切分。默认匹配中英文句末标点、换行和省略号。英文句号会自动跳过缩写/小数/域名。"
+            },
+            "enable_smart_split": {
+                "description": "🧠 智能识别",
+                "type": "bool",
+                "default": true,
+                "hint": "避免在引号、成对符号、代码块内部切断。"
+            },
+            "balanced_split_mode": {
+                "description": "⚖️ 智能均分",
+                "type": "bool",
+                "default": false,
+                "hint": "按总字数和段数尽量均匀分配每段长度，避免碎片化。"
+            },
+            "trim_segment_edge_blank_lines": {
+                "description": "🧹 清理首尾空行",
+                "type": "bool",
+                "default": true,
+                "hint": "仅清理每段两端空行，不影响段内换行。"
+            },
+            "delay_strategy": {
+                "description": "⏱️ 延迟策略",
+                "type": "string",
+                "options": ["linear", "log", "random", "fixed"],
+                "default": "linear",
+                "hint": "linear 线性递增；log 对数递增；random 随机；fixed 固定间隔。"
+            }
+        }
+    },
+    "advanced": {
+        "description": "⚙️ 高级设置",
+        "type": "object",
+        "hint": "为特定群组或用户自定义参数覆盖，以及分段模块的数值参数，适合需要精细控制的场景，新手可忽略。",
+        "items": {
+            "group_overrides": {
+                "description": "🏠 单群参数覆盖",
+                "type": "template_list",
+                "hint": "为特定群组覆盖全局参数，只需填写需要覆盖的字段，未填写的使用全局默认值。Telegram 群 ID 通常为负数（如 -1001234567890），QQ 群 ID 为正数。",
+                "templates": {
+                    "group_override": {
+                        "description": "🏠 群组参数覆盖",
+                        "items": {
+                            "group_id": {
+                                "description": "🆔 群组 ID",
+                                "type": "string",
+                                "hint": "目标群聊 ID。Telegram 群 ID 通常为负数，QQ 群 ID 为正数。"
+                            },
+                            "energy_decay_rate": {
+                                "description": "🔋 精力消耗速率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖全局精力消耗速率，留空使用全局值。"
+                            },
+                            "energy_recovery_rate": {
+                                "description": "💚 精力恢复速率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖全局精力恢复速率，留空使用全局值。"
+                            },
+                            "flow_bystander_prob": {
+                                "description": "👁️ 旁观状态概率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖旁观状态回复概率，留空使用全局值。"
+                            },
+                            "flow_attentive_prob": {
+                                "description": "👀 关注状态概率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖关注状态回复概率，留空使用全局值。"
+                            },
+                            "flow_flow_prob": {
+                                "description": "🔥 心流状态概率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖心流状态回复概率，留空使用全局值。"
+                            },
+                            "rescue_idle_threshold": {
+                                "description": "⏱️ 冷场判定时间（秒）",
+                                "type": "int",
+                                "default": null,
+                                "hint": "覆盖冷场判定时间，留空使用全局值。"
+                            },
+                            "rescue_cooldown": {
+                                "description": "⏳ 救场冷却时间（秒）",
+                                "type": "int",
+                                "default": null,
+                                "hint": "覆盖救场冷却时间，留空使用全局值。"
+                            },
+                            "debounce_wait_name": {
+                                "description": "🏷️ 名称触发等待时间（秒）",
+                                "type": "int",
+                                "default": null,
+                                "hint": "覆盖名称触发防抖等待时间，留空使用全局值。"
+                            },
+                            "debounce_wait_prob": {
+                                "description": "🎲 概率唤醒等待时间（秒）",
+                                "type": "int",
+                                "default": null,
+                                "hint": "覆盖概率唤醒防抖等待时间，留空使用全局值。"
+                            },
+                            "debounce_wait_rescue": {
+                                "description": "🆘 冷场救场等待时间（秒）",
+                                "type": "int",
+                                "default": null,
+                                "hint": "覆盖冷场救场防抖等待时间，留空使用全局值。"
+                            },
+                            "keyword_reply_prob": {
+                                "description": "🎲 关键词回复概率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖关键词回复概率，留空使用全局值。"
+                            },
+                            "engagement_decay_per_minute": {
+                                "description": "📉 参与度衰减速率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖参与度衰减速率，留空使用全局值。"
+                            },
+                            "engagement_refresh_on_reply": {
+                                "description": "📈 回复时参与度刷新量",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖回复时参与度刷新量，留空使用全局值。"
+                            },
+                            "fatigue_coefficient": {
+                                "description": "😴 疲劳系数",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖疲劳系数，留空使用全局值。"
+                            },
+                            "fatigue_max_multiplier": {
+                                "description": "😴 疲劳最大倍率上限",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖疲劳最大倍率上限，留空使用全局值。"
+                            }
+                        }
+                    }
+                }
+            },
+            "user_prob_overrides": {
+                "description": "👤 用户回复概率覆盖",
+                "type": "template_list",
+                "hint": "为特定用户自定义回复概率乘数。0=永不回复，1=正常概率，中间值=概率乘数。",
+                "templates": {
+                    "user_prob": {
+                        "description": "👤 用户概率覆盖",
+                        "items": {
+                            "user_id": {
+                                "description": "🆔 用户 ID",
+                                "type": "string",
+                                "hint": "目标用户 ID。Telegram 和 QQ 的用户 ID 均可。"
+                            },
+                            "reply_prob": {
+                                "description": "🎲 回复概率乘数",
+                                "type": "float",
+                                "default": 1.0,
+                                "hint": "0~1 之间。0=永不回复该用户，1=正常概率，0.5=概率减半。"
+                            }
+                        }
+                    }
+                }
+            },
+            "splitter_advanced": {
+                "description": "✂️ 分段高级参数",
+                "type": "object",
+                "hint": "分段模块的数值参数，普通用户无需调整，保持默认即可。",
+                "items": {
+                    "max_segments": {
+                        "description": "🔢 最大段数",
+                        "type": "int",
+                        "default": 7,
+                        "hint": "均分模式下的最大分段数。"
+                    },
+                    "min_segment_length": {
+                        "description": "📏 最小段长",
+                        "type": "int",
+                        "default": 10,
+                        "hint": "均分模式下避免切出过短碎片。"
+                    },
+                    "linear_base": {
+                        "description": "📈 线性基础值（秒）",
+                        "type": "float",
+                        "default": 0.5
+                    },
+                    "linear_factor": {
+                        "description": "📈 线性字数系数",
+                        "type": "float",
+                        "default": 0.1,
+                        "hint": "延迟 = 基础值 + 字数 × 系数。"
+                    },
+                    "log_base": {
+                        "description": "📉 对数基础值（秒）",
+                        "type": "float",
+                        "default": 0.5
+                    },
+                    "log_factor": {
+                        "description": "📉 对数系数",
+                        "type": "float",
+                        "default": 0.8,
+                        "hint": "延迟 = 基础值 + 系数 × ln(字数+1)。"
+                    },
+                    "random_min": {
+                        "description": "🎲 随机最小值（秒）",
+                        "type": "float",
+                        "default": 1.0
+                    },
+                    "random_max": {
+                        "description": "🎲 随机最大值（秒）",
+                        "type": "float",
+                        "default": 3.0
+                    },
+                    "fixed_delay": {
+                        "description": "⏱️ 固定延迟值（秒）",
+                        "type": "float",
+                        "default": 1.5
+                    }
+                }
+            }
+        }
+    }
+}
