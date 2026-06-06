@@ -6,7 +6,7 @@ English | [中文](README.md)
 
 # Lingxi
 
-**Responds when called, chimes in when the vibe is right**
+**Answers when called, chats when the vibe is right**
 
 A name-based natural wakeup plugin for AstrBot — powered by an energy system, flow state machine, idle-rescue, and message debounce working in concert to give your bot a natural social rhythm. Compatible with Telegram and QQ (aiocqhttp).
 
@@ -19,17 +19,60 @@ A name-based natural wakeup plugin for AstrBot — powered by an energy system, 
 
 ---
 
+## Design Philosophy
+
+> **Answers When Called** · **Chats When Connected** · **Rescues the Silence** · **Rests When Tired**
+
+Four principles, eight words, woven into every design decision behind Lingxi.
+
+- **Answers When Called** — Always responds when its name is mentioned: a fundamental sense of presence
+- **Chats When Connected** — Joins the conversation naturally when keywords are hit or probability passes; not random noise, but knowing when you need a reply
+- **Rescues the Silence** — Steps in when the group chat goes quiet, like a friend noticing an awkward silence
+- **Rests When Tired** — Stays quiet when energy runs low; no forced presence, letting the social rhythm breathe naturally
+
+---
+
 ## What It Does
 
-- **Responds to its name** — Triggers on messages containing the bot's name or aliases, case-insensitive
-- **Chimes in when engaged** — Probabilistic wakeup dynamically calculated from energy, flow state, and participation — not random noise
-- **Takes breaks when tired** — An energy system simulates social fatigue; when depleted, the bot stops initiating and recovers over time
-- **Rescues dead chats** — Detects idle conversations and steps in, with a cooldown to prevent over-rescuing
-- **Waits for you to finish** — Message debounce aggregates rapid-fire messages before replying, so it never interrupts mid-thought
-- **Stays out of repeat chains** — Detects repeat-copying and drastically lowers reply probability, keeping the group's repeat culture intact
-- **Remembers what was said** — Layered conversation memory: recent turns kept verbatim, older turns compressed into summaries
-- **Saves tokens where it can** — Context compression, smart model routing, and token usage tracking with anomaly alerts
-- **Types like a real person** — Long replies are split into natural segments with realistic pacing and trailing punctuation cleanup
+- 🔔 **Answers When Called** — Triggers on messages containing the bot's name or aliases, case-insensitive
+- 💬 **Chats When Connected** — Joins the conversation naturally when keywords match or probability passes; probability dynamically calculated from energy × flow × engagement
+- 🔇 **Low-Information Filter** — Automatically skips pure images, stickers, and emoji-only messages; saves tokens without interrupting the flow
+- 😴 **Rests When Tired** — An energy system simulates social fatigue; each reply costs energy, which recovers over time; when depleted, the bot quietly observes
+- 🧊 **Rescues the Silence** — Detects idle conversations and steps in, with a cooldown to prevent over-rescuing
+- 🤚 **Waits for You to Finish** — Message debounce aggregates rapid-fire messages before replying, so it never interrupts mid-thought
+- 🦜 **Stays Out of Repeat Chains** — Detects repeat-copying and drastically lowers reply probability, preserving the fun of group repeat culture
+- 🧠 **Remembers What Was Said** — Layered conversation memory: recent turns kept verbatim, older turns compressed into summaries for coherent multi-turn dialogue
+- 💰 **Saves Tokens Where It Can** — Context compression, smart model routing, and token usage tracking with anomaly alerts
+- ⌨️ **Types Like a Real Person** — Long replies are split into natural segments with realistic pacing and trailing punctuation cleanup
+- 🛡️ **Stays in Character** — Thinking tag filter, duplicate output prevention, group filtering, command prefix skipping, and output deduplication
+
+---
+
+## How It Works
+
+```mermaid
+flowchart TD
+    A[Group message arrives] --> B[Logged to message buffer]
+    B --> C{Group Filter}
+    C -->|Blacklisted / Not whitelisted| D[Skip]
+    C -->|Allowed| E{Command Prefix Skip}
+    E -->|Starts with /| F[Skip]
+    E -->|Normal message| G{Low-Information Filter}
+    G -->|Pure image/sticker/emoji| H[Skip]
+    G -->|Valid message| I[Update flow state]
+    I --> J{Wakeup Check}
+    J -->|Name hit| K[Definite reply]
+    J -->|Keyword hit + probability| L[Probabilistic reply]
+    J -->|Probabilistic wakeup| M[Dynamic probability calc]
+    J -->|Idle rescue| N[Timeout + cooldown check]
+    J -->|Repeat chain| O[Drastic probability drop]
+    K & L & M & N --> P{Per-User Override}
+    P --> Q[Message debounce]
+    Q --> R[Context construction]
+    R --> S[LLM generates reply]
+    S --> T[Output filtering & splitting]
+    T --> U[Record to conversation history]
+```
 
 <details>
 <summary><strong>Full Feature List</strong></summary>
@@ -37,53 +80,25 @@ A name-based natural wakeup plugin for AstrBot — powered by an energy system, 
 | Module | Description |
 |:-------|:------------|
 | Name Wakeup | Triggers when a message contains the bot's name or aliases (`|`-separated), case-insensitive |
-| Probabilistic Wakeup | May reply even without being named; probability dynamically computed from energy/flow/participation |
+| Probabilistic Wakeup | May reply even without being named; probability dynamically computed from energy, flow, and engagement using a squared curve interpolation |
 | Energy System | Simulates social fatigue — each reply costs energy, which recovers over time; depletion pauses proactive replies |
 | Flow State Machine | Bystander → Attentive → Flow → Fatigued — four states dynamically adjust reply strategy and probability |
-| Idle Rescue | Steps in when group chat goes quiet, with a cooldown to prevent over-rescuing |
+| Idle Rescue | Steps in when the group chat goes quiet, with a cooldown to prevent over-rescuing |
 | Message Debounce | Waits for users to finish speaking before replying, aggregating multiple messages into one input |
 | Repeat Suppression | Detects repeat-copy chains and drastically lowers reply probability, preserving group repeat culture |
+| Low-Information Filter | Automatically filters out pure images, stickers, emoji-only messages via message-chain-level detection, saving tokens |
+| Command Prefix Skip | Messages starting with `/` or similar prefixes won't trigger wakeup (unless replying to the bot) |
 | Conversation Memory | Layered memory: recent turns verbatim + older turns compressed into summaries for coherent multi-turn dialogue |
 | Context Compression | Compresses group chat context with a smaller model before injecting into the main model, significantly reducing token usage |
 | Smart Model Routing | Routes simple messages to a small model and complex ones to a large model, with cascade escalation (experimental) |
 | Message Splitting | Splits long replies into natural segments with realistic pacing and optional trailing punctuation cleanup |
+| Output Deduplication | Fingerprint-based deduplication with a 30-second window, preventing duplicate messages caused by LLM tool calls |
 | Thinking Tag Filter | Strips LLM thinking content (e.g. `<think/>` tags) from replies as a safety net against prompt leakage |
+| Per-User Override | Custom reply probability multipliers for specific users (0 = never reply, 0.5 = half, 1 = normal) |
+| Per-Group Override | Custom parameters (energy, flow, debounce, etc.) for specific groups; unoverridden fields fall back to global defaults |
 | Token Usage Tracking | Real-time token usage statistics with anomaly detection (σ-threshold + prompt ratio) |
 
 </details>
-
-## How It Works
-
-```
-Group message arrives
-  │
-  ├─ Logged to message buffer
-  ├─ Group whitelist/blacklist filter
-  │
-  ▼ Wakeup Check
-  │
-  ├─ Name hit ──────────────────→ Definite reply
-  ├─ Keyword hit ───────────────→ Probabilistic reply
-  ├─ Probabilistic wakeup ──────→ Probabilistic reply
-  │   (energy × flow × participation)
-  ├─ Idle rescue (timeout+cooldown) → Proactive reply
-  └─ Repeat chain ─────────────→ Lowered probability
-  │
-  ▼ Message Debounce (wait for user to finish, aggregate messages)
-  │
-  ▼ Context Construction
-  │
-  ├─ Incremental injection + backfill
-  ├─ Small-model context compression (optional)
-  ├─ Layered memory: recent verbatim + older summaries
-  └─ Smart routing: simple → small model / complex → large model (optional)
-  │
-  ▼ LLM Generates Reply
-  │
-  ├─ Thinking tag filter
-  ├─ Message splitting + delayed sending (optional)
-  └─ Energy consumed → Flow state updated
-```
 
 ## Installation
 

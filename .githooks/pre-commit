@@ -1,0 +1,17 @@
+#!/bin/sh
+# 灵犀插件 - 提交前提醒
+# 每次提交前自动提示版本发布操作指引
+echo ""
+echo "=========================================="
+echo "  提醒：请确认已遵循版本发布操作指引"
+echo "  详见 docs/release-sop.md"
+echo "=========================================="
+echo ""
+echo "  核对要点："
+echo "    1. 版本号是否已更新？（main.py / metadata.yaml / README.md / README_EN.md）"
+echo "    2. CHANGELOG.md 是否已添加新条目？"
+echo "    3. 代码是否通过编译检查？（python -m py_compile main.py）"
+echo ""
+echo "  如需跳过此提醒，使用: git commit --no-verify"
+echo "=========================================="
+echo ""
