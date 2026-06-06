@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Minimalist%20logo%20icon%20for%20a%20chatbot%20plugin%20called%20Lingxi%2C%20abstract%20rhythm%20wave%20symbol%20representing%20natural%20social%20breathing%2C%20soft%20gradient%20from%20teal%20to%20indigo%2C%20clean%20white%20background%2C%20simple%20geometric%20design%2C%20no%20text&image_size=square_hd" width="120" alt="灵犀 Logo" />
+<img src="logo.png" width="120" alt="灵犀 Logo" />
 
 # 灵犀
 
