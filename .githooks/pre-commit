@@ -15,3 +15,4 @@ echo ""
 echo "  如需跳过此提醒，使用: git commit --no-verify"
 echo "=========================================="
 echo ""
+exit 0
