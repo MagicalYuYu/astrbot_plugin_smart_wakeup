@@ -22,6 +22,7 @@ docs/Logs/
 
 # 开发文档（内部参考）
 docs/astrbot_plugin_dev_tutorial.md
+docs/github_publish_guide.md
 
 # 环境与密钥
 .env
