@@ -1,5 +1,7 @@
 <div align="center">
 
+[English](README_EN.md) | 中文
+
 <img src="logo.png" width="120" alt="灵犀 Logo" />
 
 # 灵犀
