@@ -62,7 +62,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.0.3",
+    "1.0.4",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -781,6 +781,23 @@ class LingxiPlugin(Star):
         buffer.append((sender, text.strip(), int(time.time())))
         self._stats["total_messages_recorded"] += 1
 
+    @staticmethod
+    def _filter_sticker_noise(text: str) -> str:
+        """过滤上下文中的 Sticker emoji 噪音
+
+        Telegram Sticker 的 emoji 与实际贴纸内容大多无关（如贴纸是猫但 emoji 是🤣），
+        注入上下文只会误导 LLM。处理策略：
+        - "Sticker: 🤣" → "[贴纸]"
+        - "[图片] Sticker: 🤣" → "[贴纸]"
+        - 保留识图模块生成的描述（如果有）
+        """
+        if not text:
+            return text
+        # 匹配 "Sticker: <emoji>" 模式（含可选的前缀如 [图片]）
+        text = re.sub(r'\[图片\]\s*Sticker:\s*\S+', '[贴纸]', text)
+        text = re.sub(r'Sticker:\s*\S+', '[贴纸]', text)
+        return text
+
     def _format_context(self, group_id: str, incremental: bool = False) -> tuple[str, int, int]:
         """将消息缓冲区格式化为 LLM 可读的上下文文本
 
@@ -843,6 +860,10 @@ class LingxiPlugin(Star):
             # 过滤过短消息
             if self.context_truncation_enabled and len(text.strip()) < self.context_min_length:
                 continue
+
+            # Sticker emoji 噪音过滤：Sticker 的 emoji 与实际内容无关，
+            # 注入上下文只会误导 LLM，替换为 [贴纸] 标记
+            text = self._filter_sticker_noise(text)
 
             # 截断过长消息
             if self.context_truncation_enabled and len(text) > self.context_truncation_max_len:
@@ -1267,10 +1288,15 @@ class LingxiPlugin(Star):
         energy = self._get_energy(group_id)
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
 
-        # 用户概率检查：0.0 = 永不回复
-        user_prob = self._get_user_prob(sender_id)
+        # 用户概率检查：防抖聚合多条消息时，取所有发送者中的最大概率
+        # 避免最后一条消息的发送者概率为0时，阻止了其他用户的正常触发
+        aggregated_senders = event.get_extra("aggregated_sender_ids")
+        if aggregated_senders:
+            user_prob = max(self._get_user_prob(sid) for sid in aggregated_senders)
+        else:
+            user_prob = self._get_user_prob(sender_id)
         if user_prob <= 0:
-            self._debug(f"概率唤醒 | 用户 {sender_id} 概率为0，跳过")
+            self._debug(f"概率唤醒 | 所有发送者概率均为0，跳过")
             return
 
         # 疲劳状态不触发概率唤醒
@@ -1499,8 +1525,8 @@ class LingxiPlugin(Star):
             state.timer_task.cancel()
             self._stats["debounce_cancelled"] += 1
 
-        # 确定等待时间
-        wait_time = self._calc_debounce_wait(group_id, event)
+        # 确定等待时间（传入已有暂存消息，以便检查名称匹配）
+        wait_time = self._calc_debounce_wait(group_id, event, state.pending_messages)
 
         # 记录当前任务，以便下一条消息到来时能取消本任务的等待
         state.timer_task = asyncio.current_task()
@@ -1532,6 +1558,19 @@ class LingxiPlugin(Star):
         last_event.set_extra("aggregated_text", aggregated_text)
         last_event.set_extra("aggregated_count", len(messages))
 
+        # 收集所有发送者ID，供概率唤醒的用户概率检查使用
+        sender_ids = list(set(
+            str(getattr(evt.message_obj.sender, "user_id", ""))
+            for _sender, _text, _ts, evt in messages
+        ))
+        last_event.set_extra("aggregated_sender_ids", sender_ids)
+
+        # 多条消息聚合时，将 message_str 替换为聚合文本
+        # 这样 _trigger_wake 添加前缀后，LLM 收到的输入是完整的聚合内容
+        # 而非仅最后一条消息
+        if len(messages) > 1:
+            last_event.message_str = aggregated_text
+
         logger.info(f"防抖触发: 群 {group_id} 聚合 {len(messages)} 条消息")
         self._debug(f"防抖触发 | 群={group_id} 聚合{len(messages)}条 静默间隔={state.silence_gap:.1f}秒 聚合文本='{aggregated_text[:60]}'")
 
@@ -1541,14 +1580,22 @@ class LingxiPlugin(Star):
         except Exception as e:
             logger.error(f"防抖判定异常: 群 {group_id} 错误: {e}", exc_info=True)
 
-    def _calc_debounce_wait(self, group_id: str, event: AstrMessageEvent) -> float:
+    def _calc_debounce_wait(self, group_id: str, event: AstrMessageEvent, pending_messages: list = None) -> float:
         """计算自适应等待时间"""
-        message_str = event.message_str or ""
-        message_lower = message_str.lower()
+        # 检查是否命中名称：遍历所有暂存消息（名称可能出现在任意一条中）
+        name_matched = False
+        if pending_messages:
+            for _sender, msg_text, _ts, _evt in pending_messages:
+                msg_lower = msg_text.lower()
+                if any(name.lower() in msg_lower for name in self.bot_names):
+                    name_matched = True
+                    break
+        if not name_matched:
+            # 也检查当前消息
+            message_str = event.message_str or ""
+            message_lower = message_str.lower()
+            name_matched = any(name.lower() in message_lower for name in self.bot_names)
 
-        # 检查是否命中名称（此时 force_debounce 已在 on_group_message 中处理，
-        # 走到这里说明 force_debounce 开启或未命中名称/回复BOT）
-        name_matched = any(name.lower() in message_lower for name in self.bot_names)
         if name_matched:
             base_wait = float(self._get_group_param(group_id, "debounce_wait_name", self.debounce_wait_name))
         # 检查是否可能是冷场救场
@@ -1597,21 +1644,64 @@ class LingxiPlugin(Star):
     async def _evaluate_debounced_messages(self, group_id: str, event: AstrMessageEvent, messages: list, silence_gap: float = 0.0):
         """防抖到期后执行唤醒判定"""
         message_str = event.message_str or ""
-        message_lower = message_str.lower()
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
         self._debug(f"防抖判定开始 | 群={group_id} 消息='{message_str[:40]}' 概率唤醒={'启用' if self.probability_wakeup else '关闭'} 冷场救场={'启用' if self.rescue_enabled else '关闭'}")
 
-        # 1. 检查名称匹配
+        # 0. 检查回复BOT（遍历所有暂存消息，回复BOT可能出现在任意一条中）
+        reply_to_bot_event = None
+        reply_sender_id = sender_id
+        for msg_sender, msg_text, _ts, _evt in messages:
+            if self._is_reply_to_bot(_evt):
+                reply_to_bot_event = _evt
+                reply_sender_id = str(getattr(_evt.message_obj.sender, "user_id", ""))
+                break
+
+        if reply_to_bot_event:
+            # 用户概率检查（使用回复BOT那条消息的发送者）
+            user_prob = self._get_user_prob(reply_sender_id)
+            self._debug(f"回复BOT(防抖) | 命中发送者={reply_sender_id} 用户概率={user_prob:.2f}")
+            if user_prob <= 0:
+                return
+            if user_prob < 1.0 and random.random() > user_prob:
+                return
+
+            logger.info(
+                f"灵犀(防抖): 检测到回复BOT，"
+                f"聚合 {len(messages)} 条消息"
+            )
+            self._trigger_wake(event)
+            flow = self._get_flow(group_id)
+            if flow.engagement <= 0:
+                flow.conversation_turns = 1
+            else:
+                flow.conversation_turns += 1
+            flow.engagement = 1.0
+            flow.engagement_last_update = time.time()
+            if flow.state == FlowState.BYSTANDER:
+                self._transition_flow(group_id, FlowState.ATTENTIVE, "回复BOT触发升级")
+            event.set_extra("smart_wakeup_triggered", True)
+            event.set_extra("wakeup_type", "name_trigger")
+            self._stats["total_wakeups"] += 1
+            self._stats["name_trigger_wakeups"] += 1
+            return
+
+        # 1. 检查名称匹配（遍历所有暂存消息，名称可能出现在任意一条中）
         matched_name = None
-        for name in self.bot_names:
-            if name.lower() in message_lower:
-                matched_name = name
+        matched_sender_id = sender_id
+        for msg_sender, msg_text, _ts, _evt in messages:
+            msg_lower = msg_text.lower()
+            for name in self.bot_names:
+                if name.lower() in msg_lower:
+                    matched_name = name
+                    matched_sender_id = str(getattr(_evt.message_obj.sender, "user_id", ""))
+                    break
+            if matched_name:
                 break
 
         if matched_name:
-            # 用户概率检查
-            user_prob = self._get_user_prob(sender_id)
-            self._debug(f"名称匹配(防抖) | 命中='{matched_name}' 用户概率={user_prob:.2f}")
+            # 用户概率检查（使用命中名称那条消息的发送者）
+            user_prob = self._get_user_prob(matched_sender_id)
+            self._debug(f"名称匹配(防抖) | 命中='{matched_name}' 命中发送者={matched_sender_id} 用户概率={user_prob:.2f}")
             if user_prob <= 0:
                 return
             if user_prob < 1.0 and random.random() > user_prob:
@@ -1640,11 +1730,18 @@ class LingxiPlugin(Star):
             self._stats["name_trigger_wakeups"] += 1
             return
 
-        # 2. 检查关键词匹配
-        matched_keyword = self._match_keyword(message_str)
+        # 2. 检查关键词匹配（遍历所有暂存消息，关键词可能出现在任意一条中）
+        matched_keyword = None
+        keyword_sender_id = sender_id
+        for msg_sender, msg_text, _ts, _evt in messages:
+            kw = self._match_keyword(msg_text)
+            if kw:
+                matched_keyword = kw
+                keyword_sender_id = str(getattr(_evt.message_obj.sender, "user_id", ""))
+                break
         if matched_keyword:
-            user_prob = self._get_user_prob(sender_id)
-            self._debug(f"关键词匹配(防抖) | 命中='{matched_keyword}' 用户概率={user_prob:.2f}")
+            user_prob = self._get_user_prob(keyword_sender_id)
+            self._debug(f"关键词匹配(防抖) | 命中='{matched_keyword}' 命中发送者={keyword_sender_id} 用户概率={user_prob:.2f}")
             if user_prob <= 0:
                 self._debug(f"关键词跳过 | 用户概率为0")
                 return
@@ -1995,18 +2092,25 @@ class LingxiPlugin(Star):
         if not result or not result.chain:
             return
 
-        text_parts = []
-        for comp in result.chain:
-            if hasattr(comp, "text") and comp.text:
-                text_parts.append(comp.text)
+        # 优先使用分段前保存的完整回复文本
+        # 分段模块会修改 result.chain 只保留最后一段，
+        # 导致此处只能拿到部分文本，复读检测因此失效
+        full_text = event.get_extra("full_response_text_before_split")
+        if full_text:
+            combined_text = full_text
+        else:
+            text_parts = []
+            for comp in result.chain:
+                if hasattr(comp, "text") and comp.text:
+                    text_parts.append(comp.text)
+            combined_text = " ".join(text_parts) if text_parts else ""
 
-        if text_parts:
-            bot_name = self.bot_names[0] if self.bot_names else "Bot"
-            combined_text = " ".join(text_parts)
+        if combined_text:
             # 过滤思考标签（兜底机制）
             if self.filter_thinking_tags:
                 combined_text = self._filter_thinking_tags(combined_text)
             if combined_text:
+                bot_name = self.bot_names[0] if self.bot_names else "Bot"
                 buffer = self._get_buffer(group_id)
                 buffer.append((bot_name, combined_text, int(time.time())))
                 # 同步记录到对话历史，确保多轮对话记忆完整
@@ -2986,6 +3090,15 @@ class LingxiPlugin(Star):
 
         # 执行切分
         segments = self._split_chain(result.chain, self.split_regex, ideal_length)
+
+        # 在分段修改 chain 之前，保存完整回复文本供 after_message_sent 记录
+        # 否则 after_message_sent 只能拿到最后一段，导致复读检测失效
+        full_text_parts = []
+        for comp in result.chain:
+            if hasattr(comp, "text") and comp.text:
+                full_text_parts.append(comp.text)
+        if full_text_parts:
+            event.set_extra("full_response_text_before_split", " ".join(full_text_parts))
 
         # 均分模式尾部合并：过短的末段并入前段
         if self.balanced_split_mode and len(segments) >= 2:
