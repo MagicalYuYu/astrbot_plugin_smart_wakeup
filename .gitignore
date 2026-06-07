@@ -10,6 +10,7 @@ build/
 .trae/
 .vscode/
 .idea/
+.githooks/
 *.swp
 *.swo
 *~
