@@ -62,7 +62,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.0.4",
+    "1.0.5",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -453,6 +453,9 @@ class LingxiPlugin(Star):
         2. 检查消息链中 Plain 组件是否包含 [引用消息(BOT名称:...)] 格式
         3. 检查 message_str 中是否包含 [引用消息(BOT名称:...)] 格式
 
+        注意：转发自BOT的消息（Telegram 加一复读）不属于"回复BOT"，
+        已在 on_group_message 入口处通过 _is_forward_from_bot 过滤。
+
         适配 Telegram 和 QQ 两种场景：
         - Telegram: Reply 组件含 sender_id，核心日志格式为 [引用消息(BOT名: 内容)]
         - QQ: Reply 组件含 sender_id，message_str 可能包含引用格式
@@ -531,12 +534,254 @@ class LingxiPlugin(Star):
                     self._debug(f"BOT用户ID记录(反向) | 从引用消息推断BOT ID={reply_sender_id}")
                 return True
 
+            # 方式4：检查 Telegram 转发来源（加一复读等场景）
+            # 注意：转发自BOT的消息本质是复读，不是"回复BOT"。
+            # 在 on_group_message 入口处已通过 _is_forward_from_bot 过滤，
+            # 此处不再将转发复读视为"回复BOT"，避免复读触发唤醒。
+            # 保留此注释以便理解设计意图。
+
             self._debug(f"回复检测 | 未检测到回复BOT消息")
             return False
 
         except Exception as e:
             self._debug(f"回复检测 | 出错: {e}")
         return False
+
+    def _is_forward_from_bot(self, event: AstrMessageEvent) -> bool:
+        """检测消息是否是转发自BOT的消息（Telegram 加一复读等场景）
+
+        Telegram 的"加一"复读功能通过 forward_origin 转发消息：
+        - forward_origin=MessageOriginUser(sender_user=User(id=xxx, is_bot=True, ...))
+        - 消息链中没有 Reply 组件
+        - 框架显示发送者为转发者（Unknown/xxx），而非原始发送者
+
+        检测策略（按优先级）：
+        1. 从 message_obj 上寻找原始 Telegram Message 对象（属性名可能为 raw_message/message/_raw 等）
+        2. 检查 forward_origin 的 sender_user.id 是否为已知 BOT ID
+        3. 检查 forward_origin 的 sender_user.is_bot 且名称/内容匹配
+        4. 备用：检查 api_kwargs 中的 forward_from
+        5. 兜底：检查消息文本是否与缓冲区中 BOT 消息匹配（无 Reply 的纯文本复读）
+        """
+        try:
+            message_obj = event.message_obj
+            if not message_obj:
+                return False
+
+            # 策略1-4：尝试从 message_obj 上寻找原始 Telegram Message 对象
+            # AstrBot 框架可能将原始消息存储在不同属性名下
+            raw_msg = None
+            for attr in ("raw_message", "message", "_raw_message", "raw_msg", "telegram_message"):
+                candidate = getattr(message_obj, attr, None)
+                if candidate is not None:
+                    # 排除消息链（list 类型）和字符串类型
+                    if not isinstance(candidate, (list, str)):
+                        raw_msg = candidate
+                        self._debug(f"转发检测 | 从 message_obj.{attr} 获取到原始消息对象: {type(raw_msg).__name__}")
+                        break
+
+            if raw_msg:
+                # 尝试获取 forward_origin（python-telegram-bot v20+ 属性）
+                forward_origin = getattr(raw_msg, "forward_origin", None)
+                if forward_origin:
+                    result = self._check_forward_origin(message_obj, forward_origin, event)
+                    if result:
+                        return True
+
+                # 备用：检查 api_kwargs（python-telegram-bot v20+ 的 Message 对象有此字段）
+                api_kwargs = getattr(raw_msg, "api_kwargs", None)
+                if api_kwargs and isinstance(api_kwargs, dict):
+                    result = self._check_api_kwargs_forward(message_obj, api_kwargs, event)
+                    if result:
+                        return True
+
+            else:
+                self._debug(f"转发检测 | message_obj 上未找到原始消息对象，尝试遍历属性")
+                # 遍历 message_obj 的所有属性，寻找包含 forward_origin 的对象
+                for attr_name in dir(message_obj):
+                    if attr_name.startswith("_"):
+                        continue
+                    try:
+                        attr_val = getattr(message_obj, attr_name, None)
+                        if attr_val is None or isinstance(attr_val, (str, int, float, bool, list, dict)):
+                            continue
+                        forward_origin = getattr(attr_val, "forward_origin", None)
+                        if forward_origin:
+                            self._debug(f"转发检测 | 从 message_obj.{attr_name} 找到 forward_origin")
+                            result = self._check_forward_origin(message_obj, forward_origin, event)
+                            if result:
+                                return True
+                        api_kwargs = getattr(attr_val, "api_kwargs", None)
+                        if api_kwargs and isinstance(api_kwargs, dict):
+                            result = self._check_api_kwargs_forward(message_obj, api_kwargs, event)
+                            if result:
+                                return True
+                    except Exception:
+                        continue
+
+            # 策略5（兜底）：无 Reply 组件 + 消息文本与缓冲区中 BOT 消息匹配
+            # Telegram 加一复读的特征：无 Reply 组件，纯文本，内容是 BOT 消息的子串
+            return self._check_forward_repeat_by_buffer(event)
+
+        except Exception as e:
+            self._debug(f"转发检测 | 出错: {e}")
+        return False
+
+    def _check_forward_origin(self, message_obj, forward_origin, event: AstrMessageEvent) -> bool:
+        """检查 forward_origin 是否指向 BOT"""
+        sender_user = getattr(forward_origin, "sender_user", None)
+        if not sender_user:
+            self._debug(f"转发检测 | forward_origin 无 sender_user")
+            return False
+
+        sender_id = str(getattr(sender_user, "id", ""))
+        is_bot = getattr(sender_user, "is_bot", False)
+        sender_name = getattr(sender_user, "first_name", "")
+        sender_username = getattr(sender_user, "username", "")
+        self._debug(f"转发检测 | forward_origin: id={sender_id} is_bot={is_bot} name='{sender_name}' username='{sender_username}'")
+
+        # 检查是否为已知 BOT ID（数字 ID 或用户名）
+        if sender_id and sender_id in self._bot_user_ids:
+            self._debug(f"转发检测 | sender_user.id={sender_id} 在已知BOT ID列表中")
+            return True
+
+        # 检查 self_id（可能是数字 ID 或用户名）
+        self_id = getattr(message_obj, "self_id", None)
+        if self_id:
+            self_id_str = str(self_id)
+            if sender_id and (sender_id == self_id_str or sender_username == self_id_str):
+                self._debug(f"转发检测 | sender匹配self_id(self_id={self_id_str})")
+                # 记录数字 ID
+                if sender_id and sender_id not in self._bot_user_ids:
+                    self._bot_user_ids.add(sender_id)
+                    self._debug(f"BOT用户ID记录(转发self_id) | 新增user_id={sender_id}")
+                return True
+
+        # 检查 is_bot 且名称/用户名匹配 BOT 名称
+        if is_bot:
+            for name in self.bot_names:
+                # 检查 first_name 或 username 中包含 BOT 名称
+                if name in sender_name or name.lower() in sender_username.lower():
+                    self._debug(f"转发检测 | is_bot=True且名称匹配'{name}'(name='{sender_name}', username='{sender_username}')")
+                    if sender_id and sender_id not in self._bot_user_ids:
+                        self._bot_user_ids.add(sender_id)
+                        self._debug(f"BOT用户ID记录(转发名称) | 新增user_id={sender_id}")
+                    return True
+
+        # is_bot=True 但名称不匹配：检查转发内容是否与缓冲区中 BOT 消息匹配
+        if is_bot and sender_id:
+            group_id = message_obj.group_id
+            if group_id:
+                buffer = self._get_buffer(group_id)
+                msg_text = (event.message_str or "").strip()
+                if msg_text and buffer:
+                    for _sender, buf_text, _ts in reversed(buffer):
+                        if _sender in self.bot_names and msg_text in buf_text:
+                            self._debug(f"转发检测 | is_bot=True且转发内容匹配缓冲区BOT消息")
+                            if sender_id not in self._bot_user_ids:
+                                self._bot_user_ids.add(sender_id)
+                                self._debug(f"BOT用户ID记录(转发匹配) | 新增user_id={sender_id}")
+                            return True
+
+        return False
+
+    def _check_api_kwargs_forward(self, message_obj, api_kwargs: dict, event: AstrMessageEvent) -> bool:
+        """检查 api_kwargs 中的 forward_from 信息"""
+        forward_from = api_kwargs.get("forward_from")
+        if not forward_from or not isinstance(forward_from, dict):
+            return False
+
+        fwd_id = str(forward_from.get("id", ""))
+        fwd_is_bot = forward_from.get("is_bot", False)
+        fwd_name = forward_from.get("first_name", "")
+        fwd_username = forward_from.get("username", "")
+        self._debug(f"转发检测(api_kwargs) | id={fwd_id} is_bot={fwd_is_bot} name='{fwd_name}' username='{fwd_username}'")
+
+        if fwd_id and fwd_id in self._bot_user_ids:
+            self._debug(f"转发检测(api_kwargs) | forward_from.id={fwd_id} 在已知BOT ID列表中")
+            return True
+
+        if fwd_is_bot and fwd_id:
+            self_id = getattr(message_obj, "self_id", None)
+            if self_id:
+                self_id_str = str(self_id)
+                if fwd_id == self_id_str or fwd_username == self_id_str:
+                    self._debug(f"转发检测(api_kwargs) | forward_from匹配self_id")
+                    if fwd_id not in self._bot_user_ids:
+                        self._bot_user_ids.add(fwd_id)
+                        self._debug(f"BOT用户ID记录(api_kwargs) | 新增user_id={fwd_id}")
+                    return True
+
+            # 检查名称匹配
+            for name in self.bot_names:
+                if name in fwd_name or name.lower() in fwd_username.lower():
+                    self._debug(f"转发检测(api_kwargs) | is_bot=True且名称匹配'{name}'")
+                    if fwd_id not in self._bot_user_ids:
+                        self._bot_user_ids.add(fwd_id)
+                        self._debug(f"BOT用户ID记录(api_kwargs名称) | 新增user_id={fwd_id}")
+                    return True
+
+        return False
+
+    def _check_forward_repeat_by_buffer(self, event: AstrMessageEvent) -> bool:
+        """兜底检测：无 Reply 组件 + 消息文本与缓冲区中 BOT 消息匹配
+
+        Telegram 加一复读的特征：
+        - 消息链无 Reply 组件
+        - 纯文本消息
+        - 内容与 BOT 最近发送的消息相同或为其子串
+
+        此方法作为 _is_forward_from_bot 的兜底策略，
+        当无法访问 Telegram 原始消息对象时使用。
+        """
+        try:
+            message_obj = event.message_obj
+            if not message_obj or not message_obj.message:
+                return False
+
+            # 检查消息链是否无 Reply 组件
+            from astrbot.api.message_components import Reply
+            has_reply = any(isinstance(comp, Reply) for comp in message_obj.message)
+            if has_reply:
+                return False  # 有 Reply 组件的不是转发复读
+
+            # 检查消息是否为纯文本（无图片/贴纸等）
+            msg_text = (event.message_str or "").strip()
+            if not msg_text or len(msg_text) < 4:
+                return False  # 过短文本不检测
+
+            group_id = message_obj.group_id
+            if not group_id:
+                return False
+
+            buffer = self._get_buffer(group_id)
+            if not buffer:
+                return False
+
+            # 检查消息文本是否与缓冲区中 BOT 最近的消息匹配
+            current_normalized = self._normalize_for_repeat_check(msg_text)
+            if not current_normalized or len(current_normalized) < 4:
+                return False
+
+            for _sender, buf_text, _ts in reversed(buffer):
+                if _sender not in self.bot_names:
+                    continue
+                buf_normalized = self._normalize_for_repeat_check(buf_text)
+                if not buf_normalized:
+                    continue
+                # 全文复读或部分复读（当前消息是 BOT 消息的子串）
+                if current_normalized == buf_normalized:
+                    self._debug(f"转发复读检测(兜底) | 全文匹配BOT消息 sender={_sender}")
+                    return True
+                if len(current_normalized) >= 4 and current_normalized in buf_normalized:
+                    ratio = len(current_normalized) / len(buf_normalized)
+                    if ratio >= 0.2:  # 占比20%以上视为复读
+                        self._debug(f"转发复读检测(兜底) | 部分匹配BOT消息 sender={_sender} 占比={ratio:.0%}")
+                        return True
+
+            return False
+        except Exception as e:
+            self._debug(f"转发复读检测(兜底) | 出错: {e}")
+            return False
 
     def _detect_quote_reply_to_bot(self, event: AstrMessageEvent) -> bool:
         """从 message_str 中检测 [引用消息(BOT名称: ...)] 格式"""
@@ -655,6 +900,7 @@ class LingxiPlugin(Star):
         """
         buffer = self._msg_buffer.get(group_id)
         if not buffer or len(buffer) < 1:
+            self._debug(f"复读检测 | 缓冲区为空或无消息 群={group_id}")
             return False, ""
 
         current_text = self._normalize_for_repeat_check(message_str)
@@ -666,6 +912,7 @@ class LingxiPlugin(Star):
         messages = list(reversed(buffer))
         check_limit = self.recent_rounds_keep * 2
 
+        checked_count = 0
         for i, (sender, text, timestamp) in enumerate(messages):
             if i >= check_limit:
                 break
@@ -677,6 +924,8 @@ class LingxiPlugin(Star):
             hist_text = self._normalize_for_repeat_check(text)
             if not hist_text or len(hist_text) < 2:
                 continue
+
+            checked_count += 1
 
             # 模式1：全文复读（归一化后文本完全相同）
             if current_text == hist_text:
@@ -691,6 +940,7 @@ class LingxiPlugin(Star):
                 if current_text in hist_text and len(current_text) / len(hist_text) >= 0.3:
                     return True, f"部分复读 | 发送者={sender} 当前='{current_text[:30]}' 历史片段='{hist_text[:50]}' 占比={len(current_text)/len(hist_text):.0%}"
 
+        self._debug(f"复读检测 | 未匹配 sender={sender_name} current='{current_text[:40]}' 检查了{checked_count}条历史消息(共{len(messages)}条)")
         return False, ""
 
     @staticmethod
@@ -1890,6 +2140,12 @@ class LingxiPlugin(Star):
             self._debug(f"低信息量过滤 | 消息为纯媒体/emoji，跳过判定 内容='{message_str[:30]}'")
             return
 
+        # 2.6 转发复读过滤：Telegram 加一等转发BOT消息的场景
+        # 这类消息本质是复读BOT发言，不应触发唤醒
+        if self._is_forward_from_bot(event):
+            self._debug(f"转发复读过滤 | 消息为转发自BOT的复读，跳过判定 内容='{message_str[:30]}'")
+            return
+
         # 3. 检查是否需要定期清理
         self._maybe_cleanup()
 
@@ -2081,12 +2337,24 @@ class LingxiPlugin(Star):
         # 记录 BOT 的 user_id（用于回复检测）
         # 注意：after_message_sent 中 event.message_obj.sender 是原始消息发送者（用户），
         # 不是 BOT 自己。需要从其他途径获取 BOT 的 ID。
+        # self_id 可能是用户名（如 AIXiaoNing_Bot）或数字 ID，两者都需要记录
         self_id = getattr(event.message_obj, "self_id", None)
         if self_id:
             bot_uid = str(self_id)
             if bot_uid and bot_uid not in self._bot_user_ids:
                 self._bot_user_ids.add(bot_uid)
                 self._debug(f"BOT用户ID记录(self_id) | 新增user_id={bot_uid}，当前已知BOT ID: {self._bot_user_ids}")
+        # 尝试从 context 获取 BOT 的数字 ID
+        for attr_name in ("bot_id", "bot_user_id"):
+            try:
+                attr_val = getattr(self.context, attr_name, None)
+                if attr_val:
+                    bot_uid2 = str(attr_val)
+                    if bot_uid2 not in self._bot_user_ids:
+                        self._bot_user_ids.add(bot_uid2)
+                        self._debug(f"BOT用户ID记录(context.{attr_name}) | 新增user_id={bot_uid2}，当前已知BOT ID: {self._bot_user_ids}")
+            except Exception:
+                pass
 
         result = event.get_result()
         if not result or not result.chain:

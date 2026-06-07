@@ -1,5 +1,18 @@
 # 更新日志
 
+## 1.0.5 (2026-06-07)
+
+### Bug 修复
+
+- **Telegram "加一"复读检测修复**：Telegram 的"加一"功能通过 `forward_origin` 转发消息（无 Reply 组件），现有复读屏蔽规则未覆盖该场景，导致转发复读 BOT 消息时误触发概率唤醒。修复内容：
+  - 重构 `_is_forward_from_bot`：多属性名探测原始消息对象、属性遍历兜底、拆分为三个子方法
+  - 修复 BOT ID 比对：`self_id` 可能是用户名（如 `AIXiaoNing_Bot`）而非数字 ID，现同时比较数字 ID 和用户名；同时检查 `first_name` 和 `username`
+  - 新增兜底策略 `_check_forward_repeat_by_buffer`：当无法访问 Telegram 原始消息对象时，通过"无 Reply + 文本与缓冲区 BOT 消息匹配"检测转发复读
+  - 在 `on_group_message` 入口处添加转发复读过滤（步骤 2.6），转发复读直接跳过唤醒判定
+  - 从 `_is_reply_to_bot` 中移除转发检测：转发复读本质是复读而非"回复BOT"，不应走回复触发路径
+  - 增强 BOT ID 记录：`after_message_sent` 中同时从 `context` 获取 BOT 数字 ID
+  - 增加调试日志：`_is_repeat_message` 和 `_is_forward_from_bot` 中添加详细调试输出
+
 ## 1.0.4 (2026-06-07)
 
 ### Bug 修复
