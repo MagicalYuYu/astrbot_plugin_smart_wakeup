@@ -62,7 +62,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.0.2",
+    "1.0.3",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -1756,13 +1756,16 @@ class LingxiPlugin(Star):
         # 2. 指令前缀跳过：以 / 等前缀开头的消息是系统指令，不走唤醒逻辑
         # 但回复BOT消息除外——用户回复BOT时，即使内容以 / 开头，也应正常处理
         #
-        # 重要：仅以 message_str 作为前缀判断依据。
-        # message_str 是 AstrBot 核心处理后的权威文本表示，已剥离引用消息前缀。
-        # 不再遍历消息链组件做兜底检查，因为：
-        #   - Telegram 回复消息的 Plain 组件可能包含 "/ 正文" 格式（/ 是引用分隔符）
-        #   - 这会导致非指令消息被误判为指令前缀
+        # 重要：event.message_str 可能已被框架去掉 / 前缀（如 /查询卡池 → 查询卡池），
+        # 因此需要同时检查消息链中 Plain 组件的原始文本。
         if self.command_prefix_enabled and self.command_prefix:
-            raw_msg = (event.message_str or "").strip()
+            # 从消息链中获取原始文本（保留 / 前缀）
+            raw_msg_from_chain = ""
+            if event.message_obj and event.message_obj.message:
+                for comp in event.message_obj.message:
+                    if hasattr(comp, "text") and comp.text:
+                        raw_msg_from_chain += comp.text
+            raw_msg = raw_msg_from_chain.strip() or (event.message_str or "").strip()
             if raw_msg.startswith(self.command_prefix):
                 # message_str 以指令前缀开头，但需排除回复BOT消息的情况
                 is_reply_to_bot = self._is_reply_to_bot(event)
@@ -2714,7 +2717,8 @@ class LingxiPlugin(Star):
             self._record_sent_content(group_id, post_filter_text)
 
         # ─── 分段模块处理 ───
-        if self.splitter_enabled:
+        # 仅对本插件主动触发的 LLM 回复做分段，其他插件的输出不应被分段
+        if self.splitter_enabled and event.is_at_or_wake_command:
             await self._splitter_process(event)
 
     # ─── 分段模块 ───
