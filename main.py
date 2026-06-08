@@ -63,7 +63,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.2.1",
+    "1.2.2",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -303,6 +303,9 @@ class LingxiPlugin(Star):
         self._energy_states: dict[str, ChatEnergy] = {}
         self._flow_states: dict[str, ChatFlowState] = {}
         self._rescue_states: dict[str, ChatRescueState] = {}
+
+        # LLM 执行中标志：防止冷场救场并发触发重复输出
+        self._llm_running_groups: set[str] = set()
 
         # 统计计数器
         self._stats = {
@@ -973,6 +976,11 @@ class LingxiPlugin(Star):
 
         注意：用户在插件配置中只填写额外部分（如 chat），系统会自动补上斜杠（/chat）。
         """
+        # 设置 LLM 执行中标志，防止冷场救场并发触发重复输出
+        group_id = event.message_obj.group_id
+        if group_id:
+            self._llm_running_groups.add(group_id)
+
         event.is_at_or_wake_command = True
         if self.wake_command_prefix:
             original = event.message_str or ""
@@ -1581,8 +1589,22 @@ class LingxiPlugin(Star):
         """
         overrides = self.group_overrides.get(str(group_id), {})
         if param_name in overrides:
-            return overrides[param_name]
-        return default_value
+            value = overrides[param_name]
+        else:
+            value = default_value
+
+        # 安全下限：防止极端配置导致冷场救场误触发
+        _MIN_VALUES = {
+            "rescue_idle_threshold": 60,   # 冷场判定最低60秒，避免用户连续发言时误触发
+            "rescue_cooldown": 60,         # 冷却期最低60秒，避免短时间内重复救场
+        }
+        if param_name in _MIN_VALUES:
+            min_val = _MIN_VALUES[param_name]
+            if isinstance(value, (int, float)) and value < min_val:
+                logger.warning(f"参数安全下限: {param_name}={value} 低于最低值 {min_val}，已自动修正")
+                value = min_val
+
+        return value
 
     def _is_group_allowed(self, group_id: str) -> bool:
         """检查群是否允许触发唤醒
@@ -1869,6 +1891,11 @@ class LingxiPlugin(Star):
 
         # 先恢复精力
         self._recover_energy(group_id)
+
+        # LLM 执行中检查：防止冷场救场并发触发重复输出
+        if group_id in self._llm_running_groups:
+            self._debug(f"冷场救场 | 群={group_id} LLM执行中，跳过")
+            return
 
         # 疲劳状态不执行冷场救场
         if flow.state == FlowState.FATIGUED:
@@ -2550,6 +2577,9 @@ class LingxiPlugin(Star):
         group_id = event.message_obj.group_id
         if not group_id:
             return
+
+        # 清除 LLM 执行中标志
+        self._llm_running_groups.discard(group_id)
 
         # 记录 BOT 的 user_id（用于回复检测）
         # 注意：after_message_sent 中 event.message_obj.sender 是原始消息发送者（用户），
@@ -4413,6 +4443,7 @@ class LingxiPlugin(Star):
         self._energy_states.clear()
         self._flow_states.clear()
         self._rescue_states.clear()
+        self._llm_running_groups.clear()
         self._conversation_history.clear()
         self._conversation_summaries.clear()
         self._summary_checkpoint.clear()

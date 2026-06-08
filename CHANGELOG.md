@@ -1,5 +1,13 @@
 # 更新日志
 
+## [1.2.2] - 2026-06-08
+
+### Bug 修复
+
+- **冷场救场重复输出**：修复极端配置下冷场救场并发触发导致 BOT 连续输出相同内容的问题。根因是 `rescue_idle_threshold` 和 `rescue_cooldown` 被设为极低值（如0），导致用户连续发言时仍触发冷场救场，且短时间内多次触发无冷却保护
+- **配置值安全下限**：`_get_group_param` 中为 `rescue_idle_threshold`（最低60秒）和 `rescue_cooldown`（最低60秒）增加安全下限，即使配置为0也会自动修正，防止极端配置导致冷场救场误触发
+- **LLM 执行中保护**：在 `_trigger_wake` 中统一设置 LLM 执行中标志，`_check_dead_chat_rescue` 入口检查该标志，LLM 执行期间跳过冷场救场，`after_message_sent` 中清除标志，防止并发触发重复输出
+
 ## [1.2.1] - 2026-06-08
 
 ### 优化
