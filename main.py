@@ -62,7 +62,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.0.5",
+    "1.0.6",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -1833,18 +1833,24 @@ class LingxiPlugin(Star):
     def _calc_debounce_wait(self, group_id: str, event: AstrMessageEvent, pending_messages: list = None) -> float:
         """计算自适应等待时间"""
         # 检查是否命中名称：遍历所有暂存消息（名称可能出现在任意一条中）
+        # 但跳过复读消息：复读内容包含名称时不应缩短防抖等待时间
         name_matched = False
         if pending_messages:
             for _sender, msg_text, _ts, _evt in pending_messages:
+                # 跳过复读消息
+                if self.repeat_suppress_enabled and self._is_repeat_message(group_id, _sender, msg_text)[0]:
+                    continue
                 msg_lower = msg_text.lower()
                 if any(name.lower() in msg_lower for name in self.bot_names):
                     name_matched = True
                     break
         if not name_matched:
-            # 也检查当前消息
+            # 也检查当前消息（同样跳过复读）
             message_str = event.message_str or ""
             message_lower = message_str.lower()
-            name_matched = any(name.lower() in message_lower for name in self.bot_names)
+            sender_name = event.get_sender_name() or ""
+            is_repeat = self.repeat_suppress_enabled and self._is_repeat_message(group_id, sender_name, message_str)[0]
+            name_matched = not is_repeat and any(name.lower() in message_lower for name in self.bot_names)
 
         if name_matched:
             base_wait = float(self._get_group_param(group_id, "debounce_wait_name", self.debounce_wait_name))
@@ -1936,9 +1942,15 @@ class LingxiPlugin(Star):
             return
 
         # 1. 检查名称匹配（遍历所有暂存消息，名称可能出现在任意一条中）
+        # 但跳过复读消息：复读内容包含名称时不应触发名称唤醒
         matched_name = None
         matched_sender_id = sender_id
         for msg_sender, msg_text, _ts, _evt in messages:
+            # 跳过复读消息：如果该消息是复读（与缓冲区中其他用户的消息相同/相似），
+            # 则不应因复读内容包含名称而触发唤醒
+            if self.repeat_suppress_enabled and self._is_repeat_message(group_id, msg_sender, msg_text)[0]:
+                self._debug(f"名称匹配跳过复读 | 发送者={msg_sender} 内容='{msg_text[:30]}' 为复读消息")
+                continue
             msg_lower = msg_text.lower()
             for name in self.bot_names:
                 if name.lower() in msg_lower:
@@ -1981,9 +1993,14 @@ class LingxiPlugin(Star):
             return
 
         # 2. 检查关键词匹配（遍历所有暂存消息，关键词可能出现在任意一条中）
+        # 但跳过复读消息：复读内容包含关键词时不应触发关键词唤醒
         matched_keyword = None
         keyword_sender_id = sender_id
         for msg_sender, msg_text, _ts, _evt in messages:
+            # 跳过复读消息：复读内容包含关键词时不应触发关键词唤醒
+            if self.repeat_suppress_enabled and self._is_repeat_message(group_id, msg_sender, msg_text)[0]:
+                self._debug(f"关键词匹配跳过复读 | 发送者={msg_sender} 内容='{msg_text[:30]}' 为复读消息")
+                continue
             kw = self._match_keyword(msg_text)
             if kw:
                 matched_keyword = kw
@@ -2164,9 +2181,11 @@ class LingxiPlugin(Star):
 
         # 6. 防抖处理
         if self.debounce_enabled:
-            # 检查是否命中名称
+            # 检查是否命中名称（跳过复读消息）
             message_lower = message_str.lower()
-            name_matched = any(name.lower() in message_lower for name in self.bot_names)
+            sender_name = event.get_sender_name() or ""
+            is_repeat = self.repeat_suppress_enabled and self._is_repeat_message(group_id, sender_name, message_str)[0]
+            name_matched = not is_repeat and any(name.lower() in message_lower for name in self.bot_names)
 
             # 检查是否是回复BOT消息
             is_reply_to_bot = self._is_reply_to_bot(event)
@@ -2208,64 +2227,28 @@ class LingxiPlugin(Star):
                 break
 
         if matched_name:
-            # 用户概率检查：0.0 = 永不回复
-            user_prob = self._get_user_prob(sender_id)
-            self._debug(f"名称匹配(立即) | 命中='{matched_name}' 用户概率={user_prob:.2f}")
-            if user_prob <= 0:
-                logger.info(f"名称唤醒被用户概率覆盖阻止: 用户 {sender_id} 概率为 0")
-                return
-            # 非满概率时进行随机判定
-            if user_prob < 1.0 and random.random() > user_prob:
-                logger.info(f"名称唤醒被用户概率覆盖阻止: 用户 {sender_id} 概率 {user_prob:.2f}")
-                return
-
-            logger.info(
-                f"灵犀: 命中名称 '{matched_name}'，"
-                f"群: {group_id}，消息内容: {message_str[:50]}"
-            )
-            self._trigger_wake(event)
-            # 参与度激活：名称触发=满参与度
-            flow = self._get_flow(group_id)
-            if flow.engagement <= 0:
-                flow.conversation_turns = 1  # 新的参与期间
+            # 跳过复读消息：复读内容包含名称时不应触发名称唤醒
+            sender_name = event.get_sender_name() or ""
+            if self.repeat_suppress_enabled and self._is_repeat_message(group_id, sender_name, message_str)[0]:
+                self._debug(f"名称匹配跳过复读(立即) | 发送者={sender_name} 内容='{message_str[:30]}' 为复读消息")
             else:
-                flow.conversation_turns += 1  # 继续对话
-            flow.engagement = 1.0
-            flow.engagement_last_update = time.time()
-            if flow.state == FlowState.BYSTANDER:
-                self._transition_flow(group_id, FlowState.ATTENTIVE, "名称触发升级")
-            self._debug(f"触发唤醒 | 类型=名称 前缀='{self.wake_command_prefix}' message_str='{event.message_str[:40]}'")
-            event.set_extra("smart_wakeup_triggered", True)
-            event.set_extra("wakeup_type", "name_trigger")
-            event.set_extra("matched_name", matched_name)
-            # 名称触发不扣除精力：被动唤醒，精力系统仅约束主动行为
-            self._stats["total_wakeups"] += 1
-            self._stats["name_trigger_wakeups"] += 1
-            return
+                # 用户概率检查：0.0 = 永不回复
+                user_prob = self._get_user_prob(sender_id)
+                self._debug(f"名称匹配(立即) | 命中='{matched_name}' 用户概率={user_prob:.2f}")
+                if user_prob <= 0:
+                    logger.info(f"名称唤醒被用户概率覆盖阻止: 用户 {sender_id} 概率为 0")
+                    return
+                # 非满概率时进行随机判定
+                if user_prob < 1.0 and random.random() > user_prob:
+                    logger.info(f"名称唤醒被用户概率覆盖阻止: 用户 {sender_id} 概率 {user_prob:.2f}")
+                    return
 
-        # 2. 检查关键词匹配
-        matched_keyword = self._match_keyword(message_str)
-        if matched_keyword:
-            # 用户概率检查
-            user_prob = self._get_user_prob(sender_id)
-            self._debug(f"关键词匹配(立即) | 命中='{matched_keyword}' 用户概率={user_prob:.2f}")
-            if user_prob <= 0:
-                self._debug(f"关键词跳过 | 用户概率为0")
-                return
-
-            # 关键词回复概率 = keyword_reply_prob × 用户概率乘数
-            keyword_prob = self._get_group_param(group_id, "keyword_reply_prob", self.keyword_reply_prob)
-            final_prob = keyword_prob * user_prob
-            roll = random.random()
-            self._debug(f"关键词判定 | 关键词概率={keyword_prob:.2f} × 用户概率={user_prob:.2f} = {final_prob:.2f} 掷骰={roll:.4f} → {'命中' if roll < final_prob else '未命中'}")
-
-            if roll < final_prob:
                 logger.info(
-                    f"关键词自然唤醒: 命中关键词 '{matched_keyword}'，"
-                    f"群: {group_id}，概率: {final_prob:.2f}，消息内容: {message_str[:50]}"
+                    f"灵犀: 命中名称 '{matched_name}'，"
+                    f"群: {group_id}，消息内容: {message_str[:50]}"
                 )
                 self._trigger_wake(event)
-                # 参与度激活：关键词触发=满参与度
+                # 参与度激活：名称触发=满参与度
                 flow = self._get_flow(group_id)
                 if flow.engagement <= 0:
                     flow.conversation_turns = 1  # 新的参与期间
@@ -2274,14 +2257,60 @@ class LingxiPlugin(Star):
                 flow.engagement = 1.0
                 flow.engagement_last_update = time.time()
                 if flow.state == FlowState.BYSTANDER:
-                    self._transition_flow(group_id, FlowState.ATTENTIVE, "关键词触发升级")
+                    self._transition_flow(group_id, FlowState.ATTENTIVE, "名称触发升级")
+                self._debug(f"触发唤醒 | 类型=名称 前缀='{self.wake_command_prefix}' message_str='{event.message_str[:40]}'")
                 event.set_extra("smart_wakeup_triggered", True)
-                event.set_extra("wakeup_type", "keyword_trigger")
-                event.set_extra("matched_keyword", matched_keyword)
-                # 关键词触发不扣除精力：被动唤醒，精力系统仅约束主动行为
+                event.set_extra("wakeup_type", "name_trigger")
+                event.set_extra("matched_name", matched_name)
+                # 名称触发不扣除精力：被动唤醒，精力系统仅约束主动行为
                 self._stats["total_wakeups"] += 1
-                self._stats["keyword_trigger_wakeups"] = self._stats.get("keyword_trigger_wakeups", 0) + 1
+                self._stats["name_trigger_wakeups"] += 1
                 return
+
+        # 2. 检查关键词匹配
+        matched_keyword = self._match_keyword(message_str)
+        if matched_keyword:
+            # 跳过复读消息：复读内容包含关键词时不应触发关键词唤醒
+            sender_name = event.get_sender_name() or ""
+            if self.repeat_suppress_enabled and self._is_repeat_message(group_id, sender_name, message_str)[0]:
+                self._debug(f"关键词匹配跳过复读(立即) | 发送者={sender_name} 内容='{message_str[:30]}' 为复读消息")
+            else:
+                # 用户概率检查
+                user_prob = self._get_user_prob(sender_id)
+                self._debug(f"关键词匹配(立即) | 命中='{matched_keyword}' 用户概率={user_prob:.2f}")
+                if user_prob <= 0:
+                    self._debug(f"关键词跳过 | 用户概率为0")
+                    return
+
+                # 关键词回复概率 = keyword_reply_prob × 用户概率乘数
+                keyword_prob = self._get_group_param(group_id, "keyword_reply_prob", self.keyword_reply_prob)
+                final_prob = keyword_prob * user_prob
+                roll = random.random()
+                self._debug(f"关键词判定 | 关键词概率={keyword_prob:.2f} × 用户概率={user_prob:.2f} = {final_prob:.2f} 掷骰={roll:.4f} → {'命中' if roll < final_prob else '未命中'}")
+
+                if roll < final_prob:
+                    logger.info(
+                        f"关键词自然唤醒: 命中关键词 '{matched_keyword}'，"
+                        f"群: {group_id}，概率: {final_prob:.2f}，消息内容: {message_str[:50]}"
+                    )
+                    self._trigger_wake(event)
+                    # 参与度激活：关键词触发=满参与度
+                    flow = self._get_flow(group_id)
+                    if flow.engagement <= 0:
+                        flow.conversation_turns = 1  # 新的参与期间
+                    else:
+                        flow.conversation_turns += 1  # 继续对话
+                    flow.engagement = 1.0
+                    flow.engagement_last_update = time.time()
+                    if flow.state == FlowState.BYSTANDER:
+                        self._transition_flow(group_id, FlowState.ATTENTIVE, "关键词触发升级")
+                    event.set_extra("smart_wakeup_triggered", True)
+                    event.set_extra("wakeup_type", "keyword_trigger")
+                    event.set_extra("matched_keyword", matched_keyword)
+                    # 关键词触发不扣除精力：被动唤醒，精力系统仅约束主动行为
+                    self._stats["total_wakeups"] += 1
+                    self._stats["keyword_trigger_wakeups"] = self._stats.get("keyword_trigger_wakeups", 0) + 1
+                    return
 
         # 3. 概率唤醒
         if self.probability_wakeup:

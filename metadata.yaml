@@ -2,7 +2,7 @@ name: astrbot_plugin_smart_wakeup
 display_name: 灵犀
 desc: 唤名即应，投缘便聊；群冷场了就来，聊久了也会累—— 由精力系统、心流状态、冷场救场与消息防抖默契配合而成的节律，让BOT拥有了自然的社交呼吸。兼容 Telegram 与 QQ（aiocqhttp）。
 short_desc: 心有灵犀，不唤自来
-version: 1.0.5
+version: 1.0.6
 author: MagicalYuYu
 repo: https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup
 support_platforms:
