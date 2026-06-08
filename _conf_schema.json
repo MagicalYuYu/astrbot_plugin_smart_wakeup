@@ -7,7 +7,7 @@
             "bot_name": {
                 "description": "🏷️ 机器人名称/别名",
                 "type": "string",
-                "default": "010",
+                "default": "Bot",
                 "hint": "当群聊消息包含此名称时触发确定性回复。多个别名用 | 分隔，如：Bot|小助手|助手。匹配不区分大小写。"
             },
             "keywords": {

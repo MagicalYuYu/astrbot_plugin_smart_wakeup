@@ -2529,7 +2529,7 @@ class LingxiPlugin(Star):
         # 记录 BOT 的 user_id（用于回复检测）
         # 注意：after_message_sent 中 event.message_obj.sender 是原始消息发送者（用户），
         # 不是 BOT 自己。需要从其他途径获取 BOT 的 ID。
-        # self_id 可能是用户名（如 AIXiaoNing_Bot）或数字 ID，两者都需要记录
+        # self_id 可能是用户名或数字 ID，两者都需要记录
         self_id = getattr(event.message_obj, "self_id", None)
         if self_id:
             bot_uid = str(self_id)
@@ -3138,7 +3138,7 @@ class LingxiPlugin(Star):
         # 构建待压缩的对话文本
         lines = []
         for role, text, ts in records_to_summarize:
-            role_label = "用户" if role == "user" else "小甯"
+            role_label = "用户" if role == "user" else "Bot"
             lines.append(f"{role_label}: {text}")
         conversation_text = "\n".join(lines)
 
@@ -3223,7 +3223,7 @@ class LingxiPlugin(Star):
 
         [最近N轮原文对话]
         用户: xxx
-        小甯: xxx
+        Bot: xxx
         </conversation_memory>
         """
         parts = []
@@ -3238,7 +3238,7 @@ class LingxiPlugin(Star):
         if history:
             recent_lines = []
             for role, text, ts in list(history):
-                role_label = "用户" if role == "user" else "小甯"
+                role_label = "用户" if role == "user" else "Bot"
                 # 截断过长的单条消息
                 if len(text) > 200:
                     text = text[:100] + "..."

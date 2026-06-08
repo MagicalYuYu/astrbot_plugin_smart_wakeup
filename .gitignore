@@ -28,6 +28,7 @@ docs/Logs/
 docs/astrbot_plugin_dev_tutorial.md
 docs/github_publish_guide.md
 docs/release-sop.md
+docs/v1.0.7-persona-prompt-handoff.md
 
 # 环境与密钥
 .env
