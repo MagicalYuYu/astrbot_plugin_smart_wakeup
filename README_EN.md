@@ -10,7 +10,7 @@ English | [中文](README.md)
 
 A name-based natural wakeup plugin for AstrBot — powered by an energy system, flow state machine, idle-rescue, and message debounce working in concert to give your bot a natural social rhythm. Compatible with Telegram and QQ (aiocqhttp).
 
-[![Version](https://img.shields.io/badge/version-1.0.6-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Version](https://img.shields.io/badge/version-1.0.7-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4.5.0-purple?style=flat-square)](https://github.com/Soulter/AstrBot)
@@ -29,6 +29,8 @@ A name-based natural wakeup plugin for AstrBot — powered by an energy system, 
 - 🤚 **Waits for You to Finish** — Message debounce aggregates rapid-fire messages before replying, so it never interrupts mid-thought
 - 🦜 **Stays Out of Repeat Chains** — Detects repeat-copying and drastically lowers reply probability, preserving the fun of group repeat culture
 - 🧠 **Remembers What Was Said** — Layered conversation memory: recent turns kept verbatim, older turns compressed into summaries for coherent multi-turn dialogue
+- 🖼️ **Understands Images** — Image context association: the bot understands image content to avoid context breaks; active user awareness prevents hallucinating absent users
+- 💬 **Knows Who's Talking** — Conversation relation annotations: BOT speech markers, reply relationships, implicit responses, omitted-subject hints
 - 💰 **Saves Tokens Where It Can** — Context compression, smart model routing, and token usage tracking with anomaly alerts
 - ⌨️ **Types Like a Real Person** — Long replies are split into natural segments with realistic pacing and trailing punctuation cleanup
 - 🛡️ **Stays in Character** — Thinking tag filter, duplicate output prevention, group filtering, command prefix skipping, and output deduplication
@@ -48,6 +50,10 @@ A name-based natural wakeup plugin for AstrBot — powered by an energy system, 
 | Low-Information Filter | Automatically filters out pure images, stickers, emoji-only messages via message-chain-level detection, saving tokens |
 | Command Prefix Skip | Messages starting with `/` or similar prefixes won't trigger wakeup (unless replying to the bot) |
 | Conversation Memory | Layered memory: recent turns verbatim + older turns compressed into summaries for coherent multi-turn dialogue |
+| Image Context Association | Lets the bot understand image content; supports system image recognition (zero cost) and custom multimodal model recognition; modes are mutually exclusive, off by default |
+| Active User Awareness | Annotates recently active users in context, constraining the bot to address only present users and avoiding hallucinated mentions; always on |
+| Conversation Relation Annotation | BOT speech marked `[BOT]`, reply relations `→ Reply[BOT]`, implicit responses `(responding to BOT)`, omitted-subject hints; always on |
+| Image Message Placeholder | Pure image messages recorded as `[Image]` placeholder, updated to `[Image: description]` after recognition |
 | Context Compression | Compresses group chat context with a smaller model before injecting into the main model, significantly reducing token usage |
 | Smart Model Routing | Routes simple messages to a small model and complex ones to a large model, with cascade escalation (experimental) |
 | Message Splitting | Splits long replies into natural segments with realistic pacing and optional trailing punctuation cleanup |

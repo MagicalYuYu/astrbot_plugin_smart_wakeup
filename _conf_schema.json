@@ -365,6 +365,37 @@
             }
         }
     },
+    "image_context": {
+        "description": "🖼️ 图片上下文",
+        "type": "object",
+        "hint": "让 Bot 理解图片内容，避免图片+文本消息的上下文断裂。两种识别模式互斥，只能开启一个或全部关闭。",
+        "items": {
+            "image_context_system": {
+                "description": "🔧 系统图片识别",
+                "type": "bool",
+                "default": false,
+                "hint": "从框架上下文中提取图片描述（由 group_chat_context 插件生成）。零额外 API 成本，但需等待框架异步生成描述。与「自定义模型图片识别」互斥，同时开启时优先使用自定义模型。"
+            },
+            "image_context_custom_model": {
+                "description": "🤖 自定义模型图片识别",
+                "type": "bool",
+                "default": false,
+                "hint": "使用自选多模态模型识别图片内容，描述更贴合群聊场景。需配置多模态模型提供商 ID。与「系统图片识别」互斥，同时开启时优先使用此模式。"
+            },
+            "image_context_custom_model_id": {
+                "description": "🤖 图片识别模型提供商 ID",
+                "type": "string",
+                "default": "",
+                "hint": "多模态模型的提供商 ID（如 Volcengine/doubao-vision-pro-32k），仅当「自定义模型图片识别」开启时生效。填写完整的提供商 ID，不是模型名称。模型需支持图片输入。"
+            },
+            "image_context_wait_max": {
+                "description": "⏱️ 图片描述等待时间（秒）",
+                "type": "int",
+                "default": 0,
+                "hint": "等待图片描述生成的最大时间（秒）。0=不等待（按需获取，响应快但可能缺失描述），20~30=延长防抖等待（大概率获取到描述但响应变慢）。建议：0（推荐）或 25（等待模式）。"
+            }
+        }
+    },
     "filter_settings": {
         "description": "🧹 过滤设置",
         "type": "object",

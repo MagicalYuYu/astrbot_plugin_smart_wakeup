@@ -62,7 +62,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.0.6",
+    "1.0.7",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -171,6 +171,21 @@ class LingxiPlugin(Star):
         # 调试模式
         self.debug_mode = basic.get("debug_mode", False)
 
+        # 图片上下文关联配置
+        image_context_config = self.config.get("image_context", {})
+        self.image_context_system = image_context_config.get("image_context_system", False)
+        self.image_context_custom_model = image_context_config.get("image_context_custom_model", False)
+        self.image_context_custom_model_id = image_context_config.get("image_context_custom_model_id", "")
+        self.image_context_wait_max = image_context_config.get("image_context_wait_max", 0)
+
+        # 互斥校验：两种图片识别模式只能开启一个
+        if self.image_context_system and self.image_context_custom_model:
+            logger.warning("[ImageContext] 系统图片识别和自定义模型图片识别同时开启，优先使用自定义模型模式，关闭系统模式")
+            self.image_context_system = False
+
+        # 图片上下文是否启用（任一模式开启即为启用）
+        self.image_context_enabled = self.image_context_system or self.image_context_custom_model
+
         # 精力系统
         energy_config = self.config.get("energy", {})
         self.energy_decay_rate = energy_config.get("energy_decay_rate", 0.15)
@@ -269,7 +284,7 @@ class LingxiPlugin(Star):
         # 当 BOT 发送消息时自动记录其 user_id，供 _is_reply_to_bot 比对
         self._bot_user_ids: set[str] = set()
 
-        # 独立消息缓冲区：{group_id: deque of (sender, text, timestamp)}
+        # 独立消息缓冲区：{group_id: deque of (sender, text, timestamp, meta)}
         # 记录群内所有消息，包括未 @ 机器人的，供 LLM 理解完整对话氛围
         self._msg_buffer: dict[str, deque] = {}
 
@@ -674,7 +689,7 @@ class LingxiPlugin(Star):
                 buffer = self._get_buffer(group_id)
                 msg_text = (event.message_str or "").strip()
                 if msg_text and buffer:
-                    for _sender, buf_text, _ts in reversed(buffer):
+                    for _sender, buf_text, _ts, _meta in reversed(buffer):
                         if _sender in self.bot_names and msg_text in buf_text:
                             self._debug(f"转发检测 | is_bot=True且转发内容匹配缓冲区BOT消息")
                             if sender_id not in self._bot_user_ids:
@@ -762,7 +777,7 @@ class LingxiPlugin(Star):
             if not current_normalized or len(current_normalized) < 4:
                 return False
 
-            for _sender, buf_text, _ts in reversed(buffer):
+            for _sender, buf_text, _ts, _meta in reversed(buffer):
                 if _sender not in self.bot_names:
                     continue
                 buf_normalized = self._normalize_for_repeat_check(buf_text)
@@ -913,7 +928,7 @@ class LingxiPlugin(Star):
         check_limit = self.recent_rounds_keep * 2
 
         checked_count = 0
-        for i, (sender, text, timestamp) in enumerate(messages):
+        for i, (sender, text, timestamp, _meta) in enumerate(messages):
             if i >= check_limit:
                 break
 
@@ -1012,7 +1027,7 @@ class LingxiPlugin(Star):
             self._msg_buffer[group_id] = deque(maxlen=maxlen)
         return self._msg_buffer[group_id]
 
-    def _record_message(self, event: AstrMessageEvent):
+    def _record_message(self, event: AstrMessageEvent, meta=None):
         """将群聊消息记录到缓冲区
 
         记录所有群消息（包括未 @ 机器人的），
@@ -1023,13 +1038,115 @@ class LingxiPlugin(Star):
             return
 
         text = event.message_str
-        if not text or not text.strip():
-            return
 
         sender = event.get_sender_name()
         buffer = self._get_buffer(group_id)
-        buffer.append((sender, text.strip(), int(time.time())))
+
+        # 检测图片消息：message_str 为空但消息链包含 Image 组件时，记录 [图片] 占位符
+        has_image = False
+        image_url = None
+        if event.message_obj and event.message_obj.message:
+            for comp in event.message_obj.message:
+                comp_type = type(comp).__name__
+                if comp_type == "Image":
+                    has_image = True
+                    # 尝试获取图片 URL
+                    image_url = getattr(comp, "url", None) or getattr(comp, "image_url", None) or getattr(comp, "file", None)
+                    break
+
+        if has_image and (not text or not text.strip()):
+            # 纯图片消息：记录 [图片] 占位符
+            meta = meta or {}
+            meta["image_pending"] = True
+            if image_url:
+                meta["image_url"] = image_url
+            buffer.append((sender, "[图片]", int(time.time()), meta))
+            self._stats["total_messages_recorded"] += 1
+
+            # 自定义模型模式：异步调用多模态模型识别图片
+            if self.image_context_custom_model and image_url:
+                asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, buffer))
+
+            return
+
+        if not text or not text.strip():
+            return
+
+        # 检测回复关系：如果消息链包含 Reply 组件，提取回复目标的发送者
+        if meta is None:
+            meta = {}
+        reply_to = None
+        if event.message_obj and event.message_obj.message:
+            from astrbot.api.message_components import Reply, Plain
+            for comp in event.message_obj.message:
+                if isinstance(comp, Reply):
+                    # 尝试从引用消息格式中提取发送者名称
+                    # AstrBot 核心将回复解析为 [引用消息(发送者名: 内容)]
+                    reply_text = getattr(comp, "text", "") or ""
+                    # 匹配 [引用消息(名称: 或 [引用消息(名称/ 或 [引用消息(名称]
+                    for name in self.bot_names:
+                        if re.search(r'\[引用消息\(' + re.escape(name) + r'[:/\] ]', reply_text):
+                            reply_to = name
+                            break
+                    # 如果引用文本中没有名称，检查 sender_id 是否匹配 BOT
+                    if not reply_to:
+                        sender_id = getattr(comp, "sender_id", None)
+                        if sender_id and str(sender_id) in self._bot_user_ids:
+                            reply_to = "BOT"
+                    break
+        if reply_to:
+            meta["reply_to"] = reply_to
+
+        buffer.append((sender, text.strip(), int(time.time()), meta))
         self._stats["total_messages_recorded"] += 1
+
+    async def _describe_image_custom(self, group_id: str, sender: str, image_url: str, buffer):
+        """使用自定义多模态模型识别图片内容"""
+        try:
+            provider = self.context.get_provider_by_id(self.image_context_custom_model_id)
+            if not provider:
+                logger.warning(f"[ImageContext] 未找到自定义图片识别模型 {self.image_context_custom_model_id}")
+                return
+
+            prompt = (
+                "请用简洁的中文描述这张图片的内容，重点关注：\n"
+                "1. 图片的主体内容和主题\n"
+                "2. 如果是表情包/梗图，描述其表达的情绪或含义\n"
+                "3. 如果是截图，描述关键信息\n"
+                "请控制在50字以内。\n\n"
+                f"图片地址：{image_url}"
+            )
+
+            resp = await provider.text_chat(
+                prompt=prompt,
+                session_id=f"img_desc_{group_id}_{int(time.time())}",
+            )
+
+            description = ""
+            if hasattr(resp, 'completion_text'):
+                description = resp.completion_text
+            elif hasattr(resp, 'result'):
+                description = str(resp.result)
+            else:
+                description = str(resp)
+
+            if description:
+                # 找到缓冲区中对应的 [图片] 占位符并更新
+                for i in range(len(buffer) - 1, -1, -1):
+                    _s, _t, _ts, _m = buffer[i]
+                    if _s == sender and _t == "[图片]" and _m and _m.get("image_pending"):
+                        # 更新 meta
+                        new_meta = dict(_m) if _m else {}
+                        new_meta["image_pending"] = False
+                        new_meta["image_description"] = description.strip()
+                        buffer[i] = (_s, f"[图片: {description.strip()}]", _ts, new_meta)
+                        self._debug(f"图片识别(自定义) | 群={group_id} 发送者={sender} 描述='{description.strip()[:50]}'")
+                        break
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"[ImageContext] 自定义图片识别失败: {e}")
 
     @staticmethod
     def _filter_sticker_noise(text: str) -> str:
@@ -1076,7 +1193,7 @@ class LingxiPlugin(Star):
             old_messages = []
 
             for msg in all_messages:
-                _, _, ts = msg
+                _, _, ts, _meta = msg
                 if ts > last_ts:
                     new_messages.append(msg)
                 else:
@@ -1105,8 +1222,25 @@ class LingxiPlugin(Star):
         if not messages:
             return "", 0, 0
 
+        # 统计近期活跃用户（去重，排除 BOT）
+        active_users = set()
+        active_check_limit = self.recent_rounds_keep * 2
+        for msg in all_messages[-active_check_limit:]:
+            _s, _t, _ts, _m = msg
+            if _m and _m.get("is_bot_message"):
+                continue
+            if _s and _s not in self.bot_names:
+                active_users.add(_s)
+
         lines = []
-        for sender, text, _ts in messages:
+        # 在场用户感知：在上下文开头标注近期活跃用户
+        if active_users:
+            lines.append(f"[近期活跃]: {', '.join(sorted(active_users))}")
+
+        prev_is_bot = False
+        prev_bot_time = 0
+
+        for sender, text, _ts, _meta in messages:
             # 过滤过短消息
             if self.context_truncation_enabled and len(text.strip()) < self.context_min_length:
                 continue
@@ -1119,7 +1253,25 @@ class LingxiPlugin(Star):
             if self.context_truncation_enabled and len(text) > self.context_truncation_max_len:
                 text = text[:self.context_truncation_keep_len] + "..."
 
-            lines.append(f"[{sender}]: {text}")
+            # 对话关系标注
+            display_name = sender
+            relation_tag = ""
+
+            if _meta and _meta.get("is_bot_message"):
+                display_name = "BOT"
+                prev_is_bot = True
+                prev_bot_time = _ts
+            else:
+                # 回复关系标注
+                if _meta and _meta.get("reply_to"):
+                    relation_tag = f" → 回复[{_meta['reply_to']}]"
+                elif prev_is_bot and (_ts - prev_bot_time) <= 5:
+                    # 紧跟 BOT 消息 5 秒内的用户消息，标注为回应 BOT
+                    relation_tag = " (回应BOT)"
+                prev_is_bot = False
+                prev_bot_time = 0
+
+            lines.append(f"[{display_name}]{relation_tag}: {text}")
 
         return "\n".join(lines), new_msg_count, old_msg_count
 
@@ -1871,6 +2023,17 @@ class LingxiPlugin(Star):
             fatigue_multiplier = min(self._get_group_param(group_id, "fatigue_max_multiplier", self.fatigue_max_multiplier), 1.0 + (flow.conversation_turns * self._get_group_param(group_id, "fatigue_coefficient", self.fatigue_coefficient)))
             base_wait *= fatigue_multiplier
 
+        # 图片上下文等待：如果启用了图片识别且配置了等待时间，检查缓冲区中是否有待处理的图片
+        if self.image_context_enabled and self.image_context_wait_max > 0:
+            buffer = self._msg_buffer.get(group_id)
+            if buffer:
+                # 检查最后几条消息中是否有待处理的图片占位符
+                for _s, _t, _ts, _m in reversed(list(buffer)[-5:]):
+                    if _m and _m.get("image_pending"):
+                        base_wait = max(base_wait, float(self.image_context_wait_max))
+                        self._debug(f"图片上下文等待 | 延长防抖至{base_wait:.1f}秒 等待图片描述")
+                        break
+
         return base_wait
 
     def _aggregate_messages(self, messages: list) -> str:
@@ -2409,7 +2572,7 @@ class LingxiPlugin(Star):
             if combined_text:
                 bot_name = self.bot_names[0] if self.bot_names else "Bot"
                 buffer = self._get_buffer(group_id)
-                buffer.append((bot_name, combined_text, int(time.time())))
+                buffer.append((bot_name, combined_text, int(time.time()), {"is_bot_message": True}))
                 # 同步记录到对话历史，确保多轮对话记忆完整
                 if self.conversation_memory_enabled:
                     self._record_assistant_message(group_id, combined_text)
@@ -2423,6 +2586,41 @@ class LingxiPlugin(Star):
             return
 
         from astrbot.core.agent.message import TextPart
+
+        # 系统图片识别模式：从 req.contexts 提取图片描述
+        if self.image_context_system and hasattr(req, 'contexts') and req.contexts:
+            group_id = event.message_obj.group_id
+            if group_id:
+                buffer = self._msg_buffer.get(group_id)
+                if buffer:
+                    for ctx_item in req.contexts:
+                        ctx_text = ""
+                        if isinstance(ctx_item, dict):
+                            ctx_text = str(ctx_item.get("content", ""))
+                        elif hasattr(ctx_item, "text"):
+                            ctx_text = getattr(ctx_item, "text", "")
+                        elif isinstance(ctx_item, str):
+                            ctx_text = ctx_item
+                        else:
+                            ctx_text = str(ctx_item)
+
+                        # 提取 [Image: 描述内容] 格式
+                        image_matches = re.findall(r'\[Image:\s*(.+?)\]', ctx_text)
+                        if image_matches:
+                            for desc in image_matches:
+                                desc = desc.strip()
+                                if not desc:
+                                    continue
+                                # 找到缓冲区中最近的 [图片] 占位符并更新
+                                for i in range(len(buffer) - 1, -1, -1):
+                                    _s, _t, _ts, _m = buffer[i]
+                                    if _t == "[图片]" and _m and _m.get("image_pending"):
+                                        new_meta = dict(_m) if _m else {}
+                                        new_meta["image_pending"] = False
+                                        new_meta["image_description"] = desc
+                                        buffer[i] = (_s, f"[图片: {desc}]", _ts, new_meta)
+                                        self._debug(f"图片识别(系统) | 群={group_id} 发送者={_s} 描述='{desc[:50]}'")
+                                        break
 
         # ── 核心优化：绕过 AstrBot 内置上下文 ──
         # 清空 AstrBot 核心加载的对话历史，避免历史膨胀导致的 TOKEN 消耗问题。
@@ -2574,6 +2772,31 @@ class LingxiPlugin(Star):
                     )
                 )
             )
+
+        # 在场感知提示：约束 BOT 只对在场用户说话
+        parts.append(
+            TextPart(
+                text=(
+                    "<presence_awareness>\n"
+                    "注意：只对近期活跃的用户说话，不要对不在场的群友发起对话。"
+                    "上下文中标注了[近期活跃]用户列表，仅对这些用户做出回应和互动。\n"
+                    "</presence_awareness>"
+                )
+            )
+        )
+
+        # 省略主语提示：群聊中用户常省略主语，帮助 LLM 正确理解
+        parts.append(
+            TextPart(
+                text=(
+                    "<conversation_guidance>\n"
+                    "群聊中用户常省略主语，省略主语的句子通常指说话者自己。"
+                    "例如「怎么突然就变成XX了？」通常意为「我怎么突然就变成XX了？」，"
+                    "而非指他人。请结合上下文对话关系标注（→ 回复/回应BOT）正确理解省略主语的句子。\n"
+                    "</conversation_guidance>"
+                )
+            )
+        )
 
         # 智能模型路由：根据消息特征决定使用大模型还是小模型
         # AstrBot 在 hook 之前已选定 provider，req.model 为 None，无法通过修改 req 切换模型。

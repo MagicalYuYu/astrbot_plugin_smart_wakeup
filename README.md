@@ -11,7 +11,7 @@
 唤名即应，投缘便聊；群冷场了就来，聊久了也会累——<br/>
 由精力系统、心流状态、冷场救场与消息防抖默契配合而成的节律，<br/>让 BOT 拥有了自然的社交呼吸。
 
-[![Version](https://img.shields.io/badge/version-1.0.6-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Version](https://img.shields.io/badge/version-1.0.7-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4.5.0-purple?style=flat-square)](https://github.com/Soulter/AstrBot)
@@ -30,6 +30,8 @@
 - 🤚 **不会打断你** — 消息防抖等待用户说完再回复，聚合多条消息，不打断补充发言
 - 🦜 **复读不打扰** — 检测复读链大幅降低回复概率，维护群友复读的快乐氛围
 - 🧠 **记得聊过什么** — 分层对话记忆：近期保留原文 + 远期压缩摘要，支持多轮连贯对话
+- 🖼️ **看得懂图片** — 图片上下文关联，理解图片内容避免上下文断裂；在场用户感知，避免幻觉提及不在场用户
+- 💬 **知道谁在说话** — 上下文对话关系标注：BOT 发言标记、回复关系、隐式回应、省略主语提示
 - 💰 **能省则省** — 上下文压缩、智能模型路由、Token 消耗追踪与异常告警
 - ⌨️ **像真人分段说话** — 长回复智能分段发送，模拟输入节奏，末尾标点自然剔除
 - 🛡️ **安全不出戏** — 兜底过滤思考标签、防止重复输出、群组过滤、指令前缀跳过、输出去重
@@ -49,6 +51,10 @@
 | 低信息量屏蔽 | 自动过滤纯图片/贴纸/表情包等无效消息，消息链级别检测，不浪费 Token |
 | 指令前缀跳过 | 以 `/` 等前缀开头的系统指令不触发唤醒（回复 Bot 时除外） |
 | 对话记忆 | 分层记忆：近期保留原文 + 远期压缩摘要，支持多轮连贯对话 |
+| 图片上下文关联 | 让 Bot 理解图片内容，支持系统图片识别（零成本）和自定义多模态模型识别，两种模式互斥，默认关闭 |
+| 在场用户感知 | 上下文中标注近期活跃用户列表，约束 Bot 只对在场用户说话，避免幻觉提及不在场用户，始终启用 |
+| 对话关系标注 | BOT 发言标记 `[BOT]`、回复关系 `→ 回复[BOT]`、隐式回应 `(回应BOT)`、省略主语提示，始终启用 |
+| 图片消息占位符 | 纯图片消息记录 `[图片]` 占位符，识别后更新为 `[图片: 描述]` |
 | 上下文压缩 | 用小模型压缩群聊上下文再注入主模型，大幅减少 Token 消耗 |
 | 智能模型路由 | 简单消息用小模型、复杂消息用大模型，支持级联升级（实验性） |
 | 消息分段 | 长回复智能分段发送，模拟真人输入节奏，支持末尾标点剔除 |
