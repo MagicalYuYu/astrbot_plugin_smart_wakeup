@@ -63,7 +63,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.1.1",
+    "1.2.0",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -174,18 +174,11 @@ class LingxiPlugin(Star):
 
         # 图片上下文关联配置
         image_context_config = self.config.get("image_context", {})
-        self.image_context_system = image_context_config.get("image_context_system", False)
         self.image_context_custom_model = image_context_config.get("image_context_custom_model", False)
         self.image_context_custom_model_id = image_context_config.get("image_context_custom_model_id", "")
-        self.image_context_wait_max = image_context_config.get("image_context_wait_max", 0)
 
-        # 互斥校验：两种图片识别模式只能开启一个
-        if self.image_context_system and self.image_context_custom_model:
-            logger.warning("[ImageContext] 系统图片识别和自定义模型图片识别同时开启，优先使用自定义模型模式，关闭系统模式")
-            self.image_context_system = False
-
-        # 图片上下文是否启用（任一模式开启即为启用）
-        self.image_context_enabled = self.image_context_system or self.image_context_custom_model
+        # 图片上下文是否启用（自定义模型模式）
+        self.image_context_enabled = self.image_context_custom_model
 
         # 精力系统
         energy_config = self.config.get("energy", {})
@@ -1043,7 +1036,7 @@ class LingxiPlugin(Star):
         sender = event.get_sender_name()
         buffer = self._get_buffer(group_id)
 
-        # 检测图片消息：message_str 为空但消息链包含 Image 组件时，记录 [图片] 占位符
+        # 检测图片消息：message_str 为空但消息链包含 Image 组件时，记录图片信息
         has_image = False
         image_url = None
         if event.message_obj and event.message_obj.message:
@@ -1056,21 +1049,36 @@ class LingxiPlugin(Star):
                     break
 
         if has_image and (not text or not text.strip()):
-            # 纯图片消息：记录 [图片] 占位符，分配唯一编码
+            # 纯图片消息：分配唯一编码，尝试从 message_str 提取框架生成的图片描述
             image_id = f"img_{uuid.uuid4().hex[:8]}"
             meta = meta or {}
             meta["image_id"] = image_id
-            meta["image_pending"] = True
             if image_url:
                 meta["image_url"] = image_url
-            buffer.append((sender, "[图片]", int(time.time()), meta))
+
+            # 框架在分发图片消息时，message_str 已包含 [Image: 描述内容] 格式
+            image_desc = ""
+            image_match = re.search(r'\[Image:\s*(.+?)\]', text) if text else None
+            if image_match:
+                image_desc = image_match.group(1).strip()
+
+            if image_desc:
+                # 框架已提供描述：直接记录完整图片信息
+                meta["image_pending"] = False
+                meta["image_description"] = image_desc
+                buffer.append((sender, f"[图片: {image_desc}]", int(time.time()), meta))
+                self._debug(f"图片记录(含描述) | 群={group_id} 发送者={sender} image_id={image_id} 描述='{image_desc[:50]}'")
+            else:
+                # 框架未提供描述：记录占位符，等待自定义模型识别
+                meta["image_pending"] = True
+                buffer.append((sender, "[图片]", int(time.time()), meta))
+                self._debug(f"图片记录(待识别) | 群={group_id} 发送者={sender} image_id={image_id}")
+
+                # 自定义模型模式：异步调用多模态模型识别图片
+                if self.image_context_custom_model and image_url:
+                    asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, image_id, buffer))
+
             self._stats["total_messages_recorded"] += 1
-            self._debug(f"图片记录 | 群={group_id} 发送者={sender} image_id={image_id}")
-
-            # 自定义模型模式：异步调用多模态模型识别图片
-            if self.image_context_custom_model and image_url:
-                asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, image_id, buffer))
-
             return
 
         if not text or not text.strip():
@@ -1082,14 +1090,21 @@ class LingxiPlugin(Star):
                 meta = {}
             image_id = f"img_{uuid.uuid4().hex[:8]}"
             meta["image_id"] = image_id
-            meta["image_pending"] = True
-            if image_url:
-                meta["image_url"] = image_url
-            self._debug(f"图片记录(带文字) | 群={group_id} 发送者={sender} image_id={image_id}")
-
-            # 自定义模型模式：异步调用多模态模型识别图片
-            if self.image_context_custom_model and image_url:
-                asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, image_id, buffer))
+            # 尝试从 message_str 提取框架生成的图片描述
+            image_desc = ""
+            image_match = re.search(r'\[Image:\s*(.+?)\]', text) if text else None
+            if image_match:
+                image_desc = image_match.group(1).strip()
+                meta["image_pending"] = False
+                meta["image_description"] = image_desc
+            else:
+                meta["image_pending"] = True
+                if image_url:
+                    meta["image_url"] = image_url
+                # 自定义模型模式：异步调用多模态模型识别图片
+                if self.image_context_custom_model and image_url:
+                    asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, image_id, buffer))
+            self._debug(f"图片记录(带文字) | 群={group_id} 发送者={sender} image_id={image_id} pending={meta.get('image_pending', False)}")
 
         # 检测回复关系：如果消息链包含 Reply 组件，提取回复目标的发送者
         if meta is None:
@@ -2041,17 +2056,6 @@ class LingxiPlugin(Star):
             fatigue_multiplier = min(self._get_group_param(group_id, "fatigue_max_multiplier", self.fatigue_max_multiplier), 1.0 + (flow.conversation_turns * self._get_group_param(group_id, "fatigue_coefficient", self.fatigue_coefficient)))
             base_wait *= fatigue_multiplier
 
-        # 图片上下文等待：如果启用了图片识别且配置了等待时间，检查缓冲区中是否有待处理的图片
-        if self.image_context_enabled and self.image_context_wait_max > 0:
-            buffer = self._msg_buffer.get(group_id)
-            if buffer:
-                # 检查最后几条消息中是否有待处理的图片占位符
-                for _s, _t, _ts, _m in reversed(list(buffer)[-5:]):
-                    if _m and _m.get("image_pending"):
-                        base_wait = max(base_wait, float(self.image_context_wait_max))
-                        self._debug(f"图片上下文等待 | 延长防抖至{base_wait:.1f}秒 等待图片描述")
-                        break
-
         return base_wait
 
     def _aggregate_messages(self, messages: list) -> str:
@@ -2604,71 +2608,6 @@ class LingxiPlugin(Star):
             return
 
         from astrbot.core.agent.message import TextPart
-
-        # 系统图片识别模式：从 req.contexts 提取图片描述
-        if self.image_context_system and hasattr(req, 'contexts') and req.contexts:
-            group_id = event.message_obj.group_id
-            if group_id:
-                buffer = self._msg_buffer.get(group_id)
-                if buffer:
-                    for ctx_item in req.contexts:
-                        ctx_text = ""
-                        if isinstance(ctx_item, dict):
-                            ctx_text = str(ctx_item.get("content", ""))
-                        elif hasattr(ctx_item, "text"):
-                            ctx_text = getattr(ctx_item, "text", "")
-                        elif isinstance(ctx_item, str):
-                            ctx_text = ctx_item
-                        else:
-                            ctx_text = str(ctx_item)
-
-                        # 提取 [Image: 描述内容] 格式
-                        image_matches = re.findall(r'\[Image:\s*(.+?)\]', ctx_text)
-                        if image_matches:
-                            for desc in image_matches:
-                                desc = desc.strip()
-                                if not desc:
-                                    continue
-                                # 优先匹配：找到缓冲区中最早的 image_pending 占位符（FIFO）
-                                matched = False
-                                for i in range(len(buffer)):
-                                    _s, _t, _ts, _m = buffer[i]
-                                    if _m and _m.get("image_pending") and _m.get("image_id"):
-                                        new_meta = dict(_m) if _m else {}
-                                        new_meta["image_pending"] = False
-                                        new_meta["image_description"] = desc
-                                        buffer[i] = (_s, f"[图片: {desc}]", _ts, new_meta)
-                                        self._debug(f"图片识别(系统) | 群={group_id} image_id={_m['image_id']} 描述='{desc[:50]}'")
-                                        matched = True
-                                        break
-
-                                # Fallback: 没有匹配到 image_pending 占位符，
-                                # 将图片描述作为独立条目注入缓冲区
-                                if not matched:
-                                    fallback_id = f"img_{uuid.uuid4().hex[:8]}"
-                                    # 从 ctx_item 中尝试提取发送者信息
-                                    sender_hint = ""
-                                    if isinstance(ctx_item, dict):
-                                        sender_hint = str(ctx_item.get("sender", ""))
-                                    elif hasattr(ctx_item, "sender"):
-                                        sender_hint = str(getattr(ctx_item, "sender", ""))
-
-                                    # 找到缓冲区中最近的非BOT消息，使用其发送者
-                                    fb_sender = sender_hint or "未知"
-                                    if not sender_hint:
-                                        for i in range(len(buffer) - 1, -1, -1):
-                                            _s, _t, _ts, _m = buffer[i]
-                                            if not (_m and _m.get("is_bot_message")):
-                                                fb_sender = _s
-                                                break
-
-                                    new_meta = {
-                                        "image_id": fallback_id,
-                                        "image_description": desc,
-                                        "image_pending": False,
-                                    }
-                                    buffer.append((fb_sender, f"[图片: {desc}]", int(time.time()), new_meta))
-                                    self._debug(f"图片识别(系统-fallback) | 群={group_id} image_id={fallback_id} 无待处理占位符，直接注入描述='{desc[:50]}'")
 
         # ── 核心优化：绕过 AstrBot 内置上下文 ──
         # 清空 AstrBot 核心加载的对话历史，避免历史膨胀导致的 TOKEN 消耗问题。
