@@ -18,17 +18,10 @@ build/
 # 内部参考（含他人代码）
 参考/
 
-# 人格提示词（私人资料，禁止公开上传）
-docs/Persona/
-
-# 调试日志（可能含群 ID、用户名等敏感信息）
-docs/Logs/
-
-# 开发文档（内部参考）
-docs/astrbot_plugin_dev_tutorial.md
-docs/github_publish_guide.md
-docs/release-sop.md
-docs/v1.0.7-persona-prompt-handoff.md
+# docs/ 目录：默认全部私有，仅放行以下公开文档
+docs/*
+!docs/usage_guide.md
+!docs/troubleshooting_guide.md
 
 # 环境与密钥
 .env
