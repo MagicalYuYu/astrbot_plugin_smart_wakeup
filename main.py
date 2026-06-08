@@ -63,7 +63,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.2.0",
+    "1.2.1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -1274,8 +1274,9 @@ class LingxiPlugin(Star):
         prev_bot_time = 0
 
         for sender, text, _ts, _meta in messages:
-            # 过滤过短消息
-            if self.context_truncation_enabled and len(text.strip()) < self.context_min_length:
+            # 过滤过短消息（BOT 消息不过滤，保留 BOT 回复内容要点）
+            is_bot_msg = _meta and _meta.get("is_bot_message")
+            if not is_bot_msg and self.context_truncation_enabled and len(text.strip()) < self.context_min_length:
                 continue
 
             # Sticker emoji 噪音过滤：Sticker 的 emoji 与实际内容无关，
@@ -1320,7 +1321,9 @@ class LingxiPlugin(Star):
                 "1. 保留所有关键信息和话题\n"
                 "2. 保留发言者昵称\n"
                 "3. 去除寒暄、重复和无关内容\n"
-                "4. 摘要长度不超过原文的30%\n\n"
+                "4. 摘要长度不超过原文的30%\n"
+                "5. 【重要】必须保留 BOT 的回复内容要点，特别是 BOT 已回应过的话题和观点，"
+                "以便后续对话中 BOT 知道自己已经说过什么，避免重复回应\n\n"
                 f"群聊消息：\n{context_text}"
             )
 

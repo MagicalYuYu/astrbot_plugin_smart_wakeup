@@ -10,7 +10,7 @@ English | [中文](README.md)
 
 A name-based natural wakeup plugin for AstrBot — powered by an energy system, flow state machine, idle-rescue, and message debounce working in concert to give your bot a natural social rhythm. Compatible with Telegram and QQ (aiocqhttp).
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4.5.0-purple?style=flat-square)](https://github.com/Soulter/AstrBot)
