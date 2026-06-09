@@ -1,5 +1,11 @@
 # 更新日志
 
+## [1.2.4] - 2026-06-09
+
+### Bug 修复
+
+- **Plain 组件类型检查 UnboundLocalError**：修复 `_record_message` 中使用 `isinstance(comp, Plain)` 导致 `UnboundLocalError`，原因是方法内部其他位置有局部 `from ... import Plain`，Python 将 `Plain` 视为局部变量。改为与 Image 一致的 `comp_type == "Plain"` 字符串比较模式，避免依赖导入
+
 ## [1.2.3] - 2026-06-09
 
 ### Bug 修复

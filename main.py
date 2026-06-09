@@ -63,7 +63,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.2.3",
+    "1.2.4",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -1058,7 +1058,7 @@ class LingxiPlugin(Star):
                     image_url = getattr(comp, "url", None) or getattr(comp, "image_url", None) or getattr(comp, "file", None)
                     # 尝试从 Image 组件属性获取描述（QQ平台框架将描述存储在组件属性中）
                     image_comp_desc = getattr(comp, "desc", "") or getattr(comp, "description", "")
-                elif isinstance(comp, Plain):
+                elif comp_type == "Plain":
                     comp_text = getattr(comp, "text", "")
                     if comp_text.startswith("Sticker:"):
                         is_sticker = True
