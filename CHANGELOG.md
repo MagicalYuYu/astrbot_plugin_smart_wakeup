@@ -1,5 +1,13 @@
 # 更新日志
 
+## [1.2.3] - 2026-06-09
+
+### Bug 修复
+
+- **BOT 自身消息过滤**：修复 QQ 平台（NapCat）将 BOT 自身发送的消息作为群消息分发，导致 BOT 消息进入唤醒判定流程、反复触发回复的问题。在 `on_group_message` 入口增加 `sender_id in _bot_user_ids` 检查，BOT 消息直接跳过判定
+- **QQ 平台图片描述丢失**：修复 QQ 平台图片描述存储在 Image 组件的 `desc`/`description` 属性中而非 `message_str`，导致 `_record_message` 无法提取图片描述的问题。增加从 Image 组件属性获取描述的 fallback 机制，优先从 `message_str` 提取 `[Image: 描述]` 格式，其次从组件属性获取
+- **Sticker 占位符永远 pending**：修复 Telegram 的 Sticker 消息（Image + Plain("Sticker: 🫤")）图片被记录为 `image_pending=True`，占位符永远不会被填充的问题。检测 Sticker 类型后标记 `image_pending=False`，无需视觉模型识别
+
 ## [1.2.2] - 2026-06-08
 
 ### Bug 修复

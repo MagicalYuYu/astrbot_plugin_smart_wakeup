@@ -63,7 +63,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.2.2",
+    "1.2.3",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -1047,6 +1047,8 @@ class LingxiPlugin(Star):
         # 检测图片消息：message_str 为空但消息链包含 Image 组件时，记录图片信息
         has_image = False
         image_url = None
+        image_comp_desc = ""  # 从 Image 组件属性获取的描述
+        is_sticker = False    # 是否为 Sticker 表情包
         if event.message_obj and event.message_obj.message:
             for comp in event.message_obj.message:
                 comp_type = type(comp).__name__
@@ -1054,21 +1056,28 @@ class LingxiPlugin(Star):
                     has_image = True
                     # 尝试获取图片 URL
                     image_url = getattr(comp, "url", None) or getattr(comp, "image_url", None) or getattr(comp, "file", None)
-                    break
+                    # 尝试从 Image 组件属性获取描述（QQ平台框架将描述存储在组件属性中）
+                    image_comp_desc = getattr(comp, "desc", "") or getattr(comp, "description", "")
+                elif isinstance(comp, Plain):
+                    comp_text = getattr(comp, "text", "")
+                    if comp_text.startswith("Sticker:"):
+                        is_sticker = True
 
         if has_image and (not text or not text.strip()):
-            # 纯图片消息：分配唯一编码，尝试从 message_str 提取框架生成的图片描述
+            # 纯图片消息：分配唯一编码，尝试提取框架生成的图片描述
             image_id = f"img_{uuid.uuid4().hex[:8]}"
             meta = meta or {}
             meta["image_id"] = image_id
             if image_url:
                 meta["image_url"] = image_url
 
-            # 框架在分发图片消息时，message_str 已包含 [Image: 描述内容] 格式
+            # 优先从 message_str 提取 [Image: 描述] 格式，其次从 Image 组件属性获取
             image_desc = ""
             image_match = re.search(r'\[Image:\s*(.+?)\]', text) if text else None
             if image_match:
                 image_desc = image_match.group(1).strip()
+            elif image_comp_desc:
+                image_desc = image_comp_desc.strip()
 
             if image_desc:
                 # 框架已提供描述：直接记录完整图片信息
@@ -1098,13 +1107,20 @@ class LingxiPlugin(Star):
                 meta = {}
             image_id = f"img_{uuid.uuid4().hex[:8]}"
             meta["image_id"] = image_id
-            # 尝试从 message_str 提取框架生成的图片描述
+            # 优先从 message_str 提取框架生成的图片描述，其次从 Image 组件属性获取
             image_desc = ""
             image_match = re.search(r'\[Image:\s*(.+?)\]', text) if text else None
             if image_match:
                 image_desc = image_match.group(1).strip()
                 meta["image_pending"] = False
                 meta["image_description"] = image_desc
+            elif image_comp_desc:
+                image_desc = image_comp_desc.strip()
+                meta["image_pending"] = False
+                meta["image_description"] = image_desc
+            elif is_sticker:
+                # Sticker 表情包：无需视觉模型识别，标记为已识别
+                meta["image_pending"] = False
             else:
                 meta["image_pending"] = True
                 if image_url:
@@ -1112,7 +1128,7 @@ class LingxiPlugin(Star):
                 # 自定义模型模式：异步调用多模态模型识别图片
                 if self.image_context_custom_model and image_url:
                     asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, image_id, buffer))
-            self._debug(f"图片记录(带文字) | 群={group_id} 发送者={sender} image_id={image_id} pending={meta.get('image_pending', False)}")
+            self._debug(f"图片记录(带文字) | 群={group_id} 发送者={sender} image_id={image_id} pending={meta.get('image_pending', False)} sticker={is_sticker}")
 
         # 检测回复关系：如果消息链包含 Reply 组件，提取回复目标的发送者
         if meta is None:
@@ -2376,6 +2392,12 @@ class LingxiPlugin(Star):
         # 这类消息本质是复读BOT发言，不应触发唤醒
         if self._is_forward_from_bot(event):
             self._debug(f"转发复读过滤 | 消息为转发自BOT的复读，跳过判定 内容='{message_str[:30]}'")
+            return
+
+        # 2.7 BOT自身消息过滤：BOT通过其他插件发送的消息不应触发唤醒判定
+        # QQ平台（NapCat）会将BOT自身消息作为群消息分发，需在此拦截
+        if sender_id in self._bot_user_ids:
+            self._debug(f"BOT消息过滤 | 发送者={sender_name}({sender_id}) 为BOT自身，跳过判定")
             return
 
         # 3. 检查是否需要定期清理
