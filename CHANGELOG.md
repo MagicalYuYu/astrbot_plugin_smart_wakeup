@@ -1,5 +1,13 @@
 # 更新日志
 
+## [1.2.5] - 2026-06-09
+
+### Bug 修复
+
+- **LLM 执行中标志泄漏**：修复 `_llm_running_groups` 仅在 `after_message_sent` 中清除，当 LLM 请求失败或结果为空时标志永远不清除，导致冷场救场永久阻塞的问题。改为 `dict[str, float]` 存储时间戳，在 `on_decorating_result` 中双重清除，并增加 5 分钟超时自动清除安全机制
+- **QQ 平台图片描述属性探测**：扩大 Image 组件描述属性探测范围（`desc`/`description`/`summary`/`text`/`content`/`caption`），排除 QQ 自带的低价值摘要（如 `[动画表情]`），增加调试日志打印 Image 组件全部属性便于排查
+- **`_is_low_info_message` 中 `isinstance(comp, Plain)` 潜在风险**：改为 `comp_type == "Plain"` 字符串比较，与 Image 检测方式一致，避免局部 import 导致的 `UnboundLocalError`
+
 ## [1.2.4] - 2026-06-09
 
 ### Bug 修复

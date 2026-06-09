@@ -63,7 +63,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.2.4",
+    "1.2.5",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -305,7 +305,8 @@ class LingxiPlugin(Star):
         self._rescue_states: dict[str, ChatRescueState] = {}
 
         # LLM 执行中标志：防止冷场救场并发触发重复输出
-        self._llm_running_groups: set[str] = set()
+        # 存储 {group_id: 触发时间戳}，超时自动清除防止标志泄漏
+        self._llm_running_groups: dict[str, float] = {}
 
         # 统计计数器
         self._stats = {
@@ -834,11 +835,11 @@ class LingxiPlugin(Star):
                 comp_type = type(comp).__name__
                 if comp_type == "Image":
                     has_image = True
-                elif isinstance(comp, Plain):
-                    text = getattr(comp, "text", "")
-                    if text.startswith("Sticker:"):
+                elif comp_type == "Plain":
+                    comp_text = getattr(comp, "text", "")
+                    if comp_text.startswith("Sticker:"):
                         sticker_emoji = True
-                    elif text.strip():
+                    elif comp_text.strip():
                         has_other_content = True
                 else:
                     # 有非 Image/Plain 组件（如 Reply 等），不是纯 Sticker
@@ -979,7 +980,7 @@ class LingxiPlugin(Star):
         # 设置 LLM 执行中标志，防止冷场救场并发触发重复输出
         group_id = event.message_obj.group_id
         if group_id:
-            self._llm_running_groups.add(group_id)
+            self._llm_running_groups[group_id] = time.time()
 
         event.is_at_or_wake_command = True
         if self.wake_command_prefix:
@@ -1057,7 +1058,20 @@ class LingxiPlugin(Star):
                     # 尝试获取图片 URL
                     image_url = getattr(comp, "url", None) or getattr(comp, "image_url", None) or getattr(comp, "file", None)
                     # 尝试从 Image 组件属性获取描述（QQ平台框架将描述存储在组件属性中）
-                    image_comp_desc = getattr(comp, "desc", "") or getattr(comp, "description", "")
+                    # 探测多个可能的属性名：desc, description, summary, text, content, caption
+                    for attr in ("desc", "description", "summary", "text", "content", "caption"):
+                        val = getattr(comp, attr, None)
+                        if val and isinstance(val, str) and val.strip():
+                            # 排除 QQ 自带的低价值摘要（如 [动画表情]）
+                            if attr == "summary" and re.match(r'^\[.+\]$', val.strip()):
+                                continue
+                            image_comp_desc = val.strip()
+                            self._debug(f"图片描述来源 | 属性={attr} 值='{image_comp_desc[:80]}'")
+                            break
+                    # 调试：打印 Image 组件所有属性，便于排查描述获取问题
+                    if self.debug_mode and not image_comp_desc:
+                        all_attrs = {k: v for k, v in vars(comp).items() if not k.startswith('_')}
+                        self._debug(f"Image组件属性(无描述) | {all_attrs}")
                 elif comp_type == "Plain":
                     comp_text = getattr(comp, "text", "")
                     if comp_text.startswith("Sticker:"):
@@ -1909,9 +1923,16 @@ class LingxiPlugin(Star):
         self._recover_energy(group_id)
 
         # LLM 执行中检查：防止冷场救场并发触发重复输出
+        # 超时安全清除：如果标志存在超过5分钟，说明 after_message_sent 未被调用（LLM失败/结果为空），
+        # 自动清除标志防止冷场救场永久阻塞
         if group_id in self._llm_running_groups:
-            self._debug(f"冷场救场 | 群={group_id} LLM执行中，跳过")
-            return
+            elapsed = time.time() - self._llm_running_groups[group_id]
+            if elapsed > 300:  # 5分钟超时
+                logger.warning(f"LLM执行中标志超时清除 | 群={group_id} 已等待{elapsed:.0f}秒，自动清除")
+                del self._llm_running_groups[group_id]
+            else:
+                self._debug(f"冷场救场 | 群={group_id} LLM执行中({elapsed:.0f}秒)，跳过")
+                return
 
         # 疲劳状态不执行冷场救场
         if flow.state == FlowState.FATIGUED:
@@ -2600,8 +2621,8 @@ class LingxiPlugin(Star):
         if not group_id:
             return
 
-        # 清除 LLM 执行中标志
-        self._llm_running_groups.discard(group_id)
+        # 清除 LLM 执行中标志（双重保障：on_decorating_result 也会清除）
+        self._llm_running_groups.pop(group_id, None)
 
         # 记录 BOT 的 user_id（用于回复检测）
         # 注意：after_message_sent 中 event.message_obj.sender 是原始消息发送者（用户），
@@ -3299,6 +3320,12 @@ class LingxiPlugin(Star):
         """消息发送前拦截，过滤注入的上下文标签和思考标签，替换路由结果"""
         if not event.get_extra("smart_wakeup_triggered"):
             return
+
+        # 清除 LLM 执行中标志（on_decorating_result 在 LLM 结果返回后触发，
+        # 无论结果是否为空都会执行，比 after_message_sent 更可靠）
+        group_id = event.message_obj.group_id
+        if group_id and group_id in self._llm_running_groups:
+            del self._llm_running_groups[group_id]
 
         # 如果小模型路由已完成，用小模型的回复替换主模型的输出
         route_result = event.get_extra("smart_wakeup_route_result")
