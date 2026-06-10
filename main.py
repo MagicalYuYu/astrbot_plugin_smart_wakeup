@@ -16,6 +16,24 @@ from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse, ProviderRequest
 from astrbot.api.message_components import Plain, BaseMessageComponent, Reply, Record
 
+# 回复抑制：内置默认合规判别提示词
+_DEFAULT_JUDGE_PROMPT = """请判断BOT的回复是否适宜在群聊中发出。
+
+判定为【不适宜】的情况：
+1. 回复是对冷淡回应的复读或追着回复（如对方说"不知道""哦"，BOT复读同样的话）
+2. 回复暴露了无法理解上下文（如反复问"在说啥""？"）
+3. 回复对群友态度无礼或傲慢（如"懒得搜""懒得理"）
+4. 回复是对与BOT无关的话题强行凑话，且凑话内容无信息量
+5. 回复与上下文明显脱节，显得突兀
+
+判定为【适宜】的情况：
+1. 回复有实质信息量，与当前话题相关
+2. 回复是自然的群聊参与（简短附和、吐槽、接话），不突兀
+3. 回复体现了BOT的个性，但不过分
+
+请输出JSON格式：
+{"verdict": "pass" 或 "block", "reason": "简短原因"}"""
+
 
 class FlowState(Enum):
     BYSTANDER = "旁观"
@@ -63,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.2.5",
+    "1.3.0",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -221,6 +239,14 @@ class LingxiPlugin(Star):
         filter_config = self.config.get("filter_settings", {})
         self.filter_thinking_tags = filter_config.get("filter_thinking_tags", True)
 
+        # 回复抑制配置
+        suppression_config = self.config.get("reply_suppression", {})
+        self.reply_suppression_enabled = suppression_config.get("reply_suppression_enabled", False)
+        self.reply_suppression_mode = suppression_config.get("reply_suppression_mode", "keyword")
+        self.reply_suppression_keyword = suppression_config.get("reply_suppression_keyword", "[SKIP]")
+        self.reply_suppression_judge_model = suppression_config.get("reply_suppression_judge_model", "")
+        self.reply_suppression_judge_prompt = suppression_config.get("reply_suppression_judge_prompt", "")
+
         # 关键词触发配置
         keywords_str = basic.get("keywords", "")
         self.keywords = [k.strip() for k in keywords_str.split("|") if k.strip()] if keywords_str else []
@@ -356,6 +382,13 @@ class LingxiPlugin(Star):
                 "total_splits": 0,
                 "total_segments_sent": 0,
             },
+            # 回复抑制统计
+            "suppression_stats": {
+                "keyword_suppressed": 0,
+                "judge_suppressed": 0,
+                "judge_passed": 0,
+                "judge_errors": 0,
+            },
         }
 
         # ─── 分段模块 ───
@@ -411,6 +444,7 @@ class LingxiPlugin(Star):
             f"冷场救场: {'启用' if self.rescue_enabled else '关闭'} | "
             f"防抖: {'启用' if self.debounce_enabled else '关闭'} | "
             f"思考过滤: {'启用' if self.filter_thinking_tags else '关闭'} | "
+            f"回复抑制: {'启用' if self.reply_suppression_enabled else '关闭'}(模式={self.reply_suppression_mode}) | "
             f"指令前缀跳过: {'启用' if self.command_prefix_enabled else '关闭'}(前缀='{self.command_prefix}') | "
             f"唤醒前缀: '{self.wake_command_prefix}' | "
             f"调试模式: {'启用' if self.debug_mode else '关闭'} | "
@@ -3409,10 +3443,178 @@ class LingxiPlugin(Star):
                 return
             self._record_sent_content(group_id, post_filter_text)
 
+        # ─── 回复抑制：在输出去重之后、分段之前检测是否应拦截 ───
+        if self.reply_suppression_enabled and group_id and post_filter_text:
+            wakeup_type = event.get_extra("wakeup_type", "")
+            # 判断是否为直接呼叫（名称匹配或回复BOT），直接呼叫时不应抑制
+            is_direct_call = wakeup_type in ("name_trigger", "reply_to_bot", "keyword_trigger")
+
+            suppressed = False
+
+            # 方案A：关键词匹配拦截
+            if self.reply_suppression_mode in ("keyword", "both"):
+                if not is_direct_call:
+                    keyword = self.reply_suppression_keyword
+                    stripped = post_filter_text.strip()
+                    # 匹配规则1：完全等于关键词
+                    if stripped == keyword:
+                        suppressed = True
+                        event.set_extra("suppression_source", "keyword")
+                        self._debug(f"[回复抑制] 关键词匹配拦截 | 群={group_id} 原始输出='{post_filter_text[:80]}'")
+                    # 匹配规则2：去除空白后仅包含关键词
+                    elif stripped.replace(' ', '').replace('\n', '').replace('\t', '') == keyword:
+                        suppressed = True
+                        event.set_extra("suppression_source", "keyword")
+                        self._debug(f"[回复抑制] 关键词匹配拦截(含空白) | 群={group_id} 原始输出='{post_filter_text[:80]}'")
+                    # 匹配规则3：以关键词开头且后续无实质内容
+                    elif stripped.startswith(keyword):
+                        remainder = stripped[len(keyword):].strip()
+                        # 实质内容判定：去除标点后仍有非空白字符
+                        remainder_no_punct = re.sub(r'[^\w\u4e00-\u9fff]', '', remainder)
+                        if not remainder_no_punct:
+                            suppressed = True
+                            event.set_extra("suppression_source", "keyword")
+                            self._debug(f"[回复抑制] 关键词匹配拦截(前缀) | 群={group_id} 原始输出='{post_filter_text[:80]}'")
+                    else:
+                        self._debug(f"[回复抑制] 关键词检测未命中 | 群={group_id}")
+                else:
+                    self._debug(f"[回复抑制] 跳过检测（直接呼叫） | 群={group_id} 触发={wakeup_type}")
+
+            # 方案B：独立小LLM合规判别
+            if not suppressed and self.reply_suppression_mode in ("judge", "both"):
+                if not is_direct_call:
+                    try:
+                        judge_result = await self._judge_reply_compliance(group_id, post_filter_text)
+                        if judge_result and judge_result.get("verdict") == "block":
+                            suppressed = True
+                            event.set_extra("suppression_source", "judge")
+                            reason = judge_result.get("reason", "未知")
+                            self._debug(f"[回复抑制] 合规判别拦截 | 群={group_id} 原因={reason}")
+                        else:
+                            self._debug(f"[回复抑制] 合规判别通过 | 群={group_id}")
+                    except Exception as e:
+                        logger.warning(f"[回复抑制] 合规判别异常，保守放过 | 群={group_id} 错误={e}")
+                        self._stats["suppression_stats"]["judge_errors"] += 1
+                else:
+                    self._debug(f"[回复抑制] 跳过判别（直接呼叫） | 群={group_id} 触发={wakeup_type}")
+
+            # 执行拦截
+            if suppressed:
+                self._suppress_reply(event, group_id, post_filter_text)
+                return
+
         # ─── 分段模块处理 ───
         # 仅对本插件主动触发的 LLM 回复做分段，其他插件的输出不应被分段
         if self.splitter_enabled and event.is_at_or_wake_command:
             await self._splitter_process(event)
+
+    def _suppress_reply(self, event: AstrMessageEvent, group_id: str, response_text: str):
+        """执行回复抑制：清空输出、撤销对话记忆、恢复精力"""
+        # 1. 清空输出
+        result = event.get_result()
+        if result:
+            result.chain.clear()
+
+        # 2. 撤销对话记忆（on_decorating_result 中已提前记录了 _record_assistant_message）
+        if self.conversation_memory_enabled and group_id in self._conversation_history:
+            history = self._conversation_history[group_id]
+            # 移除最后一条 assistant 记录（即刚记录的这条）
+            if history and history[-1][0] == "assistant":
+                removed = history.pop()
+                self._debug(f"[回复抑制] 撤销对话记忆 | 群={group_id} 内容='{removed[1][:50]}'")
+
+        # 3. 恢复精力值（精力在 _trigger_wake 后已消耗，需恢复）
+        if group_id in self._energy_states:
+            state = self._energy_states[group_id]
+            decay_rate = self._get_group_param(group_id, "energy_decay_rate", self.energy_decay_rate)
+            state.energy = min(1.0, state.energy + decay_rate)
+            state.total_replies = max(0, state.total_replies - 1)
+            self._debug(f"[回复抑制] 精力恢复 | 群={group_id} 精力恢复至 {state.energy:.2f}")
+
+        # 4. 更新统计（根据实际拦截的方案更新对应计数器）
+        suppression_source = event.get_extra("suppression_source", "")
+        if suppression_source == "keyword":
+            self._stats["suppression_stats"]["keyword_suppressed"] += 1
+        elif suppression_source == "judge":
+            self._stats["suppression_stats"]["judge_suppressed"] += 1
+
+        logger.info(
+            f"[回复抑制] 已拦截 | 群={group_id} 触发={event.get_extra('wakeup_type', '')} "
+            f"来源={suppression_source} "
+            f"内容='{response_text[:80]}'"
+        )
+
+    async def _judge_reply_compliance(self, group_id: str, reply_text: str) -> dict | None:
+        """使用独立小模型判别回复是否适宜发出
+
+        Returns:
+            dict | None: 解析后的判别结果 {"verdict": "pass"/"block", "reason": "..."}，
+                        调用失败返回 None
+        """
+        # 获取判别模型 provider
+        judge_model_id = self.reply_suppression_judge_model
+        if not judge_model_id:
+            # 回退到摘要压缩模型
+            judge_model_id = self.compression_model
+        if not judge_model_id:
+            # 回退到路由小模型
+            judge_model_id = self.routing_small_model
+        if not judge_model_id:
+            logger.warning("[回复抑制] 未配置判别模型，跳过合规判别")
+            return None
+
+        provider = self.context.get_provider_by_id(judge_model_id)
+        if not provider:
+            logger.warning(f"[回复抑制] 未找到判别模型 {judge_model_id}，跳过合规判别")
+            return None
+
+        # 构造上下文摘要（最近5条消息）
+        buffer = self._get_buffer(group_id)
+        context_lines = []
+        for sender, text, ts, meta in list(buffer)[-5:]:
+            context_lines.append(f"{sender}: {text}")
+        context_summary = "\n".join(context_lines) if context_lines else "（无上下文）"
+
+        # 使用自定义或内置默认判别提示词
+        if self.reply_suppression_judge_prompt:
+            judge_prompt = self.reply_suppression_judge_prompt
+        else:
+            judge_prompt = _DEFAULT_JUDGE_PROMPT
+
+        # 构造判别请求
+        user_message = (
+            f"<群聊上下文>\n{context_summary}\n</群聊上下文>\n\n"
+            f"<BOT回复>\n{reply_text}\n</BOT回复>\n\n"
+            f"{judge_prompt}"
+        )
+
+        try:
+            resp = await provider.text_chat(
+                prompt=user_message,
+                session_id=f"judge_{group_id}_{int(time.time())}",
+            )
+            if not resp or not (hasattr(resp, 'completion_text') and resp.completion_text):
+                return None
+
+            # 解析 JSON 输出
+            import json
+            result_text = resp.completion_text.strip()
+            # 尝试提取 JSON（可能被 markdown 代码块包裹）
+            json_match = re.search(r'\{[^}]+\}', result_text)
+            if json_match:
+                result = json.loads(json_match.group())
+                if "verdict" in result:
+                    self._stats["suppression_stats"]["judge_passed" if result["verdict"] == "pass" else "judge_suppressed"] += 1
+                    return result
+
+            # 无法解析为 JSON，保守放过
+            self._debug(f"[回复抑制] 判别结果无法解析 | 原始输出='{result_text[:100]}'")
+            return {"verdict": "pass", "reason": "解析失败，保守放过"}
+
+        except Exception as e:
+            logger.warning(f"[回复抑制] 合规判别调用异常 | 错误={e}")
+            self._stats["suppression_stats"]["judge_errors"] += 1
+            return None
 
     # ─── 分段模块 ───
 

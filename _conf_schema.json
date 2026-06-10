@@ -397,6 +397,44 @@
             }
         }
     },
+    "reply_suppression": {
+        "description": "🛡️ 回复抑制",
+        "type": "object",
+        "hint": "当 BOT 判断不应该回复时，实现真正的沉默。方案A：主LLM输出抑制关键词时拦截（零成本）；方案B：独立小模型判别回复合规性（额外保障）。两种方案可独立或同时启用。",
+        "items": {
+            "reply_suppression_enabled": {
+                "description": "🛡️ 启用回复抑制",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后 BOT 在判断不应该回复时可以主动终止输出，实现真正的沉默。默认关闭。"
+            },
+            "reply_suppression_mode": {
+                "description": "🛡️ 抑制模式",
+                "type": "string",
+                "default": "keyword",
+                "options": ["keyword", "judge", "both"],
+                "hint": "keyword=关键词匹配拦截（零成本，主LLM输出[SKIP]时拦截）；judge=合规判别（小模型判别是否适宜发出）；both=双重保障（先关键词后判别）"
+            },
+            "reply_suppression_keyword": {
+                "description": "🏷️ 抑制关键词",
+                "type": "string",
+                "default": "[SKIP]",
+                "hint": "主LLM输出此关键词时拦截回复。需配合人格提示词中的回复抑制规则使用。仅当模式为 keyword 或 both 时生效。"
+            },
+            "reply_suppression_judge_model": {
+                "description": "🤖 判别模型提供商 ID",
+                "type": "string",
+                "default": "",
+                "hint": "合规判别使用的模型提供商 ID，留空则使用摘要压缩同模型。仅当模式为 judge 或 both 时生效。"
+            },
+            "reply_suppression_judge_prompt": {
+                "description": "📝 自定义判别提示词",
+                "type": "string",
+                "default": "",
+                "hint": "自定义合规判别提示词，留空使用内置默认。仅当模式为 judge 或 both 时生效。"
+            }
+        }
+    },
     "splitter": {
         "description": "✂️ 消息分段",
         "type": "object",
