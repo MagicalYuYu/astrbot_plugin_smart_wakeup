@@ -1,5 +1,13 @@
 # 更新日志
 
+## [1.3.1] - 2026-06-10
+
+### Bug 修复
+
+- **回复抑制失效导致 [SKIP] 原样发出**：修复 `_suppress_reply` 使用 `result.chain.clear()` 清空输出后，`intelligent_retry` 插件将空回复判定为 LLM 失败并触发重试，重试结果绕过 `on_decorating_result` 直接发送给用户的问题。改用零宽空格替换输出内容，使 retry 插件判定为"非空回复"跳过重试，同时设置 `smart_wakeup_suppressed` 标记让 `after_message_sent` 跳过记录
+- **复读检测日志重复展示**：修复 `_evaluate_debounced_messages` 中同一条消息的复读检测被名称匹配、关键词匹配、复读抑制三个循环分别调用，产生多条相同日志的问题。改为预扫描缓存复读检测结果，后续循环复用缓存
+- **概率唤醒并发触发防护**：在 `_check_probability_wakeup` 开头增加 `_llm_running_groups` 检查，LLM 执行中时跳过概率唤醒判定，防止并发触发重复输出；超时 5 分钟的标志自动清除并警告
+
 ## [1.3.0] - 2026-06-10
 
 ### 新功能

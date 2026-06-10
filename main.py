@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.0",
+    "1.3.1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -1812,6 +1812,16 @@ class LingxiPlugin(Star):
         energy = self._get_energy(group_id)
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
 
+        # LLM 执行中检查：防止概率唤醒并发触发重复输出
+        if group_id in self._llm_running_groups:
+            elapsed = time.time() - self._llm_running_groups[group_id]
+            if elapsed > 300:
+                logger.warning(f"概率唤醒 | LLM执行中标志超时清除 群={group_id} 已等待{elapsed:.0f}秒")
+                del self._llm_running_groups[group_id]
+            else:
+                self._debug(f"概率唤醒 | 群={group_id} LLM执行中({elapsed:.0f}秒)，跳过")
+                return
+
         # 用户概率检查：防抖聚合多条消息时，取所有发送者中的最大概率
         # 避免最后一条消息的发送者概率为0时，阻止了其他用户的正常触发
         aggregated_senders = event.get_extra("aggregated_sender_ids")
@@ -2189,6 +2199,15 @@ class LingxiPlugin(Star):
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
         self._debug(f"防抖判定开始 | 群={group_id} 消息='{message_str[:40]}' 概率唤醒={'启用' if self.probability_wakeup else '关闭'} 冷场救场={'启用' if self.rescue_enabled else '关闭'}")
 
+        # 预扫描：统一检测所有暂存消息的复读状态，避免后续名称/关键词/复读抑制循环重复调用
+        repeat_cache: dict[int, tuple[bool, str]] = {}
+        if self.repeat_suppress_enabled and messages:
+            for i, (msg_sender, msg_text, _ts, _evt) in enumerate(messages):
+                is_rep, match_info = self._is_repeat_message(group_id, msg_sender, msg_text)
+                repeat_cache[i] = (is_rep, match_info)
+            rep_count = sum(1 for v in repeat_cache.values() if v[0])
+            self._debug(f"复读预检(防抖) | 共检{len(repeat_cache)}条 检出复读{rep_count}条")
+
         # 0. 检查回复BOT（遍历所有暂存消息，回复BOT可能出现在任意一条中）
         reply_to_bot_event = None
         reply_sender_id = sender_id
@@ -2231,10 +2250,10 @@ class LingxiPlugin(Star):
         # 但跳过复读消息：复读内容包含名称时不应触发名称唤醒
         matched_name = None
         matched_sender_id = sender_id
-        for msg_sender, msg_text, _ts, _evt in messages:
+        for i, (msg_sender, msg_text, _ts, _evt) in enumerate(messages):
             # 跳过复读消息：如果该消息是复读（与缓冲区中其他用户的消息相同/相似），
             # 则不应因复读内容包含名称而触发唤醒
-            if self.repeat_suppress_enabled and self._is_repeat_message(group_id, msg_sender, msg_text)[0]:
+            if self.repeat_suppress_enabled and repeat_cache.get(i, (False, ""))[0]:
                 self._debug(f"名称匹配跳过复读 | 发送者={msg_sender} 内容='{msg_text[:30]}' 为复读消息")
                 continue
             msg_lower = msg_text.lower()
@@ -2282,9 +2301,9 @@ class LingxiPlugin(Star):
         # 但跳过复读消息：复读内容包含关键词时不应触发关键词唤醒
         matched_keyword = None
         keyword_sender_id = sender_id
-        for msg_sender, msg_text, _ts, _evt in messages:
+        for i, (msg_sender, msg_text, _ts, _evt) in enumerate(messages):
             # 跳过复读消息：复读内容包含关键词时不应触发关键词唤醒
-            if self.repeat_suppress_enabled and self._is_repeat_message(group_id, msg_sender, msg_text)[0]:
+            if self.repeat_suppress_enabled and repeat_cache.get(i, (False, ""))[0]:
                 self._debug(f"关键词匹配跳过复读 | 发送者={msg_sender} 内容='{msg_text[:30]}' 为复读消息")
                 continue
             kw = self._match_keyword(msg_text)
@@ -2328,13 +2347,13 @@ class LingxiPlugin(Star):
                 self._stats["keyword_trigger_wakeups"] = self._stats.get("keyword_trigger_wakeups", 0) + 1
                 return
 
-        # 2.5 复读抑制：检查所有暂存消息是否为复读
+        # 2.5 复读抑制：使用预扫描缓存结果
         # 防抖聚合了多条消息，复读可能出现在任意一条中，不能只检查最后一条
         has_repeat = False
         repeat_info = ""
         if self.repeat_suppress_enabled and messages:
-            for sender, text, _ts, _evt in messages:
-                is_repeat, match_info = self._is_repeat_message(group_id, sender, text)
+            for i, (sender, text, _ts, _evt) in enumerate(messages):
+                is_repeat, match_info = repeat_cache.get(i, (False, ""))
                 if is_repeat:
                     has_repeat = True
                     repeat_info = match_info
@@ -2657,6 +2676,11 @@ class LingxiPlugin(Star):
 
         # 清除 LLM 执行中标志（双重保障：on_decorating_result 也会清除）
         self._llm_running_groups.pop(group_id, None)
+
+        # 回复抑制时跳过记录（零宽空格消息不应写入缓冲区和对话历史）
+        if event.get_extra("smart_wakeup_suppressed"):
+            self._debug(f"after_message_sent | 群={group_id} 回复已抑制，跳过记录")
+            return
 
         # 记录 BOT 的 user_id（用于回复检测）
         # 注意：after_message_sent 中 event.message_obj.sender 是原始消息发送者（用户），
@@ -3509,11 +3533,20 @@ class LingxiPlugin(Star):
             await self._splitter_process(event)
 
     def _suppress_reply(self, event: AstrMessageEvent, group_id: str, response_text: str):
-        """执行回复抑制：清空输出、撤销对话记忆、恢复精力"""
-        # 1. 清空输出
+        """执行回复抑制：清空输出、撤销对话记忆、恢复精力
+
+        注意：不能使用 result.chain.clear() 清空输出，因为 intelligent_retry 插件
+        会将空回复视为 LLM 调用失败并触发重试，重试结果绕过 on_decorating_result
+        直接发送，导致 [SKIP] 等抑制标记原样输出给用户。
+        解决方案：用零宽空格替换输出内容，使 retry 插件判定为"非空回复"而跳过重试。
+        """
+        # 1. 用零宽空格替换输出（而非清空），防止 intelligent_retry 插件重试
         result = event.get_result()
         if result:
-            result.chain.clear()
+            result.chain = [Plain("\u200b")]
+
+        # 标记事件为已抑制，after_message_sent 据此跳过记录
+        event.set_extra("smart_wakeup_suppressed", True)
 
         # 2. 撤销对话记忆（on_decorating_result 中已提前记录了 _record_assistant_message）
         if self.conversation_memory_enabled and group_id in self._conversation_history:
