@@ -1,5 +1,22 @@
 # 更新日志
 
+## [1.3.2] - 2026-06-13
+
+### Bug 修复
+
+- **tool_call 重复输出根治**：修复 LLM 使用 `send_message_to_user` 工具调用（`finish_reason='tool_calls'`）时消息被发送两次的严重问题。根因是 AstrBot 的 tool_loop 机制会独立发送完整消息，而 `on_decorating_result` 中的分段模块也会通过正常流程发送，两个独立发送通道导致重复。采用多策略检测 tool_call 并在检测到时清空 `result.chain`（用零宽空格替代，防止 intelligent_retry 插件重试），让 tool_loop 成为唯一发送通道
+  - 策略1：`on_llm_response` 中检测 `finish_reason='tool_calls'` 并设置 event flag
+  - 策略2：`on_decorating_result` 中检查 `result` 对象的 `tool_calls`/`finish_reason` 属性
+  - 策略3：检查 `event` 对象的 LLM 响应相关属性
+  - 策略4：深度遍历 `event` 所有属性查找 `finish_reason`/`tool_calls` 信息
+  - 新增 `on_using_llm_tool` 钩子检测 `send_message_to_user` 工具调用并设置 event flag
+  - `_splitter_process` 增加 tool_call 保护，检测到时跳过分段
+  - 首次运行时添加属性探测日志，确认 AstrBot 框架中 tool_call 信息的实际存储位置
+
+### 优化
+
+- **去重窗口扩大**：将去重时间窗口从 30 秒扩大到 60 秒，覆盖 tool_loop 执行延迟导致的重复
+
 ## [1.3.1] - 2026-06-10
 
 ### Bug 修复

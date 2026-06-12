@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.1",
+    "1.3.2",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -323,7 +323,7 @@ class LingxiPlugin(Star):
         # 输出去重缓存：防止 LLM 工具调用或重复响应导致同一内容被多次发送
         # _sent_content_cache: {group_id: deque of (fingerprint, timestamp)}
         self._sent_content_cache: dict[str, deque] = {}
-        self._DEDUP_WINDOW = 30  # 去重时间窗口（秒）
+        self._DEDUP_WINDOW = 60  # 去重时间窗口（秒），扩大以覆盖 tool_loop 执行延迟
 
         # 三大系统状态
         self._energy_states: dict[str, ChatEnergy] = {}
@@ -3019,6 +3019,26 @@ class LingxiPlugin(Star):
         if event.get_extra("smart_wakeup_route_completed"):
             return
 
+        # 检测 tool_call：当 LLM 使用 send_message_to_user 时标记，防止重复输出
+        finish_reason = getattr(resp, 'finish_reason', None)
+        tool_calls = getattr(resp, 'tool_calls', None)
+        if finish_reason == 'tool_calls' or (tool_calls and len(tool_calls) > 0):
+            event.set_extra("smart_wakeup_has_tool_call", True)
+            # 检查是否为 send_message_to_user 工具
+            tool_names = []
+            if tool_calls:
+                for tc in tool_calls:
+                    if hasattr(tc, 'function') and hasattr(tc.function, 'name'):
+                        tool_names.append(tc.function.name)
+                    elif isinstance(tc, dict):
+                        func = tc.get('function', {})
+                        if isinstance(func, dict):
+                            tool_names.append(func.get('name', ''))
+            logger.info(
+                f"[ToolCallDetect] on_llm_response 检测到 tool_call | "
+                f"finish_reason={finish_reason} tools={tool_names}"
+            )
+
         # 兼容性提取 token usage - 多种尝试
         prompt_tokens = None
         completion_tokens = None
@@ -3147,6 +3167,19 @@ class LingxiPlugin(Star):
         # 定期检查异常（每10次调用检查一次，避免频繁计算）
         if self._stats["llm_call_count"] % 10 == 0:
             self._check_token_anomaly()
+
+    @filter.on_using_llm_tool()
+    async def on_using_llm_tool(self, event: AstrMessageEvent, tool, tool_args: dict):
+        """检测 LLM 工具调用，标记 send_message_to_user 防止重复输出"""
+        if not event.get_extra("smart_wakeup_triggered"):
+            return
+        tool_name = getattr(tool, 'name', '') or ''
+        if tool_name == 'send_message_to_user':
+            event.set_extra("smart_wakeup_has_tool_call", True)
+            logger.info(
+                f"[ToolCallDetect] on_using_llm_tool 检测到 send_message_to_user | "
+                f"群={event.message_obj.group_id}"
+            )
 
     def _record_token_usage(self, event: AstrMessageEvent, prompt_tokens: int, completion_tokens: int,
                             model_name: str = "", is_estimated: bool = False):
@@ -3418,6 +3451,25 @@ class LingxiPlugin(Star):
         if not result or not result.chain:
             return
 
+        # 首次运行时探测 result/event 的可用属性（仅记录一次）
+        if not getattr(self, '_attr_probe_done', False):
+            self._attr_probe_done = True
+            _result_attrs = [a for a in dir(result) if not a.startswith('_') and not callable(getattr(result, a, None))]
+            _event_llm_attrs = [a for a in dir(event) if 'llm' in a.lower() or 'resp' in a.lower() or 'tool' in a.lower()]
+            logger.info(
+                f"[ToolCallDetect] 属性探测 | result 属性={_result_attrs} | "
+                f"event LLM相关属性={_event_llm_attrs}"
+            )
+            # 检查关键属性
+            for attr in ['tool_calls', 'finish_reason', 'result', 'completion_text']:
+                val = getattr(result, attr, 'NOT_FOUND')
+                if val != 'NOT_FOUND':
+                    logger.info(f"[ToolCallDetect] result.{attr} = {val}")
+            for attr in ['_llm_response', 'llm_response', '_resp', 'resp']:
+                val = getattr(event, attr, 'NOT_FOUND')
+                if val != 'NOT_FOUND':
+                    logger.info(f"[ToolCallDetect] event.{attr} type={type(val).__name__}")
+
         # 记录过滤前的文本状态（供分段调试）
         pre_filter_text = ""
         for comp in result.chain:
@@ -3526,6 +3578,78 @@ class LingxiPlugin(Star):
             if suppressed:
                 self._suppress_reply(event, group_id, post_filter_text)
                 return
+
+        # ─── tool_call 检测：防止 LLM 工具调用导致重复输出 ───
+        # 当 LLM 使用 send_message_to_user 时，AstrBot 的 tool_loop 会独立发送完整消息，
+        # 如果正常流程也发送，用户会看到重复。检测到 tool_call 时清空 result.chain，
+        # 让 tool_loop 成为唯一发送通道。
+        has_tool_call = False
+
+        # 策略1: 检查 event flag（由 on_llm_response 或 on_using_llm_tool 设置）
+        if event.get_extra("smart_wakeup_has_tool_call"):
+            has_tool_call = True
+            logger.info("[ToolCallDetect] on_decorating_result 检测到 tool_call flag（来自 hook）")
+
+        # 策略2: 检查 result 对象的 tool_calls/finish_reason 属性
+        if not has_tool_call:
+            _result_tc = getattr(result, 'tool_calls', None)
+            _result_fr = getattr(result, 'finish_reason', None)
+            if _result_tc and len(_result_tc) > 0:
+                has_tool_call = True
+                logger.info(f"[ToolCallDetect] on_decorating_result 检测到 result.tool_calls={_result_tc}")
+            elif _result_fr == 'tool_calls':
+                has_tool_call = True
+                logger.info("[ToolCallDetect] on_decorating_result 检测到 result.finish_reason='tool_calls'")
+
+        # 策略3: 检查 event 对象的 LLM 响应相关属性
+        if not has_tool_call:
+            _event_resp = getattr(event, '_llm_response', None) or getattr(event, 'llm_response', None)
+            if _event_resp:
+                _event_fr = getattr(_event_resp, 'finish_reason', None)
+                _event_tc = getattr(_event_resp, 'tool_calls', None)
+                if _event_fr == 'tool_calls' or (_event_tc and len(_event_tc) > 0):
+                    has_tool_call = True
+                    logger.info(f"[ToolCallDetect] on_decorating_result 检测到 event LLM 响应中的 tool_call | finish_reason={_event_fr}")
+
+        # 策略4: 深度探测 event 内部属性（遍历所有属性查找 tool_call/finish_reason 信息）
+        if not has_tool_call:
+            for attr_name in dir(event):
+                if attr_name.startswith('_'):
+                    continue
+                try:
+                    attr_val = getattr(event, attr_name, None)
+                    if attr_val is None or callable(attr_val):
+                        continue
+                    # 检查属性值是否有 finish_reason='tool_calls'
+                    fr = getattr(attr_val, 'finish_reason', None)
+                    if fr == 'tool_calls':
+                        has_tool_call = True
+                        logger.info(
+                            f"[ToolCallDetect] on_decorating_result 深度探测发现 tool_call | "
+                            f"event.{attr_name}.finish_reason='tool_calls'"
+                        )
+                        break
+                    # 检查属性值是否有 tool_calls 列表
+                    tc = getattr(attr_val, 'tool_calls', None)
+                    if tc and len(tc) > 0:
+                        has_tool_call = True
+                        logger.info(
+                            f"[ToolCallDetect] on_decorating_result 深度探测发现 tool_call | "
+                            f"event.{attr_name}.tool_calls={tc}"
+                        )
+                        break
+                except Exception:
+                    continue
+
+        if has_tool_call:
+            logger.info(
+                f"[ToolCallDetect] 检测到 tool_call，清空 result.chain 防止重复发送 | "
+                f"群={group_id} 内容='{post_filter_text[:80]}'"
+            )
+            # 用零宽空格替代输出（而非清空），防止 intelligent_retry 插件重试
+            result.chain.clear()
+            result.chain.append(Plain("\u200b"))
+            return
 
         # ─── 分段模块处理 ───
         # 仅对本插件主动触发的 LLM 回复做分段，其他插件的输出不应被分段
@@ -3895,6 +4019,12 @@ class LingxiPlugin(Star):
 
         # 仅处理唤醒触发的消息
         if not event.get_extra("smart_wakeup_triggered"):
+            return
+
+        # tool_call 保护：当 LLM 使用 send_message_to_user 时跳过分段
+        # 因为 tool_loop 会独立发送完整消息，分段会导致重复
+        if event.get_extra("smart_wakeup_has_tool_call"):
+            logger.info("[ToolCallDetect] _splitter_process 检测到 tool_call，跳过分段")
             return
 
         setattr(result, "__lingxi_split_processed", True)
