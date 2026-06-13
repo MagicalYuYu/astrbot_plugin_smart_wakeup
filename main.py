@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.4",
+    "1.3.5",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -4806,6 +4806,21 @@ class LingxiPlugin(Star):
         # 模式1：完整的思考标签 <think>...</think> 或 <think()>...</think()>
         text = re.sub(r'<think\(\)>[\s\S]*?</think\(\)>', '', text)
         text = re.sub(r'<think>[\s\S]*?</think>', '', text)
+        # 模式1.5：孤立的 </think> 标签（无对应开标签 <think>）
+        # GLM-4 有时在 content 中输出"实际回复</think>实际回复"的模式：
+        #   模型先输出回复内容，然后输出一个孤立的 </think>，再重复输出相同内容。
+        #   此时 </think> 之前的内容属于"草稿区"，之后的内容才是最终版。
+        #   策略：移除最后一个 </think> 及其之前的所有内容，仅保留之后的部分；
+        #   若 </think> 后无内容则仅移除标签本身（保留标签前的内容）。
+        if '</think>' in text and '<think>' not in text:
+            last_close_idx = text.rfind('</think>')
+            after_tag = text[last_close_idx + len('</think>'):].strip()
+            if after_tag:
+                # </think> 后有内容：保留之后的部分（草稿在前，最终版在后）
+                text = after_tag
+            else:
+                # </think> 后无内容：仅移除孤立标签，保留标签前的内容
+                text = text[:last_close_idx].strip()
         # 模式2：移除所有 " response" 之前的内容，仅保留最终版
         # GLM 模型有时会在 content 中输出多段草稿，用 " response" 分隔：
         #   草稿1 response 草稿2（含元数据回显） response 最终版
