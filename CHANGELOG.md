@@ -4,7 +4,7 @@
 
 ### Bug 修复
 
-- **对话记忆发送者归属修复**：修复对话记忆（`_format_conversation_memory`）中所有用户消息统一标记为"用户"导致 LLM 错误归因消息发送人的严重问题。例如用户 MagicalYu 发送 "but you know me"，LLM 却将其归因于 Nana。根因是 `_record_user_message` 不记录发送者名称，`_format_conversation_memory` 和 `_maybe_summarize_history` 仅用通用"用户"标签，LLM 无法区分不同发言者
+- **对话记忆发送者归属修复**：修复对话记忆（`_format_conversation_memory`）中所有用户消息统一标记为"用户"导致 LLM 错误归因消息发送人的严重问题。例如用户 A 发送某条消息，LLM 却将其归因于用户 B。根因是 `_record_user_message` 不记录发送者名称，`_format_conversation_memory` 和 `_maybe_summarize_history` 仅用通用"用户"标签，LLM 无法区分不同发言者
   - `_record_user_message` 新增 `sender_name` 参数，元组从 3 元素扩展为 `(role, text, timestamp, sender_name)`
   - `_record_assistant_message` 同步扩展为 4 元素元组
   - `_format_conversation_memory` 和 `_maybe_summarize_history` 改用具体发送者名称替代通用"用户"标签
@@ -14,7 +14,7 @@
 
 ### Bug 修复
 
-- **GLM 多段草稿输出过滤**：修复 GLM-4-7-251222 模型在回复中将推理过程的多段草稿混入 `content` 字段导致异常输出的问题。异常输出包含用户消息回显（"凡人居然连播两集"）、上下文元数据（"[发送时间:...]"）、多版本回复草稿和 ` response` 分隔符。根因是现有 `_filter_thinking_tags` 仅处理单个 ` response` 分隔符，无法应对多段草稿场景
+- **GLM 多段草稿输出过滤**：修复 GLM-4-7-251222 模型在回复中将推理过程的多段草稿混入 `content` 字段导致异常输出的问题。异常输出包含用户消息回显、上下文元数据（"[发送时间:...]"）、多版本回复草稿和 ` response` 分隔符。根因是现有 `_filter_thinking_tags` 仅处理单个 ` response` 分隔符，无法应对多段草稿场景
   - `_filter_thinking_tags` 模式2改为两步检测：先非贪婪移除第一个 ` response` 段，若残留仍含 ` response` 则贪婪移除全部，仅保留最终版
   - 新增 LLM 元数据回显过滤：移除 `[发送时间:...]`、`[平台:...]` 等模式
   - `_filter_duplicate_response` 新增 ` response` 多段草稿模式处理，作为 `_filter_thinking_tags` 之前的防线
