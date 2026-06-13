@@ -1,5 +1,15 @@
 # 更新日志
 
+## [1.3.4] - 2026-06-13
+
+### Bug 修复
+
+- **对话记忆发送者归属修复**：修复对话记忆（`_format_conversation_memory`）中所有用户消息统一标记为"用户"导致 LLM 错误归因消息发送人的严重问题。例如用户 MagicalYu 发送 "but you know me"，LLM 却将其归因于 Nana。根因是 `_record_user_message` 不记录发送者名称，`_format_conversation_memory` 和 `_maybe_summarize_history` 仅用通用"用户"标签，LLM 无法区分不同发言者
+  - `_record_user_message` 新增 `sender_name` 参数，元组从 3 元素扩展为 `(role, text, timestamp, sender_name)`
+  - `_record_assistant_message` 同步扩展为 4 元素元组
+  - `_format_conversation_memory` 和 `_maybe_summarize_history` 改用具体发送者名称替代通用"用户"标签
+  - 所有读取历史记录的位置使用 `record[3] if len(record) > 3 else ""` 模式，向后兼容旧的 3 元素元组
+
 ## [1.3.3] - 2026-06-13
 
 ### Bug 修复

@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.3",
+    "1.3.4",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -312,7 +312,7 @@ class LingxiPlugin(Star):
         self._last_context_ts: dict[str, int] = {}
 
         # 分层对话记忆状态
-        # _conversation_history: {group_id: deque of (role, text, timestamp)}
+        # _conversation_history: {group_id: deque of (role, text, timestamp, sender_name)}
         # role: "user" or "assistant"
         self._conversation_history: dict[str, deque] = {}
         # _conversation_summaries: {group_id: summary_text}
@@ -1029,7 +1029,7 @@ class LingxiPlugin(Star):
         if self.conversation_memory_enabled:
             group_id = event.message_obj.group_id
             if group_id:
-                self._record_user_message(group_id, event.message_str or "")
+                self._record_user_message(group_id, event.message_str or "", event.get_sender_name() or "")
 
     def _get_user_prob(self, sender_id: str) -> float:
         """获取用户概率乘数
@@ -3259,15 +3259,15 @@ class LingxiPlugin(Star):
             self._conversation_history[group_id] = deque(maxlen=maxlen)
         return self._conversation_history[group_id]
 
-    def _record_user_message(self, group_id: str, text: str):
+    def _record_user_message(self, group_id: str, text: str, sender_name: str = ""):
         """记录用户消息到对话历史"""
         history = self._get_conversation_history(group_id)
-        history.append(("user", text.strip(), int(time.time())))
+        history.append(("user", text.strip(), int(time.time()), sender_name))
 
     def _record_assistant_message(self, group_id: str, text: str):
         """记录Bot回复到对话历史"""
         history = self._get_conversation_history(group_id)
-        history.append(("assistant", text.strip(), int(time.time())))
+        history.append(("assistant", text.strip(), int(time.time()), ""))
 
         # 检查是否需要触发摘要压缩
         self._maybe_summarize_history(group_id)
@@ -3291,8 +3291,14 @@ class LingxiPlugin(Star):
 
         # 构建待压缩的对话文本
         lines = []
-        for role, text, ts in records_to_summarize:
-            role_label = "用户" if role == "user" else "Bot"
+        for record in records_to_summarize:
+            role = record[0]
+            text = record[1]
+            sender = record[3] if len(record) > 3 else ""
+            if role == "user":
+                role_label = sender if sender else "用户"
+            else:
+                role_label = "Bot"
             lines.append(f"{role_label}: {text}")
         conversation_text = "\n".join(lines)
 
@@ -3391,8 +3397,14 @@ class LingxiPlugin(Star):
         history = self._get_conversation_history(group_id)
         if history:
             recent_lines = []
-            for role, text, ts in list(history):
-                role_label = "用户" if role == "user" else "Bot"
+            for record in list(history):
+                role = record[0]
+                text = record[1]
+                sender = record[3] if len(record) > 3 else ""
+                if role == "user":
+                    role_label = sender if sender else "用户"
+                else:
+                    role_label = "Bot"
                 # 截断过长的单条消息
                 if len(text) > 200:
                     text = text[:100] + "..."
