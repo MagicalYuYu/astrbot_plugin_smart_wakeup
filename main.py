@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.2",
+    "1.3.3",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -4794,9 +4794,17 @@ class LingxiPlugin(Star):
         # 模式1：完整的思考标签 <think>...</think> 或 <think()>...</think()>
         text = re.sub(r'<think\(\)>[\s\S]*?</think\(\)>', '', text)
         text = re.sub(r'<think>[\s\S]*?</think>', '', text)
-        # 模式2：只有闭合标签 </think>，说明前面的内容是思考/草稿，应移除
-        # 如 "行吧，那你忙你的。</think>好，那你先忙你的。" → "好，那你先忙你的。"
-        text = re.sub(r'^[\s\S]*?</think>\s*', '', text)
+        # 模式2：移除所有 " response" 之前的内容，仅保留最终版
+        # GLM 模型有时会在 content 中输出多段草稿，用 " response" 分隔：
+        #   草稿1 response 草稿2（含元数据回显） response 最终版
+        # 先用非贪婪移除第一个 " response" 段落（处理标准单段草稿）
+        text = re.sub(r'^[\s\S]*? response\s*', '', text)
+        # 如果移除后仍有 " response"，说明存在多段草稿，用贪婪移除全部
+        if " response" in text:
+            text = re.sub(r'^[\s\S]* response\s*', '', text)
+        # 移除模型可能回显的上下文元数据（如 LLMPerception 注入的 [发送时间:...] 等）
+        text = re.sub(r'\[发送时间:[^\]]*\]', '', text)
+        text = re.sub(r'\[平台:[^\]]*\]', '', text)
         text = text.strip()
         if text != original:
             self._stats["thinking_filtered"] += 1
@@ -4807,10 +4815,18 @@ class LingxiPlugin(Star):
     def _filter_duplicate_response(text: str) -> str:
         """过滤 LLM 返回的重复回复
 
-        某些模型（如 GLM）会在回复中生成两个版本，用 ``` 分隔。
-        仅当 ``` 独占一行（前后为换行，且 ``` 后面不紧跟代码语言标识或颜文字标记）
-        时才判定为版本分隔符，避免误切代码块和颜文字标记。
+        某些模型（如 GLM）会在回复中生成两个版本，用 ``` 或 " response" 分隔。
+        仅当分隔符符合特定模式时才判定为版本分隔符，避免误切正常内容。
         """
+        # 处理 GLM 模型用 " response" 分隔的多段草稿（如推理过程中混入 content 的多个版本）
+        # 取最后一个 " response" 之后的最终版
+        if " response" in text:
+            parts = text.split(" response")
+            if len(parts) > 1:
+                filtered = parts[-1].strip()
+                logger.info(f"重复回复过滤(GLMs): 检测到 {len(parts)} 个版本，保留最终版本（原文 {len(text)} 字 → 过滤后 {len(filtered)} 字）")
+                return filtered
+
         # 匹配 ``` 独占一行的情况：
         # - 前后有换行
         # - ``` 后面只有空白和换行（不是代码语言如 python，也不是颜文字如 (QAQ)）
