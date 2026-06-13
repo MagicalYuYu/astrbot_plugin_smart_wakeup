@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.5",
+    "1.3.6",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -1376,6 +1376,12 @@ class LingxiPlugin(Star):
                     relation_tag = " (回应BOT)"
                 prev_is_bot = False
                 prev_bot_time = 0
+
+            # 消息内容歧义消除：当内容以"昵称:"模式开头时，
+            # 格式如 [MagicalYu]: gamer:xxx 中的双重冒号会让 LLM 误判 gamer 为实际发言者。
+            # 用引号包裹内容，使 LLM 明确区分发送者标注与被引用/转述的内容。
+            if re.match(r'^[\w\u4e00-\u9fff]+[:：]', text):
+                text = f"「{text}」"
 
             lines.append(f"[{display_name}]{relation_tag}: {text}")
 
@@ -3408,6 +3414,9 @@ class LingxiPlugin(Star):
                 # 截断过长的单条消息
                 if len(text) > 200:
                     text = text[:100] + "..."
+                # 消息内容歧义消除：同 _format_context 中的处理逻辑
+                if re.match(r'^[\w\u4e00-\u9fff]+[:：]', text):
+                    text = f"「{text}」"
                 recent_lines.append(f"{role_label}: {text}")
 
             if recent_lines:
