@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.6",
+    "1.3.7",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -3176,16 +3176,76 @@ class LingxiPlugin(Star):
 
     @filter.on_using_llm_tool()
     async def on_using_llm_tool(self, event: AstrMessageEvent, tool, tool_args: dict):
-        """检测 LLM 工具调用，标记 send_message_to_user 防止重复输出"""
+        """检测 LLM 工具调用，拦截 send_message_to_user 的重复发送
+
+        当 LLM 返回 finish_reason='tool_calls' 且同时包含 content 和 tool_calls 时，
+        框架会先通过 on_decorating_result 发送 content，再通过 send_message_to_user 发送相同内容，
+        导致用户看到重复消息。此方法在 tool 执行前拦截重复发送。
+
+        防御机制（三层）：
+        1. 设置 event flag，让后续 on_decorating_result 调用能检测到 tool_call
+        2. 提取 send_message_to_user 的消息文本，与已发送内容比对
+        3. 若重复，同时修改 tool_args 和 tool.handler，双管齐下阻止重复发送
+           注意：tool 对象来自框架 tools_map 共享引用，handler 替换后必须恢复
+        """
         if not event.get_extra("smart_wakeup_triggered"):
             return
         tool_name = getattr(tool, 'name', '') or ''
         if tool_name == 'send_message_to_user':
+            group_id = event.message_obj.group_id
             event.set_extra("smart_wakeup_has_tool_call", True)
-            logger.info(
-                f"[ToolCallDetect] on_using_llm_tool 检测到 send_message_to_user | "
-                f"群={event.message_obj.group_id}"
-            )
+
+            # 提取 send_message_to_user 的消息文本
+            tool_text = self._extract_tool_message_text(tool_args)
+
+            # 检查是否与已发送内容重复
+            if tool_text and group_id and self._is_duplicate_content(group_id, tool_text):
+                # ── 防线1: 修改 tool_args（可能影响 valid_params，取决于框架是否传引用）──
+                tool_args.clear()
+                tool_args['messages'] = [{'type': 'plain', 'text': '\u200b'}]
+
+                # ── 防线2: 临时替换 tool 的 handler 为空操作函数 ──
+                # tool 对象来自框架 tools_map 共享引用，必须恢复原始 handler
+                original_handler = getattr(tool, 'handler', None)
+                handler_restored = False
+                if original_handler is not None and callable(original_handler):
+                    async def _noop_handler(*args, **kwargs):
+                        return None
+                    tool.handler = _noop_handler
+
+                    # 创建后台任务恢复原始 handler
+                    # 工具执行在 hook 返回后立即发生，0.5s 足够覆盖执行时间
+                    _saved_handler = original_handler
+                    async def _restore_handler():
+                        await asyncio.sleep(0.5)
+                        if getattr(tool, 'handler', None) is _noop_handler:
+                            tool.handler = _saved_handler
+                            handler_restored = True
+                    asyncio.create_task(_restore_handler())
+
+                logger.warning(
+                    f"[ToolCallDedup] 拦截 send_message_to_user 重复发送 | "
+                    f"群={group_id} 原内容='{tool_text[:80]}' | "
+                    f"tool_args已清空=True handler已替换={original_handler is not None}"
+                )
+            else:
+                logger.info(
+                    f"[ToolCallDetect] on_using_llm_tool 检测到 send_message_to_user | "
+                    f"群={group_id} 重复检查={'未命中' if tool_text else '无文本'}"
+                )
+
+    def _extract_tool_message_text(self, tool_args: dict) -> str:
+        """从 send_message_to_user 的 tool_args 中提取纯文本内容"""
+        messages = tool_args.get('messages', [])
+        texts = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                text = msg.get('text', '')
+                if text:
+                    texts.append(text)
+            elif isinstance(msg, str):
+                texts.append(msg)
+        return '\n'.join(texts)
 
     def _record_token_usage(self, event: AstrMessageEvent, prompt_tokens: int, completion_tokens: int,
                             model_name: str = "", is_estimated: bool = False):

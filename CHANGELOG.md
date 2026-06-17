@@ -1,5 +1,15 @@
 # 更新日志
 
+## [1.3.7] - 2026-06-17
+
+### Bug 修复
+
+- **LLM 工具调用重复输出根治**：修复当 LLM 返回 `finish_reason='tool_calls'` 且同时包含 `content` 和 `send_message_to_user` 工具调用时，框架先通过 `on_decorating_result` 发送 content（经分段器），再通过 tool_loop 的 `send_message_to_user` 发送相同内容，导致用户看到重复消息的顽固问题。此前 v1.3.2 声称根治但实际未解决，本次采用全新三层拦截机制：
+  - **防线1**：在 `on_using_llm_tool` 中检测 `send_message_to_user`，提取其消息文本与已发送内容缓存（`_sent_content_cache`）比对，若重复则清空 `tool_args` 替换为零宽空格
+  - **防线2**：临时替换 `tool.handler` 为空操作函数（返回 None），阻止工具实际执行发送；替换后通过 `asyncio.create_task` 延迟 0.5s 恢复原始 handler，避免影响后续正常工具调用
+  - **防线3**：现有 dedup 机制继续拦截第二轮 `on_decorating_result` 调用中的重复内容
+  - 新增 `_extract_tool_message_text` 辅助方法，从 `send_message_to_user` 的 `tool_args` 中提取纯文本内容用于重复比对
+
 ## [1.3.6] - 2026-06-14
 
 ### Bug 修复
