@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.3.7",
+    "1.4.0",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -247,6 +247,19 @@ class LingxiPlugin(Star):
         self.reply_suppression_judge_model = suppression_config.get("reply_suppression_judge_model", "")
         self.reply_suppression_judge_prompt = suppression_config.get("reply_suppression_judge_prompt", "")
 
+        # 轻量回应配置
+        light_config = self.config.get("light_response", {})
+        self.light_response_enabled = light_config.get("light_response_enabled", True)
+        self.light_response_prob = light_config.get("light_response_prob", 0.3)
+        self.light_response_cooldown = light_config.get("light_response_cooldown", 300)
+        self.light_response_max_per_hour = light_config.get("light_response_max_per_hour", 3)
+        pool_str = light_config.get("light_response_pool", "确实|是这样的|嗯|有道理|哈哈|学到了|原来如此|有点意思")
+        self._light_response_pool = [s.strip() for s in pool_str.split("|") if s.strip()] if pool_str else ["确实", "嗯", "哈哈"]
+        # 状态变量（按群维度）
+        self._light_response_last: dict[str, float] = {}       # {group_id: last_timestamp}
+        self._light_response_count: dict[str, int] = {}        # {group_id: count_in_current_hour}
+        self._light_response_hour_reset: dict[str, float] = {} # {group_id: hour_start_timestamp}
+
         # 关键词触发配置
         keywords_str = basic.get("keywords", "")
         self.keywords = [k.strip() for k in keywords_str.split("|") if k.strip()] if keywords_str else []
@@ -273,6 +286,8 @@ class LingxiPlugin(Star):
                     "rescue_idle_threshold", "rescue_cooldown",
                     "debounce_wait_name", "debounce_wait_prob", "debounce_wait_rescue",
                     "keyword_reply_prob",
+                    # 轻量回应参数（新增）
+                    "light_response_prob", "light_response_cooldown", "light_response_max_per_hour",
                 ]
                 for key in param_keys:
                     val = item.get(key)
@@ -2887,6 +2902,20 @@ class LingxiPlugin(Star):
                     )
                 )
             )
+            # 轻量回应引导：允许 LLM 在无合适话题时输出简短附和
+            if self.light_response_enabled:
+                parts.append(
+                    TextPart(
+                        text=(
+                            "<light_response_guidance>\n"
+                            "如果你判断当前群聊中没有值得深度参与的话题，但保持沉默又显得不在场，\n"
+                            "可以输出一句简短的自然附和——就像真人在群里偶尔冒泡一样。\n"
+                            "这类回应的特征：不输出实质观点、不强行接话、在任何场合都不违和。\n"
+                            "例如：简短的认同、语气词等。不要频繁使用同一句。\n"
+                            "</light_response_guidance>"
+                        )
+                    )
+                )
         elif wakeup_type == "dead_chat_rescue":
             parts.append(
                 TextPart(
@@ -2899,6 +2928,18 @@ class LingxiPlugin(Star):
                     )
                 )
             )
+            # 轻量回应引导：冷场时也允许简短附和
+            if self.light_response_enabled:
+                parts.append(
+                    TextPart(
+                        text=(
+                            "<light_response_guidance>\n"
+                            "如果你觉得没有合适的话题可以发起，也可以输出一句简短的自然附和，\n"
+                            "表达你在场的感受。不必强行找话题，自然就好。\n"
+                            "</light_response_guidance>"
+                        )
+                    )
+                )
 
         # 在场感知提示：约束 BOT 只对在场用户说话
         parts.append(
@@ -3745,6 +3786,54 @@ class LingxiPlugin(Star):
         直接发送，导致 [SKIP] 等抑制标记原样输出给用户。
         解决方案：用零宽空格替换输出内容，使 retry 插件判定为"非空回复"而跳过重试。
         """
+        # ── 安全话语替代检查 ──
+        # 当回复被抑制时，以一定概率输出简短附和语替代完全沉默
+        # 仅对非直接呼叫场景生效（直接呼叫不应被抑制，也不应输出安全话语）
+        if self.light_response_enabled and group_id:
+            wakeup_type = event.get_extra("wakeup_type", "")
+            is_direct_call = wakeup_type in ("name_trigger", "reply_to_bot", "keyword_trigger")
+            if not is_direct_call:
+                now = time.time()
+                # 检查1：冷却时间
+                cooldown = self._get_group_param(group_id, "light_response_cooldown", self.light_response_cooldown)
+                last_light = self._light_response_last.get(group_id, 0)
+                if now - last_light >= cooldown:
+                    # 检查2：每小时上限（含小时重置逻辑）
+                    hour_start = self._light_response_hour_reset.get(group_id, now)
+                    if now - hour_start >= 3600:
+                        # 进入新小时，重置计数器
+                        self._light_response_count[group_id] = 0
+                        self._light_response_hour_reset[group_id] = now
+                    count = self._light_response_count.get(group_id, 0)
+                    max_per_hour = self._get_group_param(group_id, "light_response_max_per_hour", self.light_response_max_per_hour)
+                    if count < max_per_hour:
+                        # 检查3：概率掷骰
+                        prob = self._get_group_param(group_id, "light_response_prob", self.light_response_prob)
+                        if random.random() < prob:
+                            light_msg = random.choice(self._light_response_pool)
+                            # 替换输出为安全话语（而非零宽空格）
+                            result = event.get_result()
+                            if result:
+                                result.chain = [Plain(light_msg)]
+                            # 标记为轻量回应（不设置 smart_wakeup_suppressed，让 after_message_sent 正常记录）
+                            event.set_extra("smart_wakeup_light_response", True)
+                            # 更新频率统计
+                            self._light_response_last[group_id] = now
+                            self._light_response_count[group_id] = count + 1
+                            # 撤销对话记忆中的 LLM 原始输出（被抑制了）
+                            if self.conversation_memory_enabled and group_id in self._conversation_history:
+                                history = self._conversation_history[group_id]
+                                if history and history[-1][0] == "assistant":
+                                    removed = history.pop()
+                                    self._debug(f"[安全话语] 撤销LLM原始输出 | 群={group_id} 内容='{removed[1][:50]}'")
+                            # 注意：不恢复精力（BOT 确实发言了）
+                            # 注意：不更新抑制统计（这不是抑制，是替代输出）
+                            logger.info(
+                                f"[安全话语] 替代沉默 | 群={group_id} 内容='{light_msg}' "
+                                f"本小时第{count + 1}/{max_per_hour}次"
+                            )
+                            return  # 不执行后续抑制逻辑
+
         # 1. 用零宽空格替换输出（而非清空），防止 intelligent_retry 插件重试
         result = event.get_result()
         if result:

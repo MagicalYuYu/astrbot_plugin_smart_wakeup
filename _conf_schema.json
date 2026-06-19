@@ -435,6 +435,43 @@
             }
         }
     },
+    "light_response": {
+        "description": "💬 轻量回应",
+        "type": "object",
+        "hint": "当回复被抑制时，以一定概率输出简短附和语替代完全沉默，表达在场感。需配合「回复抑制」使用。",
+        "items": {
+            "light_response_enabled": {
+                "description": "💬 启用轻量回应",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后当回复被抑制时，有概率输出一句简短附和（如'确实''有道理'）替代完全沉默。"
+            },
+            "light_response_prob": {
+                "description": "🎲 触发概率",
+                "type": "float",
+                "default": 0.3,
+                "hint": "每次回复被抑制时输出安全话语的概率。0=始终沉默，1=始终输出安全话语。建议 0.2~0.5。"
+            },
+            "light_response_cooldown": {
+                "description": "⏳ 冷却时间（秒）",
+                "type": "int",
+                "default": 300,
+                "hint": "两次轻量回应之间的最短间隔，避免频繁冒泡。默认 300 秒。"
+            },
+            "light_response_max_per_hour": {
+                "description": "📊 每小时上限",
+                "type": "int",
+                "default": 3,
+                "hint": "每小时最多输出多少条轻量回应，防止刷屏。"
+            },
+            "light_response_pool": {
+                "description": "📝 自定义话语库",
+                "type": "string",
+                "default": "确实|是这样的|嗯|有道理|哈哈|学到了|原来如此|有点意思",
+                "hint": "轻量回应候选话语，用 | 分隔。这些话语在任何话题下说出都不违和，不包含实质观点。"
+            }
+        }
+    },
     "splitter": {
         "description": "✂️ 消息分段",
         "type": "object",
