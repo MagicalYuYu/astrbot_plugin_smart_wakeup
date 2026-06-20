@@ -259,8 +259,6 @@ class LingxiPlugin(Star):
         self._light_response_last: dict[str, float] = {}       # {group_id: last_timestamp}
         self._light_response_count: dict[str, int] = {}        # {group_id: count_in_current_hour}
         self._light_response_hour_reset: dict[str, float] = {} # {group_id: hour_start_timestamp}
-        # 最近回复冷却：记录 BOT 最近一次发言时间，用于降低概率唤醒的重复触发
-        self._last_bot_reply_time: dict[str, float] = {}  # {group_id: timestamp}
 
         # 关键词触发配置
         keywords_str = basic.get("keywords", "")
@@ -341,6 +339,12 @@ class LingxiPlugin(Star):
         # _sent_content_cache: {group_id: deque of (fingerprint, timestamp)}
         self._sent_content_cache: dict[str, deque] = {}
         self._DEDUP_WINDOW = 60  # 去重时间窗口（秒），扩大以覆盖 tool_loop 执行延迟
+
+        # 语义去重：记录每群 BOT 最近一次回复的文本和时间
+        # 用于检测短时间内两次概率唤醒生成语义相近的重复回复
+        self._last_bot_reply_text: dict[str, str] = {}   # {group_id: last_reply_text}
+        self._last_bot_reply_time: dict[str, float] = {}  # {group_id: last_reply_timestamp}
+        self._SIMILARITY_WINDOW = 120  # 语义去重时间窗口（秒）
 
         # 三大系统状态
         self._energy_states: dict[str, ChatEnergy] = {}
@@ -508,6 +512,39 @@ class LingxiPlugin(Star):
             self._sent_content_cache[group_id] = deque()
 
         self._sent_content_cache[group_id].append((fingerprint, now))
+
+    @staticmethod
+    def _calc_text_similarity(text_a: str, text_b: str) -> float:
+        """计算两段文本的字符 bigram Jaccard 相似度
+
+        使用字符级 bigram 集合的 Jaccard 系数衡量文本相似度。
+        对中文文本效果良好，因为每个汉字都携带语义信息。
+        返回 0.0~1.0 之间的浮点数，1.0 表示完全相同。
+        """
+        # 归一化：去除空白和标点，转小写
+        normalize = lambda t: re.sub(r'[\s\u3000\uff01\uff08\uff09\uff0c\uff1f\uff1b\uff1a\u201c\u201d\u2018\u2019\u3002\uff0e!?;:,\.\(\)"\'\-]', '', t.lower())
+        a = normalize(text_a)
+        b = normalize(text_b)
+
+        if not a or not b:
+            return 0.0
+
+        # 完全相同
+        if a == b:
+            return 1.0
+
+        # 构建字符 bigram 集合
+        bigrams_a = {a[i:i+2] for i in range(len(a) - 1)}
+        bigrams_b = {b[i:i+2] for i in range(len(b) - 1)}
+
+        if not bigrams_a or not bigrams_b:
+            return 0.0
+
+        # Jaccard 相似度 = 交集 / 并集
+        intersection = len(bigrams_a & bigrams_b)
+        union = len(bigrams_a | bigrams_b)
+
+        return intersection / union if union > 0 else 0.0
 
     def _is_reply_to_bot(self, event: AstrMessageEvent) -> bool:
         """检测消息是否是回复BOT的消息
@@ -1866,22 +1903,6 @@ class LingxiPlugin(Star):
         # 计算动态概率，乘以用户概率乘数
         prob = self._calc_dynamic_probability(group_id) * user_prob
 
-        # 最近回复冷却：BOT 刚发过言时降低概率唤醒触发概率
-        # 真人刚说完话不会立即再说类似的话，避免短时间内生成内容高度相近的重复回复
-        last_reply = self._last_bot_reply_time.get(group_id, 0)
-        if last_reply > 0:
-            reply_elapsed = time.time() - last_reply
-            if reply_elapsed < 120:  # 120秒冷却窗口
-                # 冷却系数：0秒=0.1（几乎不触发），60秒=0.4，120秒=1.0（完全恢复）
-                cooldown_factor = min(1.0, reply_elapsed / 120.0)
-                # 使用平方曲线让前期衰减更剧烈
-                cooldown_factor = cooldown_factor ** 2
-                # 最低不低于0.1，避免完全禁止（冷场救场等场景仍需触发）
-                cooldown_factor = max(0.1, cooldown_factor)
-                original_prob = prob
-                prob *= cooldown_factor
-                self._debug(f"回复冷却 | 群={group_id} 距上次回复{reply_elapsed:.0f}秒 冷却系数={cooldown_factor:.2f} 概率={original_prob:.4f}→{prob:.4f}")
-
         # 复读抑制：检测聚合文本是否为复读
         if self.repeat_suppress_enabled:
             # 优先使用防抖阶段的复读检测结果（已检查所有暂存消息）
@@ -2771,7 +2792,8 @@ class LingxiPlugin(Star):
                 # 同步记录到对话历史，确保多轮对话记忆完整
                 if self.conversation_memory_enabled:
                     self._record_assistant_message(group_id, combined_text)
-                # 记录 BOT 最近发言时间，用于概率唤醒冷却
+                # 记录 BOT 最近一次回复文本和时间（供语义去重检测）
+                self._last_bot_reply_text[group_id] = combined_text
                 self._last_bot_reply_time[group_id] = time.time()
 
     # ─── LLM 请求钩子 ─────────────────────────────────────
@@ -3660,6 +3682,39 @@ class LingxiPlugin(Star):
                 result.chain.clear()
                 return
             self._record_sent_content(group_id, post_filter_text)
+
+        # ─── 语义去重：检测短时间内两次概率唤醒生成语义相近的重复回复 ───
+        # 核心思路：两次独立的概率唤醒触发两次 LLM 调用，LLM 基于相似上下文
+        # 可能生成语义重复的回复。在输出阶段检测新回复与 BOT 最近一次回复的
+        # 相似度，过高则抑制——从根源解决"生成重复内容"的问题，而非规避触发
+        if group_id and post_filter_text:
+            wakeup_type = event.get_extra("wakeup_type", "")
+            is_direct_call = wakeup_type in ("name_trigger", "reply_to_bot", "keyword_trigger")
+            # 仅对非直接呼叫场景检测（概率唤醒、冷场救场）
+            # 直接呼叫是用户主动请求，即使内容相似也应回复
+            if not is_direct_call:
+                last_text = self._last_bot_reply_text.get(group_id, "")
+                last_time = self._last_bot_reply_time.get(group_id, 0)
+                now = time.time()
+                # 仅在时间窗口内检测
+                if last_text and (now - last_time) <= self._SIMILARITY_WINDOW:
+                    similarity = self._calc_text_similarity(post_filter_text, last_text)
+                    # 相似度阈值：0.55 以上视为语义重复
+                    # bigram Jaccard 对中文短文本较敏感，0.55 可有效区分
+                    # "语义相近但表述不同"（约 0.3-0.45）和"实质重复"（0.55+）
+                    if similarity >= 0.55:
+                        logger.info(
+                            f"[SemanticDedup] 检测到语义重复回复，已抑制 | 群={group_id} "
+                            f"相似度={similarity:.2f} 距上次={now - last_time:.0f}秒 | "
+                            f"新回复='{post_filter_text[:60]}' | 上次='{last_text[:60]}'"
+                        )
+                        self._suppress_reply(event, group_id, post_filter_text)
+                        return
+                    else:
+                        self._debug(
+                            f"[SemanticDedup] 相似度未达阈值 | 群={group_id} "
+                            f"相似度={similarity:.2f}"
+                        )
 
         # ─── 回复抑制：在输出去重之后、分段之前检测是否应拦截 ───
         if self.reply_suppression_enabled and group_id and post_filter_text:
