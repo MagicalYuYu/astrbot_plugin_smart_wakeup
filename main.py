@@ -81,7 +81,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——赋予 Bot 自然的社交节律，兼容 Telegram 和 QQ",
-    "1.4.0",
+    "1.4.1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -259,6 +259,8 @@ class LingxiPlugin(Star):
         self._light_response_last: dict[str, float] = {}       # {group_id: last_timestamp}
         self._light_response_count: dict[str, int] = {}        # {group_id: count_in_current_hour}
         self._light_response_hour_reset: dict[str, float] = {} # {group_id: hour_start_timestamp}
+        # 最近回复冷却：记录 BOT 最近一次发言时间，用于降低概率唤醒的重复触发
+        self._last_bot_reply_time: dict[str, float] = {}  # {group_id: timestamp}
 
         # 关键词触发配置
         keywords_str = basic.get("keywords", "")
@@ -1864,6 +1866,22 @@ class LingxiPlugin(Star):
         # 计算动态概率，乘以用户概率乘数
         prob = self._calc_dynamic_probability(group_id) * user_prob
 
+        # 最近回复冷却：BOT 刚发过言时降低概率唤醒触发概率
+        # 真人刚说完话不会立即再说类似的话，避免短时间内生成内容高度相近的重复回复
+        last_reply = self._last_bot_reply_time.get(group_id, 0)
+        if last_reply > 0:
+            reply_elapsed = time.time() - last_reply
+            if reply_elapsed < 120:  # 120秒冷却窗口
+                # 冷却系数：0秒=0.1（几乎不触发），60秒=0.4，120秒=1.0（完全恢复）
+                cooldown_factor = min(1.0, reply_elapsed / 120.0)
+                # 使用平方曲线让前期衰减更剧烈
+                cooldown_factor = cooldown_factor ** 2
+                # 最低不低于0.1，避免完全禁止（冷场救场等场景仍需触发）
+                cooldown_factor = max(0.1, cooldown_factor)
+                original_prob = prob
+                prob *= cooldown_factor
+                self._debug(f"回复冷却 | 群={group_id} 距上次回复{reply_elapsed:.0f}秒 冷却系数={cooldown_factor:.2f} 概率={original_prob:.4f}→{prob:.4f}")
+
         # 复读抑制：检测聚合文本是否为复读
         if self.repeat_suppress_enabled:
             # 优先使用防抖阶段的复读检测结果（已检查所有暂存消息）
@@ -2753,6 +2771,8 @@ class LingxiPlugin(Star):
                 # 同步记录到对话历史，确保多轮对话记忆完整
                 if self.conversation_memory_enabled:
                     self._record_assistant_message(group_id, combined_text)
+                # 记录 BOT 最近发言时间，用于概率唤醒冷却
+                self._last_bot_reply_time[group_id] = time.time()
 
     # ─── LLM 请求钩子 ─────────────────────────────────────
 
@@ -4982,14 +5002,18 @@ class LingxiPlugin(Star):
         # 模式2：移除所有 " response" 之前的内容，仅保留最终版
         # GLM 模型有时会在 content 中输出多段草稿，用 " response" 分隔：
         #   草稿1 response 草稿2（含元数据回显） response 最终版
-        # 先用非贪婪移除第一个 " response" 段落（处理标准单段草稿）
-        text = re.sub(r'^[\s\S]*? response\s*', '', text)
-        # 如果移除后仍有 " response"，说明存在多段草稿，用贪婪移除全部
-        if " response" in text:
-            text = re.sub(r'^[\s\S]* response\s*', '', text)
+        # 注意：使用负向前瞻 (?!\w) 避免 "few responses" 等英文常见词汇被误匹配
+        if re.search(r" response(?!\w)", text):
+            text = re.sub(r'^[\s\S]*? response(?!\w)\s*', '', text)
+        if re.search(r" response(?!\w)", text):
+            text = re.sub(r'^[\s\S]* response(?!\w)\s*', '', text)
         # 移除模型可能回显的上下文元数据（如 LLMPerception 注入的 [发送时间:...] 等）
         text = re.sub(r'\[发送时间:[^\]]*\]', '', text)
         text = re.sub(r'\[平台:[^\]]*\]', '', text)
+        # 兜底清理：移除末尾残留的 ``` 或 `` 标记（GLM-4 草稿分隔符残留）
+        # 匹配文本末尾的 2-3 个连续反引号（前后可能有空白），这些是 GLM 草稿分隔符残留
+        text = re.sub(r'\s*```\s*$', '', text)
+        text = re.sub(r'\s*``\s*$', '', text)
         text = text.strip()
         if text != original:
             self._stats["thinking_filtered"] += 1
@@ -5005,8 +5029,10 @@ class LingxiPlugin(Star):
         """
         # 处理 GLM 模型用 " response" 分隔的多段草稿（如推理过程中混入 content 的多个版本）
         # 取最后一个 " response" 之后的最终版
-        if " response" in text:
-            parts = text.split(" response")
+        # 注意：使用正则而非简单 split，避免 "few responses" 等英文常见词汇中的 " response" 子串被误匹配
+        # GLM 草稿分隔符格式为 " response\n" 或 " response "，后面不紧跟单词字符
+        if re.search(r" response(?!\w)", text):
+            parts = re.split(r" response(?!\w)\s*", text)
             if len(parts) > 1:
                 filtered = parts[-1].strip()
                 logger.info(f"重复回复过滤(GLMs): 检测到 {len(parts)} 个版本，保留最终版本（原文 {len(text)} 字 → 过滤后 {len(filtered)} 字）")
@@ -5021,6 +5047,27 @@ class LingxiPlugin(Star):
             filtered = parts[-1].strip()
             logger.info(f"重复回复过滤: 检测到 {len(parts)} 个版本，保留最终版本（原文 {len(text)} 字 → 过滤后 {len(filtered)} 字）")
             return filtered
+
+        # 匹配 ``` 直接跟在文字后面的情况（GLM-4 新模式）：
+        # 例如："这么有创意```[SKIP]```\n[SKIP]"
+        # 此时 ``` 不在独立行上，而是紧跟在文本末尾
+        # 安全策略：仅当 ``` 后紧跟 [SKIP] 或另一个 ``` 时才判定为草稿分隔符，
+        # 避免误切合法代码块（```python 等）
+        if re.search(r'```(?:\[SKIP\]|```)', text):
+            parts = re.split(r'```', text)
+            if len(parts) > 1:
+                # 检查最后一个部分是否是有效的最终版本（非空且不是 [SKIP] 等标记）
+                last_part = parts[-1].strip()
+                # 如果最后一段为空或仅是 [SKIP] 标记，则取第一段（正式回复）
+                if not last_part or re.match(r'^\[SKIP\]', last_part):
+                    filtered = parts[0].strip()
+                else:
+                    filtered = last_part
+                # 清理末尾可能残留的 ``` 标记
+                filtered = filtered.rstrip('`').strip()
+                if filtered != text.strip():
+                    logger.info(f"重复回复过滤(```内联): 检测到 {len(parts)} 段，保留最终版本（原文 {len(text)} 字 → 过滤后 {len(filtered)} 字）")
+                    return filtered
         return text
 
     @staticmethod
