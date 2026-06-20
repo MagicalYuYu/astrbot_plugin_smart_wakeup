@@ -546,6 +546,100 @@ class LingxiPlugin(Star):
 
         return intersection / union if union > 0 else 0.0
 
+    async def _regenerate_with_anti_repeat(
+        self, event: AstrMessageEvent, group_id: str, current_text: str, last_text: str
+    ) -> str | None:
+        """检测到语义重复时，注入防重复提示重新调用 LLM 生成不同内容
+
+        返回重新生成的文本（与上次回复相似度低于阈值），失败或仍相似则返回 None。
+        仅尝试一次重新生成，避免无限循环。
+        """
+        try:
+            # 获取当前使用的 provider
+            provider = None
+            # 优先使用路由模型（如果有的话）
+            routing_model = self._determine_routing_model(event)
+            if routing_model:
+                provider = self.context.get_provider_by_id(routing_model)
+            # 回退到默认 provider
+            if not provider:
+                provider = self.context.get_using_provider()
+
+            if not provider:
+                logger.warning("[SemanticDedup] 无可用 provider，跳过重新生成")
+                return None
+
+            # 构建防重复提示
+            display_last = last_text[:150] + ("..." if len(last_text) > 150 else "")
+            anti_repeat_prompt = (
+                "你刚才说了：\n「{display_last}」\n"
+                "你这次的回复和刚才说的内容太相似了，请换一个完全不同的角度或表达方式，"
+                "或者补充新的信息和观点。如果确实没有新的内容可说，请输出 [SKIP]。\n\n"
+                "你刚才的回复：\n「{current_text}」"
+            ).format(display_last=display_last, current_text=current_text[:200])
+
+            # 调用 LLM 重新生成
+            regen_resp = await provider.text_chat(
+                prompt=anti_repeat_prompt,
+                session_id=f"regen_{group_id}_{int(time.time())}",
+                system_prompt=(
+                    "你是一个群聊中的普通成员。你刚才的回复被判定为与上一条重复，"
+                    "请重新生成一个不同的回复。保持自然，不要提及你被要求重新生成。"
+                ),
+            )
+
+            # 提取重新生成的文本
+            regen_text = ""
+            if hasattr(regen_resp, 'completion_text'):
+                regen_text = regen_resp.completion_text or ""
+            elif hasattr(regen_resp, 'result'):
+                regen_text = str(regen_resp.result) if regen_resp.result else ""
+
+            if not regen_text:
+                logger.warning("[SemanticDedup] 重新生成返回为空")
+                return None
+
+            # 过滤思考标签和重复回复
+            if self.filter_thinking_tags:
+                regen_text = self._filter_thinking_tags(regen_text)
+            regen_text = self._filter_duplicate_response(regen_text)
+            regen_text = regen_text.strip()
+
+            # 检查是否输出 [SKIP]（LLM 认为确实没有新内容可说）
+            if regen_text == "[SKIP]" or regen_text.upper() == "[SKIP]":
+                logger.info("[SemanticDedup] LLM 主动选择跳过（输出 [SKIP]）")
+                return None
+
+            if not regen_text:
+                return None
+
+            # 验证重新生成的内容与上次回复的相似度
+            new_similarity = self._calc_text_similarity(regen_text, last_text)
+            if new_similarity >= 0.55:
+                logger.info(
+                    f"[SemanticDedup] 重新生成仍相似 | 新相似度={new_similarity:.2f} "
+                    f"内容='{regen_text[:60]}'"
+                )
+                return None
+
+            # 估算 token 消耗
+            est_tokens = self._estimate_tokens(anti_repeat_prompt + regen_text)
+            self._record_token_usage(
+                event=event,
+                prompt_tokens=est_tokens // 2,
+                completion_tokens=est_tokens // 2,
+                model_name=getattr(provider, 'model_name', 'unknown'),
+                is_estimated=True,
+            )
+
+            return regen_text
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning(f"[SemanticDedup] 重新生成异常: {e}")
+            return None
+
     def _is_reply_to_bot(self, event: AstrMessageEvent) -> bool:
         """检测消息是否是回复BOT的消息
 
@@ -2983,6 +3077,32 @@ class LingxiPlugin(Star):
                     )
                 )
 
+        # 防重复提示：告知 LLM 最近一次回复内容，引导其主动避免重复
+        # 仅对概率唤醒和冷场救场场景生效（直接呼叫是用户主动请求，不应限制）
+        if wakeup_type in ("probability_wakeup", "dead_chat_rescue") and group_id:
+            last_text = self._last_bot_reply_text.get(group_id, "")
+            last_time = self._last_bot_reply_time.get(group_id, 0)
+            now = time.time()
+            if last_text and (now - last_time) <= self._SIMILARITY_WINDOW:
+                # 截断过长的历史回复，避免注入过多 token
+                display_text = last_text[:150] + ("..." if len(last_text) > 150 else "")
+                parts.append(
+                    TextPart(
+                        text=(
+                            "<anti_repeat_guidance>\n"
+                            f"你刚刚在{int(now - last_time)}秒前说了：\n「{display_text}」\n"
+                            "请避免重复相同的观点或表达方式。如果当前话题你已经表达过看法，"
+                            "请换一个角度、补充新信息、或者选择不深入——"
+                            "不要用不同措辞重复同一个意思。\n"
+                            "</anti_repeat_guidance>"
+                        )
+                    )
+                )
+                self._debug(
+                    f"[AntiRepeat] 注入防重复提示 | 群={group_id} "
+                    f"距上次={now - last_time:.0f}秒 上次内容='{display_text[:40]}'"
+                )
+
         # 在场感知提示：约束 BOT 只对在场用户说话
         parts.append(
             TextPart(
@@ -3685,8 +3805,8 @@ class LingxiPlugin(Star):
 
         # ─── 语义去重：检测短时间内两次概率唤醒生成语义相近的重复回复 ───
         # 核心思路：两次独立的概率唤醒触发两次 LLM 调用，LLM 基于相似上下文
-        # 可能生成语义重复的回复。在输出阶段检测新回复与 BOT 最近一次回复的
-        # 相似度，过高则抑制——从根源解决"生成重复内容"的问题，而非规避触发
+        # 可能生成语义重复的回复。检测到重复时，先尝试重新生成（注入防重复提示），
+        # 重新生成仍重复才抑制——从根源解决"生成重复内容"的问题，而非堵住输出
         if group_id and post_filter_text:
             wakeup_type = event.get_extra("wakeup_type", "")
             is_direct_call = wakeup_type in ("name_trigger", "reply_to_bot", "keyword_trigger")
@@ -3700,16 +3820,34 @@ class LingxiPlugin(Star):
                 if last_text and (now - last_time) <= self._SIMILARITY_WINDOW:
                     similarity = self._calc_text_similarity(post_filter_text, last_text)
                     # 相似度阈值：0.55 以上视为语义重复
-                    # bigram Jaccard 对中文短文本较敏感，0.55 可有效区分
-                    # "语义相近但表述不同"（约 0.3-0.45）和"实质重复"（0.55+）
                     if similarity >= 0.55:
                         logger.info(
-                            f"[SemanticDedup] 检测到语义重复回复，已抑制 | 群={group_id} "
+                            f"[SemanticDedup] 检测到语义重复回复 | 群={group_id} "
                             f"相似度={similarity:.2f} 距上次={now - last_time:.0f}秒 | "
                             f"新回复='{post_filter_text[:60]}' | 上次='{last_text[:60]}'"
                         )
-                        self._suppress_reply(event, group_id, post_filter_text)
-                        return
+                        # 尝试重新生成：注入防重复提示，让 LLM 换一个角度
+                        regenerated = await self._regenerate_with_anti_repeat(
+                            event, group_id, post_filter_text, last_text
+                        )
+                        if regenerated:
+                            # 重新生成成功，替换原输出
+                            result.chain = [Plain(regenerated)]
+                            # 更新去重缓存中的记录
+                            self._record_sent_content(group_id, regenerated)
+                            logger.info(
+                                f"[SemanticDedup] 重新生成成功 | 群={group_id} "
+                                f"新内容='{regenerated[:60]}'"
+                            )
+                            # 更新 post_filter_text 供后续流程使用
+                            post_filter_text = regenerated
+                        else:
+                            # 重新生成失败或仍相似，抑制该回复
+                            logger.info(
+                                f"[SemanticDedup] 重新生成未改善，抑制回复 | 群={group_id}"
+                            )
+                            self._suppress_reply(event, group_id, post_filter_text)
+                            return
                     else:
                         self._debug(
                             f"[SemanticDedup] 相似度未达阈值 | 群={group_id} "
