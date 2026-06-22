@@ -1,0 +1,17 @@
+{
+  "name": "灵犀 — AstrBot 智能唤醒插件",
+  "short_name": "灵犀",
+  "description": "通过精力系统、心流状态机、冷场救场与消息防抖的协同，赋予 Bot 自然的社交呼吸节律",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08110f",
+  "theme_color": "#08110f",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
