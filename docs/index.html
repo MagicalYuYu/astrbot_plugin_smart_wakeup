@@ -164,7 +164,7 @@
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.5) 0%, rgba(251, 191, 36, 0.5) 50%, rgba(251, 146, 60, 0.5) 100%);
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.65) 0%, rgba(251, 191, 36, 0.65) 50%, rgba(251, 146, 60, 0.65) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1096,6 +1096,7 @@
   .install-step {
     text-align: center;
     position: relative;
+    min-width: 0;
   }
 
   .install-step-num {
@@ -1162,6 +1163,9 @@
     color: var(--emerald-soft);
     text-align: left;
     overflow-x: auto;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
   }
 
   /* ============ 支持平台 ============ */
