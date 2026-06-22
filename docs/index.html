@@ -2846,6 +2846,12 @@
   const fsmDesc = document.getElementById('fsmDesc');
   const fsmMachine = document.querySelector('.flow-state-machine');
 
+  // 状态机索引和定时器（提前声明，避免 applyLanguage 调用 updateFsmDesc 时 TDZ 错误）
+  let fsmCurrentIndex = 0;
+  let fsmSwitchTimer = null;   // 内容淡入淡出过渡定时器
+  let fsmAutoTimer = null;     // 自动切换定时器（2.8s 间隔）
+  let fsmResumeTimer = null;   // 鼠标移出后延迟恢复自动切换的定时器（3s）
+
   // 从 i18n 对象动态获取当前语言的描述
   function getFsmDescriptions() {
     return [
@@ -2862,11 +2868,6 @@
     const descriptions = getFsmDescriptions();
     fsmDesc.textContent = descriptions[fsmCurrentIndex];
   }
-
-  let fsmCurrentIndex = 0;
-  let fsmSwitchTimer = null;   // 内容淡入淡出过渡定时器
-  let fsmAutoTimer = null;     // 自动切换定时器（2.8s 间隔）
-  let fsmResumeTimer = null;   // 鼠标移出后延迟恢复自动切换的定时器（3s）
 
   function setFsmState(index) {
     if (index === fsmCurrentIndex || index < 0 || index >= fsmStates.length) return;
