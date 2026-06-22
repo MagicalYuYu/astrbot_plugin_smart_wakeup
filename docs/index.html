@@ -5,13 +5,63 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>灵犀 — 心有灵犀，不唤自来 | AstrBot 智能唤醒插件</title>
 <meta name="description" content="灵犀是 AstrBot 平台的名称自然唤醒插件，通过精力系统、心流状态机、冷场救场与消息防抖的协同，赋予 Bot 自然的社交呼吸节律。">
+<meta name="keywords" content="灵犀, AstrBot, 智能唤醒, 精力系统, 心流状态机, 冷场救场, 消息防抖, Bot 插件, Telegram, QQ">
+<meta name="author" content="MagicalYuYu">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://magicalyuyu.github.io/astrbot_plugin_smart_wakeup/">
+<!-- Open Graph -->
 <meta property="og:title" content="灵犀 — 心有灵犀，不唤自来">
-<meta property="og:description" content="AstrBot 智能唤醒插件，让 Bot 拥有自然的社交呼吸">
+<meta property="og:description" content="AstrBot 智能唤醒插件，让 Bot 拥有自然的社交呼吸节律">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://magicalyuyu.github.io/astrbot_plugin_smart_wakeup/">
+<meta property="og:image" content="https://magicalyuyu.github.io/astrbot_plugin_smart_wakeup/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="灵犀 — AstrBot 智能唤醒插件">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="灵犀 — 心有灵犀，不唤自来">
+<meta name="twitter:description" content="AstrBot 智能唤醒插件，让 Bot 拥有自然的社交呼吸节律">
+<meta name="twitter:image" content="https://magicalyuyu.github.io/astrbot_plugin_smart_wakeup/og-image.png">
+<meta name="twitter:creator" content="@MagicalYuYu">
+<!-- 结构化数据 JSON-LD -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "灵犀 — AstrBot 智能唤醒插件",
+  "description": "通过精力系统、心流状态机、冷场救场与消息防抖的协同，赋予 Bot 自然的社交呼吸节律",
+  "url": "https://magicalyuyu.github.io/astrbot_plugin_smart_wakeup/",
+  "applicationCategory": "ChatbotApplication",
+  "operatingSystem": "Cross-platform",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "license": "https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/blob/main/LICENSE",
+  "author": {
+    "@type": "Person",
+    "name": "MagicalYuYu",
+    "url": "https://github.com/MagicalYuYu"
+  }
+}
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>">
+<!-- 性能优化：预加载关键资源 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<!-- PWA 支持 -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#08110f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+  /* 字体已通过 <link> 预加载，无需 @import */
 
   :root {
     /* 主背景：深墨绿/深青黑色 */
@@ -1641,9 +1691,44 @@
     color: var(--text-secondary);
     font-size: 12px;
   }
+
+  /* ===== 可访问性：跳转到主内容 ===== */
+  .skip-to-content {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    background: var(--emerald, #34d399);
+    color: #08110f;
+    padding: 12px 24px;
+    border-radius: 0 0 8px 0;
+    text-decoration: none;
+    font-weight: 600;
+    z-index: 10000;
+    transition: top 0.3s ease;
+  }
+  .skip-to-content:focus {
+    top: 0;
+  }
+
+  /* ===== 性能优化：字体显示策略 ===== */
+  @font-face {
+    font-family: 'Inter';
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Noto Sans SC';
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'JetBrains Mono';
+    font-display: swap;
+  }
 </style>
 </head>
 <body>
+
+<!-- 可访问性：跳转到主内容 -->
+<a href="#main-content" class="skip-to-content" aria-label="跳转到主内容">跳转到主内容</a>
 
 <!-- ============ 导航栏 ============ -->
 <nav class="nav" id="nav">
@@ -1671,7 +1756,7 @@
 </nav>
 
 <!-- ============ Hero 区 ============ -->
-<section class="hero">
+<section class="hero" id="main-content">
   <div class="hero-waves">
     <div class="hero-wave hero-wave-1">
       <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
