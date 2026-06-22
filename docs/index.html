@@ -1611,6 +1611,36 @@
   [data-tooltip] {
     cursor: help;
   }
+
+  /* ============ 语言切换按钮 ============ */
+  .lang-switch {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 12px;
+  }
+  .lang-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+  }
+  .lang-btn.active {
+    color: var(--text-primary);
+    background: rgba(52, 211, 153, 0.12);
+  }
+  .lang-btn:hover {
+    color: var(--text-primary);
+  }
+  .lang-divider {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
 </style>
 </head>
 <body>
@@ -1620,18 +1650,23 @@
   <div class="nav-inner">
     <a href="#" class="nav-logo">
       <span class="nav-logo-icon">🔔</span>
-      <span class="nav-logo-text">灵犀</span>
+      <span class="nav-logo-text" data-i18n="nav_logo">灵犀</span>
     </a>
     <div class="nav-links" id="navLinks">
-      <a href="#features" class="nav-link">功能亮点</a>
-      <a href="#compare" class="nav-link">效果对比</a>
-      <a href="#flow" class="nav-link">处理流程</a>
-      <a href="#capabilities" class="nav-link">六大能力</a>
-      <a href="#install" class="nav-link">安装</a>
-      <a href="#config" class="nav-link">配置</a>
+      <a href="#features" class="nav-link" data-i18n="nav_features">功能亮点</a>
+      <a href="#compare" class="nav-link" data-i18n="nav_compare">效果对比</a>
+      <a href="#flow" class="nav-link" data-i18n="nav_flow">处理流程</a>
+      <a href="#capabilities" class="nav-link" data-i18n="nav_capabilities">六大能力</a>
+      <a href="#install" class="nav-link" data-i18n="nav_install">安装</a>
+      <a href="#config" class="nav-link" data-i18n="nav_config">配置</a>
       <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
+      <div class="lang-switch">
+        <button class="lang-btn" data-lang="zh">中</button>
+        <span class="lang-divider">/</span>
+        <button class="lang-btn" data-lang="en">EN</button>
+      </div>
     </div>
-    <button class="nav-mobile-toggle" id="navToggle" aria-label="菜单">☰</button>
+    <button class="nav-mobile-toggle" id="navToggle" aria-label="菜单" data-i18n-aria="nav_menu_aria">☰</button>
   </div>
 </nav>
 
@@ -1680,39 +1715,39 @@
   <div class="hero-content">
     <div class="hero-badge">
       <span class="hero-badge-dot"></span>
-      <span>AstrBot 智能唤醒插件 · v1.0</span>
+      <span data-i18n="hero_badge">AstrBot 智能唤醒插件 · v1.0</span>
     </div>
-    <h1 class="hero-title">心有灵犀<br>不唤自来</h1>
-    <p class="hero-subtitle">
+    <h1 class="hero-title" data-i18n="hero_title">心有灵犀<br>不唤自来</h1>
+    <p class="hero-subtitle" data-i18n="hero_subtitle">
       灵犀是 AstrBot 平台的名称自然唤醒插件，通过<strong>精力系统</strong>、<strong>心流状态机</strong>、<strong>冷场救场</strong>与<strong>消息防抖</strong>的协同，赋予 Bot 自然的社交呼吸节律。
     </p>
 
     <div class="hero-stats">
       <div class="stat-card">
         <div class="stat-number" data-target="30" data-suffix="+">0</div>
-        <div class="stat-label">功能特性</div>
+        <div class="stat-label" data-i18n="stat_features">功能特性</div>
       </div>
       <div class="stat-card">
         <div class="stat-number" data-target="2">0</div>
-        <div class="stat-label">支持平台</div>
+        <div class="stat-label" data-i18n="stat_platforms">支持平台</div>
       </div>
       <div class="stat-card">
         <div class="stat-number" data-target="11">0</div>
-        <div class="stat-label">配置分组</div>
+        <div class="stat-label" data-i18n="stat_configs">配置分组</div>
       </div>
       <div class="stat-card">
         <div class="stat-number" data-target="0">0</div>
-        <div class="stat-label">文件依赖</div>
+        <div class="stat-label" data-i18n="stat_deps">文件依赖</div>
       </div>
     </div>
 
     <div class="hero-actions">
       <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" class="btn-primary">
-        <span>立即安装</span>
+        <span data-i18n="hero_cta_install">立即安装</span>
         <span>→</span>
       </a>
       <a href="#features" class="btn-secondary">
-        <span>了解功能</span>
+        <span data-i18n="hero_cta_learn">了解功能</span>
       </a>
     </div>
   </div>
@@ -1731,114 +1766,114 @@
   <div class="section-inner">
     <div class="section-header reveal">
       <span class="section-tag">FEATURES</span>
-      <h2 class="section-title">十大核心<span class="accent">功能亮点</span></h2>
-      <p class="section-desc">从唤醒判定到输出处理，灵犀用细节让 Bot 更像一个真实的聊天对象</p>
+      <h2 class="section-title" data-i18n="features_title">十大核心<span class="accent">功能亮点</span></h2>
+      <p class="section-desc" data-i18n="features_desc">从唤醒判定到输出处理，灵犀用细节让 Bot 更像一个真实的聊天对象</p>
     </div>
   </div>
 
   <div class="features-scroll reveal">
     <div class="features-track" id="featuresTrack">
       <!-- 第一组 -->
-      <div class="feature-card" data-tooltip="使用场景：群聊中用户提及 Bot 名称时立即响应。|配置项：唤醒名称列表、唤醒冷却时间">
+      <div class="feature-card" data-tooltip="使用场景：群聊中用户提及 Bot 名称时立即响应。|配置项：唤醒名称列表、唤醒冷却时间" data-i18n-tooltip="f1_tooltip">
         <div class="feature-icon">🎯</div>
-        <h3 class="feature-title">唤名即应</h3>
-        <p class="feature-desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
+        <h3 class="feature-title" data-i18n="f1_title">唤名即应</h3>
+        <p class="feature-desc" data-i18n="f1_desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：基于精力值与兴趣匹配主动参与话题。|配置项：兴趣关键词、精力消耗阈值">
+      <div class="feature-card" data-tooltip="使用场景：基于精力值与兴趣匹配主动参与话题。|配置项：兴趣关键词、精力消耗阈值" data-i18n-tooltip="f2_tooltip">
         <div class="feature-icon">💬</div>
-        <h3 class="feature-title">投缘便聊</h3>
-        <p class="feature-desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
+        <h3 class="feature-title" data-i18n="f2_title">投缘便聊</h3>
+        <p class="feature-desc" data-i18n="f2_desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：精力耗尽时自动休眠，避免刷屏。|配置项：精力下限、休眠恢复速率">
+      <div class="feature-card" data-tooltip="使用场景：精力耗尽时自动休眠，避免刷屏。|配置项：精力下限、休眠恢复速率" data-i18n-tooltip="f3_tooltip">
         <div class="feature-icon">😴</div>
-        <h3 class="feature-title">累了就歇</h3>
-        <p class="feature-desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
+        <h3 class="feature-title" data-i18n="f3_title">累了就歇</h3>
+        <p class="feature-desc" data-i18n="f3_desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：群聊冷场超过阈值时主动抛出话题。|配置项：冷场判定时长、救场概率">
+      <div class="feature-card" data-tooltip="使用场景：群聊冷场超过阈值时主动抛出话题。|配置项：冷场判定时长、救场概率" data-i18n-tooltip="f4_tooltip">
         <div class="feature-icon">🔥</div>
-        <h3 class="feature-title">冷场救场</h3>
-        <p class="feature-desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
+        <h3 class="feature-title" data-i18n="f4_title">冷场救场</h3>
+        <p class="feature-desc" data-i18n="f4_desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：识别对话节奏，避免在热烈讨论时插入。|配置项：节奏检测窗口、插入阈值">
+      <div class="feature-card" data-tooltip="使用场景：识别对话节奏，避免在热烈讨论时插入。|配置项：节奏检测窗口、插入阈值" data-i18n-tooltip="f5_tooltip">
         <div class="feature-icon">🤫</div>
-        <h3 class="feature-title">不会打断你</h3>
-        <p class="feature-desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
+        <h3 class="feature-title" data-i18n="f5_title">不会打断你</h3>
+        <p class="feature-desc" data-i18n="f5_desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：识别群内复读行为，不参与无意义刷屏。|配置项：复读判定次数、屏蔽时长">
+      <div class="feature-card" data-tooltip="使用场景：识别群内复读行为，不参与无意义刷屏。|配置项：复读判定次数、屏蔽时长" data-i18n-tooltip="f6_tooltip">
         <div class="feature-icon">🔇</div>
-        <h3 class="feature-title">复读不打扰</h3>
-        <p class="feature-desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
+        <h3 class="feature-title" data-i18n="f6_title">复读不打扰</h3>
+        <p class="feature-desc" data-i18n="f6_desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：上下文记忆系统，让 Bot 记住之前对话。|配置项：记忆窗口大小、画像积累开关">
+      <div class="feature-card" data-tooltip="使用场景：上下文记忆系统，让 Bot 记住之前对话。|配置项：记忆窗口大小、画像积累开关" data-i18n-tooltip="f7_tooltip">
         <div class="feature-icon">🧠</div>
-        <h3 class="feature-title">记得聊过什么</h3>
-        <p class="feature-desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
+        <h3 class="feature-title" data-i18n="f7_title">记得聊过什么</h3>
+        <p class="feature-desc" data-i18n="f7_desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：图片消息理解，识别图片内容并回应。|配置项：图片识别模型、响应策略">
+      <div class="feature-card" data-tooltip="使用场景：图片消息理解，识别图片内容并回应。|配置项：图片识别模型、响应策略" data-i18n-tooltip="f8_tooltip">
         <div class="feature-icon">🖼️</div>
-        <h3 class="feature-title">看得懂图片</h3>
-        <p class="feature-desc">支持图片消息理解，识别图片内容并作出回应</p>
+        <h3 class="feature-title" data-i18n="f8_title">看得懂图片</h3>
+        <p class="feature-desc" data-i18n="f8_desc">支持图片消息理解，识别图片内容并作出回应</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：低信息量消息智能屏蔽，节省 API 成本。|配置项：最小信息量阈值、屏蔽策略">
+      <div class="feature-card" data-tooltip="使用场景：低信息量消息智能屏蔽，节省 API 成本。|配置项：最小信息量阈值、屏蔽策略" data-i18n-tooltip="f9_tooltip">
         <div class="feature-icon">⚡</div>
-        <h3 class="feature-title">能省则省</h3>
-        <p class="feature-desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
+        <h3 class="feature-title" data-i18n="f9_title">能省则省</h3>
+        <p class="feature-desc" data-i18n="f9_desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：长消息自动分段发送，模拟真人节奏。|配置项：分段长度、发送延迟">
+      <div class="feature-card" data-tooltip="使用场景：长消息自动分段发送，模拟真人节奏。|配置项：分段长度、发送延迟" data-i18n-tooltip="f10_tooltip">
         <div class="feature-icon">📝</div>
-        <h3 class="feature-title">像真人分段说话</h3>
-        <p class="feature-desc">长消息自动分段发送，模拟真人的聊天节奏</p>
+        <h3 class="feature-title" data-i18n="f10_title">像真人分段说话</h3>
+        <p class="feature-desc" data-i18n="f10_desc">长消息自动分段发送，模拟真人的聊天节奏</p>
       </div>
       <!-- 第二组（重复，用于无限滚动） -->
-      <div class="feature-card" data-tooltip="使用场景：群聊中用户提及 Bot 名称时立即响应。|配置项：唤醒名称列表、唤醒冷却时间">
+      <div class="feature-card" data-tooltip="使用场景：群聊中用户提及 Bot 名称时立即响应。|配置项：唤醒名称列表、唤醒冷却时间" data-i18n-tooltip="f1_tooltip">
         <div class="feature-icon">🎯</div>
-        <h3 class="feature-title">唤名即应</h3>
-        <p class="feature-desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
+        <h3 class="feature-title" data-i18n="f1_title">唤名即应</h3>
+        <p class="feature-desc" data-i18n="f1_desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：基于精力值与兴趣匹配主动参与话题。|配置项：兴趣关键词、精力消耗阈值">
+      <div class="feature-card" data-tooltip="使用场景：基于精力值与兴趣匹配主动参与话题。|配置项：兴趣关键词、精力消耗阈值" data-i18n-tooltip="f2_tooltip">
         <div class="feature-icon">💬</div>
-        <h3 class="feature-title">投缘便聊</h3>
-        <p class="feature-desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
+        <h3 class="feature-title" data-i18n="f2_title">投缘便聊</h3>
+        <p class="feature-desc" data-i18n="f2_desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：精力耗尽时自动休眠，避免刷屏。|配置项：精力下限、休眠恢复速率">
+      <div class="feature-card" data-tooltip="使用场景：精力耗尽时自动休眠，避免刷屏。|配置项：精力下限、休眠恢复速率" data-i18n-tooltip="f3_tooltip">
         <div class="feature-icon">😴</div>
-        <h3 class="feature-title">累了就歇</h3>
-        <p class="feature-desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
+        <h3 class="feature-title" data-i18n="f3_title">累了就歇</h3>
+        <p class="feature-desc" data-i18n="f3_desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：群聊冷场超过阈值时主动抛出话题。|配置项：冷场判定时长、救场概率">
+      <div class="feature-card" data-tooltip="使用场景：群聊冷场超过阈值时主动抛出话题。|配置项：冷场判定时长、救场概率" data-i18n-tooltip="f4_tooltip">
         <div class="feature-icon">🔥</div>
-        <h3 class="feature-title">冷场救场</h3>
-        <p class="feature-desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
+        <h3 class="feature-title" data-i18n="f4_title">冷场救场</h3>
+        <p class="feature-desc" data-i18n="f4_desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：识别对话节奏，避免在热烈讨论时插入。|配置项：节奏检测窗口、插入阈值">
+      <div class="feature-card" data-tooltip="使用场景：识别对话节奏，避免在热烈讨论时插入。|配置项：节奏检测窗口、插入阈值" data-i18n-tooltip="f5_tooltip">
         <div class="feature-icon">🤫</div>
-        <h3 class="feature-title">不会打断你</h3>
-        <p class="feature-desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
+        <h3 class="feature-title" data-i18n="f5_title">不会打断你</h3>
+        <p class="feature-desc" data-i18n="f5_desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：识别群内复读行为，不参与无意义刷屏。|配置项：复读判定次数、屏蔽时长">
+      <div class="feature-card" data-tooltip="使用场景：识别群内复读行为，不参与无意义刷屏。|配置项：复读判定次数、屏蔽时长" data-i18n-tooltip="f6_tooltip">
         <div class="feature-icon">🔇</div>
-        <h3 class="feature-title">复读不打扰</h3>
-        <p class="feature-desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
+        <h3 class="feature-title" data-i18n="f6_title">复读不打扰</h3>
+        <p class="feature-desc" data-i18n="f6_desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：上下文记忆系统，让 Bot 记住之前对话。|配置项：记忆窗口大小、画像积累开关">
+      <div class="feature-card" data-tooltip="使用场景：上下文记忆系统，让 Bot 记住之前对话。|配置项：记忆窗口大小、画像积累开关" data-i18n-tooltip="f7_tooltip">
         <div class="feature-icon">🧠</div>
-        <h3 class="feature-title">记得聊过什么</h3>
-        <p class="feature-desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
+        <h3 class="feature-title" data-i18n="f7_title">记得聊过什么</h3>
+        <p class="feature-desc" data-i18n="f7_desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：图片消息理解，识别图片内容并回应。|配置项：图片识别模型、响应策略">
+      <div class="feature-card" data-tooltip="使用场景：图片消息理解，识别图片内容并回应。|配置项：图片识别模型、响应策略" data-i18n-tooltip="f8_tooltip">
         <div class="feature-icon">🖼️</div>
-        <h3 class="feature-title">看得懂图片</h3>
-        <p class="feature-desc">支持图片消息理解，识别图片内容并作出回应</p>
+        <h3 class="feature-title" data-i18n="f8_title">看得懂图片</h3>
+        <p class="feature-desc" data-i18n="f8_desc">支持图片消息理解，识别图片内容并作出回应</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：低信息量消息智能屏蔽，节省 API 成本。|配置项：最小信息量阈值、屏蔽策略">
+      <div class="feature-card" data-tooltip="使用场景：低信息量消息智能屏蔽，节省 API 成本。|配置项：最小信息量阈值、屏蔽策略" data-i18n-tooltip="f9_tooltip">
         <div class="feature-icon">⚡</div>
-        <h3 class="feature-title">能省则省</h3>
-        <p class="feature-desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
+        <h3 class="feature-title" data-i18n="f9_title">能省则省</h3>
+        <p class="feature-desc" data-i18n="f9_desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
       </div>
-      <div class="feature-card" data-tooltip="使用场景：长消息自动分段发送，模拟真人节奏。|配置项：分段长度、发送延迟">
+      <div class="feature-card" data-tooltip="使用场景：长消息自动分段发送，模拟真人节奏。|配置项：分段长度、发送延迟" data-i18n-tooltip="f10_tooltip">
         <div class="feature-icon">📝</div>
-        <h3 class="feature-title">像真人分段说话</h3>
-        <p class="feature-desc">长消息自动分段发送，模拟真人的聊天节奏</p>
+        <h3 class="feature-title" data-i18n="f10_title">像真人分段说话</h3>
+        <p class="feature-desc" data-i18n="f10_desc">长消息自动分段发送，模拟真人的聊天节奏</p>
       </div>
     </div>
   </div>
@@ -1857,33 +1892,33 @@
   <div class="section-inner">
     <div class="section-header reveal">
       <span class="section-tag">COMPARISON</span>
-      <h2 class="section-title">没有灵犀 vs <span class="accent">有了灵犀</span></h2>
-      <p class="section-desc">同样是群聊场景，灵犀让 Bot 的存在感从"工具"变成"伙伴"</p>
+      <h2 class="section-title" data-i18n="compare_title">没有灵犀 vs <span class="accent">有了灵犀</span></h2>
+      <p class="section-desc" data-i18n="compare_desc">同样是群聊场景，灵犀让 Bot 的存在感从"工具"变成"伙伴"</p>
     </div>
 
     <div class="compare-grid">
       <div class="compare-col before reveal">
         <div class="compare-header">
           <span class="compare-emoji">😐</span>
-          <h3 class="compare-title">没有灵犀</h3>
+          <h3 class="compare-title" data-i18n="compare_before_title">没有灵犀</h3>
         </div>
         <div class="chat-bubble user" style="animation-delay: 0.2s, 0.8s;">
-          <div class="chat-meta">群友 A · 14:02</div>
-          今天天气真好啊
+          <div class="chat-meta" data-i18n="compare_b1_meta">群友 A · 14:02</div>
+          <span data-i18n="compare_b1_text">今天天气真好啊</span>
         </div>
         <div class="chat-bubble bot-cold" style="animation-delay: 0.5s, 1.1s;">
-          <div class="chat-meta">Bot · 14:02</div>
-          （沉默 · 未被 @，不响应）
+          <div class="chat-meta" data-i18n="compare_b2_meta">Bot · 14:02</div>
+          <span data-i18n="compare_b2_text">（沉默 · 未被 @，不响应）</span>
         </div>
         <div class="chat-bubble user" style="animation-delay: 0.8s, 1.4s;">
-          <div class="chat-meta">群友 B · 14:05</div>
-          @Bot 有人吗？聊聊天
+          <div class="chat-meta" data-i18n="compare_b3_meta">群友 B · 14:05</div>
+          <span data-i18n="compare_b3_text">@Bot 有人吗？聊聊天</span>
         </div>
         <div class="chat-bubble bot-cold" style="animation-delay: 1.1s, 1.7s;">
-          <div class="chat-meta">Bot · 14:05</div>
-          您好，请使用 /help 查看可用指令
+          <div class="chat-meta" data-i18n="compare_b4_meta">Bot · 14:05</div>
+          <span data-i18n="compare_b4_text">您好，请使用 /help 查看可用指令</span>
         </div>
-        <div class="chat-bubble summary" style="animation-delay: 1.4s, 2.0s;">
+        <div class="chat-bubble summary" style="animation-delay: 1.4s, 2.0s;" data-i18n="compare_b_summary">
           ⚠ 缺乏主动社交能力 · 仅响应显式指令 · 群聊存在感稀薄
         </div>
       </div>
@@ -1891,25 +1926,25 @@
       <div class="compare-col after reveal reveal-delay-1">
         <div class="compare-header">
           <span class="compare-emoji">✨</span>
-          <h3 class="compare-title">有了灵犀</h3>
+          <h3 class="compare-title" data-i18n="compare_after_title">有了灵犀</h3>
         </div>
         <div class="chat-bubble user" style="animation-delay: 0.3s, 0.9s;">
-          <div class="chat-meta">群友 A · 14:02</div>
-          今天天气真好啊
+          <div class="chat-meta" data-i18n="compare_a1_meta">群友 A · 14:02</div>
+          <span data-i18n="compare_a1_text">今天天气真好啊</span>
         </div>
         <div class="chat-bubble bot" style="animation-delay: 0.6s, 1.2s;">
-          <div class="chat-meta">灵犀 · 14:02 · 心流关注</div>
-          是呀，这种天气特别适合出去走走～
+          <div class="chat-meta" data-i18n="compare_a2_meta">灵犀 · 14:02 · 心流关注</div>
+          <span data-i18n="compare_a2_text">是呀，这种天气特别适合出去走走～</span>
         </div>
         <div class="chat-bubble user" style="animation-delay: 0.9s, 1.5s;">
-          <div class="chat-meta">群友 B · 14:05</div>
-          有人吗？聊聊天
+          <div class="chat-meta" data-i18n="compare_a3_meta">群友 B · 14:05</div>
+          <span data-i18n="compare_a3_text">有人吗？聊聊天</span>
         </div>
         <div class="chat-bubble bot" style="animation-delay: 1.2s, 1.8s;">
-          <div class="chat-meta">灵犀 · 14:05 · 精力充沛</div>
-          在呢在呢，刚才还在想这天气适合干嘛呢，你们有什么计划吗？
+          <div class="chat-meta" data-i18n="compare_a4_meta">灵犀 · 14:05 · 精力充沛</div>
+          <span data-i18n="compare_a4_text">在呢在呢，刚才还在想这天气适合干嘛呢，你们有什么计划吗？</span>
         </div>
-        <div class="chat-bubble summary" style="animation-delay: 1.5s, 2.1s;">
+        <div class="chat-bubble summary" style="animation-delay: 1.5s, 2.1s;" data-i18n="compare_a_summary">
           ✨ 自然社交呼吸 · 主动参与话题 · 从"工具"变成"伙伴"
         </div>
       </div>
@@ -1930,97 +1965,97 @@
   <div class="section-inner">
     <div class="section-header reveal">
       <span class="section-tag">PIPELINE</span>
-      <h2 class="section-title">消息处理<span class="accent">八步流程</span></h2>
-      <p class="section-desc">每一条消息都要经过精心设计的处理流水线，确保响应自然且高效</p>
+      <h2 class="section-title" data-i18n="flow_title">消息处理<span class="accent">八步流程</span></h2>
+      <p class="section-desc" data-i18n="flow_desc">每一条消息都要经过精心设计的处理流水线，确保响应自然且高效</p>
     </div>
 
     <div class="flow-container">
-      <div class="flow-step reveal" data-tooltip="技术细节：通过 AstrBot 事件总线接收 MessageEvent，支持文本、图片、@ 等多类型消息。">
+      <div class="flow-step reveal" data-tooltip="技术细节：通过 AstrBot 事件总线接收 MessageEvent，支持文本、图片、@ 等多类型消息。" data-i18n-tooltip="flow1_tooltip">
         <div class="flow-num">1</div>
         <div class="flow-icon">📨</div>
-        <h3 class="flow-title">消息到达</h3>
-        <p class="flow-desc">接收来自 Telegram / QQ 的原始消息事件</p>
+        <h3 class="flow-title" data-i18n="flow1_title">消息到达</h3>
+        <p class="flow-desc" data-i18n="flow1_desc">接收来自 Telegram / QQ 的原始消息事件</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-1" data-tooltip="技术细节：读取白名单/黑名单配置，O(1) 时间复杂度判断，支持通配符匹配。">
+      <div class="flow-step reveal reveal-delay-1" data-tooltip="技术细节：读取白名单/黑名单配置，O(1) 时间复杂度判断，支持通配符匹配。" data-i18n-tooltip="flow2_tooltip">
         <div class="flow-num">2</div>
         <div class="flow-icon">👥</div>
-        <h3 class="flow-title">群组过滤</h3>
-        <p class="flow-desc">按白名单/黑名单过滤群组，决定是否处理</p>
+        <h3 class="flow-title" data-i18n="flow2_title">群组过滤</h3>
+        <p class="flow-desc" data-i18n="flow2_desc">按白名单/黑名单过滤群组，决定是否处理</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-2" data-tooltip="技术细节：基于消息长度、表情占比、复读检测的综合评分，低于阈值则跳过后续流程。">
+      <div class="flow-step reveal reveal-delay-2" data-tooltip="技术细节：基于消息长度、表情占比、复读检测的综合评分，低于阈值则跳过后续流程。" data-i18n-tooltip="flow3_tooltip">
         <div class="flow-num">3</div>
         <div class="flow-icon">🔇</div>
-        <h3 class="flow-title">低信息量屏蔽</h3>
-        <p class="flow-desc">过滤纯表情、复读、过短消息等低价值内容</p>
+        <h3 class="flow-title" data-i18n="flow3_title">低信息量屏蔽</h3>
+        <p class="flow-desc" data-i18n="flow3_desc">过滤纯表情、复读、过短消息等低价值内容</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-3" data-tooltip="技术细节：根据消息热度、时间间隔、话题匹配度更新五态状态机，影响唤醒概率。">
+      <div class="flow-step reveal reveal-delay-3" data-tooltip="技术细节：根据消息热度、时间间隔、话题匹配度更新五态状态机，影响唤醒概率。" data-i18n-tooltip="flow4_tooltip">
         <div class="flow-num">4</div>
         <div class="flow-icon">🌊</div>
-        <h3 class="flow-title">心流状态更新</h3>
-        <p class="flow-desc">根据消息热度更新心流状态机的当前状态</p>
+        <h3 class="flow-title" data-i18n="flow4_title">心流状态更新</h3>
+        <p class="flow-desc" data-i18n="flow4_desc">根据消息热度更新心流状态机的当前状态</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal" data-tooltip="技术细节：综合名称提及（权重 0.5）、精力值（0.3）、兴趣度（0.2）的加权评分，超过阈值即唤醒。">
+      <div class="flow-step reveal" data-tooltip="技术细节：综合名称提及（权重 0.5）、精力值（0.3）、兴趣度（0.2）的加权评分，超过阈值即唤醒。" data-i18n-tooltip="flow5_tooltip">
         <div class="flow-num">5</div>
         <div class="flow-icon">🔔</div>
-        <h3 class="flow-title">唤醒判定</h3>
-        <p class="flow-desc">综合名称提及、精力值、兴趣度判断是否唤醒</p>
+        <h3 class="flow-title" data-i18n="flow5_title">唤醒判定</h3>
+        <p class="flow-desc" data-i18n="flow5_desc">综合名称提及、精力值、兴趣度判断是否唤醒</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-1" data-tooltip="技术细节：滑动窗口算法，默认 3 秒窗口，窗口内消息累积，窗口结束才触发响应。">
+      <div class="flow-step reveal reveal-delay-1" data-tooltip="技术细节：滑动窗口算法，默认 3 秒窗口，窗口内消息累积，窗口结束才触发响应。" data-i18n-tooltip="flow6_tooltip">
         <div class="flow-num">6</div>
         <div class="flow-icon">⏱️</div>
-        <h3 class="flow-title">消息防抖</h3>
-        <p class="flow-desc">等待消息窗口稳定，避免连续触发多次响应</p>
+        <h3 class="flow-title" data-i18n="flow6_title">消息防抖</h3>
+        <p class="flow-desc" data-i18n="flow6_desc">等待消息窗口稳定，避免连续触发多次响应</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-2" data-tooltip="技术细节：组装历史 N 条对话、用户画像、群组氛围标签，Token 数控制在模型上限内。">
+      <div class="flow-step reveal reveal-delay-2" data-tooltip="技术细节：组装历史 N 条对话、用户画像、群组氛围标签，Token 数控制在模型上限内。" data-i18n-tooltip="flow7_tooltip">
         <div class="flow-num">7</div>
         <div class="flow-icon">🧩</div>
-        <h3 class="flow-title">上下文构建</h3>
-        <p class="flow-desc">组装历史对话、用户画像、群组氛围等上下文</p>
+        <h3 class="flow-title" data-i18n="flow7_title">上下文构建</h3>
+        <p class="flow-desc" data-i18n="flow7_desc">组装历史对话、用户画像、群组氛围等上下文</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-3" data-tooltip="技术细节：按标点分段、随机延迟 1-3 秒发送、情感语气润色、扣除精力并更新状态。">
+      <div class="flow-step reveal reveal-delay-3" data-tooltip="技术细节：按标点分段、随机延迟 1-3 秒发送、情感语气润色、扣除精力并更新状态。" data-i18n-tooltip="flow8_tooltip">
         <div class="flow-num">8</div>
         <div class="flow-icon">📤</div>
-        <h3 class="flow-title">输出处理</h3>
-        <p class="flow-desc">分段发送、情感润色、精力扣除与状态收尾</p>
+        <h3 class="flow-title" data-i18n="flow8_title">输出处理</h3>
+        <p class="flow-desc" data-i18n="flow8_desc">分段发送、情感润色、精力扣除与状态收尾</p>
       </div>
     </div>
 
     <!-- 心流状态机展示 -->
     <div class="flow-state-machine reveal">
       <div class="section-header" style="margin-bottom: 32px;">
-        <h3 style="font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">心流状态机实时演示</h3>
-        <p style="font-size: 14px; color: var(--text-secondary);">观察 Bot 如何在不同状态间自然切换</p>
+        <h3 style="font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;" data-i18n="fsm_title">心流状态机实时演示</h3>
+        <p style="font-size: 14px; color: var(--text-secondary);" data-i18n="fsm_subtitle">观察 Bot 如何在不同状态间自然切换</p>
       </div>
       <div class="fsm-states" id="fsmStates">
         <div class="fsm-state" data-state="0">
           <span class="fsm-state-dot"></span>
-          <span>休眠</span>
+          <span data-i18n="fsm_state_0">休眠</span>
         </div>
         <div class="fsm-state" data-state="1">
           <span class="fsm-state-dot"></span>
-          <span>倾听</span>
+          <span data-i18n="fsm_state_1">倾听</span>
         </div>
         <div class="fsm-state" data-state="2">
           <span class="fsm-state-dot"></span>
-          <span>活跃</span>
+          <span data-i18n="fsm_state_2">活跃</span>
         </div>
         <div class="fsm-state" data-state="3">
           <span class="fsm-state-dot"></span>
-          <span>兴奋</span>
+          <span data-i18n="fsm_state_3">兴奋</span>
         </div>
         <div class="fsm-state" data-state="4">
           <span class="fsm-state-dot"></span>
-          <span>疲倦</span>
+          <span data-i18n="fsm_state_4">疲倦</span>
         </div>
       </div>
-      <div class="fsm-desc" id="fsmDesc">休眠状态：精力不足，Bot 静默观察，等待唤醒信号</div>
+      <div class="fsm-desc" id="fsmDesc" data-i18n="fsm_desc_0">休眠状态：精力不足，Bot 静默观察，等待唤醒信号</div>
     </div>
   </div>
 </section>
@@ -2038,80 +2073,80 @@
   <div class="section-inner">
     <div class="section-header reveal">
       <span class="section-tag">CAPABILITIES</span>
-      <h2 class="section-title">六大核心<span class="accent">能力体系</span></h2>
-      <p class="section-desc">从感知到表达，灵犀构建了一套完整的"社交呼吸"系统</p>
+      <h2 class="section-title" data-i18n="cap_title">六大核心<span class="accent">能力体系</span></h2>
+      <p class="section-desc" data-i18n="cap_desc">从感知到表达，灵犀构建了一套完整的"社交呼吸"系统</p>
     </div>
 
     <div class="capabilities-grid">
-      <div class="cap-card reveal" data-tooltip="子功能：名称提及唤醒、精力兴趣评估、冷场检测救场、节奏智能识别。|触发条件：消息到达且通过过滤。">
+      <div class="cap-card reveal" data-tooltip="子功能：名称提及唤醒、精力兴趣评估、冷场检测救场、节奏智能识别。|触发条件：消息到达且通过过滤。" data-i18n-tooltip="cap1_tooltip">
         <div class="cap-icon-wrap">🎯</div>
-        <h3 class="cap-title">智能唤醒</h3>
-        <p class="cap-desc">多维度唤醒判定，让 Bot 在合适的时机自然介入对话</p>
+        <h3 class="cap-title" data-i18n="cap1_title">智能唤醒</h3>
+        <p class="cap-desc" data-i18n="cap1_desc">多维度唤醒判定，让 Bot 在合适的时机自然介入对话</p>
         <ul class="cap-features">
-          <li>名称提及即时唤醒</li>
-          <li>精力值兴趣度评估</li>
-          <li>冷场检测主动救场</li>
-          <li>对话节奏智能识别</li>
+          <li data-i18n="cap1_f1">名称提及即时唤醒</li>
+          <li data-i18n="cap1_f2">精力值兴趣度评估</li>
+          <li data-i18n="cap1_f3">冷场检测主动救场</li>
+          <li data-i18n="cap1_f4">对话节奏智能识别</li>
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-1" data-tooltip="子功能：精力动态消耗恢复、五态心流状态机、疲劳累积、昼夜节律。|核心：让 Bot 有自然的呼吸感。">
+      <div class="cap-card reveal reveal-delay-1" data-tooltip="子功能：精力动态消耗恢复、五态心流状态机、疲劳累积、昼夜节律。|核心：让 Bot 有自然的呼吸感。" data-i18n-tooltip="cap2_tooltip">
         <div class="cap-icon-wrap">🌊</div>
-        <h3 class="cap-title">节律系统</h3>
-        <p class="cap-desc">精力与心流状态机协同，赋予 Bot 自然的呼吸节律</p>
+        <h3 class="cap-title" data-i18n="cap2_title">节律系统</h3>
+        <p class="cap-desc" data-i18n="cap2_desc">精力与心流状态机协同，赋予 Bot 自然的呼吸节律</p>
         <ul class="cap-features">
-          <li>精力值动态消耗与恢复</li>
-          <li>五态心流状态机切换</li>
-          <li>疲劳度自然累积</li>
-          <li>昼夜节律适配</li>
+          <li data-i18n="cap2_f1">精力值动态消耗与恢复</li>
+          <li data-i18n="cap2_f2">五态心流状态机切换</li>
+          <li data-i18n="cap2_f3">疲劳度自然累积</li>
+          <li data-i18n="cap2_f4">昼夜节律适配</li>
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-2" data-tooltip="子功能：短期对话窗口、长期用户画像、群组氛围感知、话题延续切换。|存储：内存 + 可选持久化。">
+      <div class="cap-card reveal reveal-delay-2" data-tooltip="子功能：短期对话窗口、长期用户画像、群组氛围感知、话题延续切换。|存储：内存 + 可选持久化。" data-i18n-tooltip="cap3_tooltip">
         <div class="cap-icon-wrap">🧠</div>
-        <h3 class="cap-title">上下文记忆</h3>
-        <p class="cap-desc">多层级记忆系统，让 Bot 真正"记得"聊过什么</p>
+        <h3 class="cap-title" data-i18n="cap3_title">上下文记忆</h3>
+        <p class="cap-desc" data-i18n="cap3_desc">多层级记忆系统，让 Bot 真正"记得"聊过什么</p>
         <ul class="cap-features">
-          <li>短期对话窗口记忆</li>
-          <li>长期用户画像积累</li>
-          <li>群组氛围感知</li>
-          <li>话题延续与切换</li>
+          <li data-i18n="cap3_f1">短期对话窗口记忆</li>
+          <li data-i18n="cap3_f2">长期用户画像积累</li>
+          <li data-i18n="cap3_f3">群组氛围感知</li>
+          <li data-i18n="cap3_f4">话题延续与切换</li>
         </ul>
       </div>
 
-      <div class="cap-card reveal" data-tooltip="子功能：图片内容识别、低信息量过滤、复读识别、情感分析。|支持多模态输入。">
+      <div class="cap-card reveal" data-tooltip="子功能：图片内容识别、低信息量过滤、复读识别、情感分析。|支持多模态输入。" data-i18n-tooltip="cap4_tooltip">
         <div class="cap-icon-wrap">👁️</div>
-        <h3 class="cap-title">对话理解</h3>
-        <p class="cap-desc">多模态消息理解，不只是文字，图片也能看懂</p>
+        <h3 class="cap-title" data-i18n="cap4_title">对话理解</h3>
+        <p class="cap-desc" data-i18n="cap4_desc">多模态消息理解，不只是文字，图片也能看懂</p>
         <ul class="cap-features">
-          <li>图片内容识别理解</li>
-          <li>低信息量消息过滤</li>
-          <li>复读行为识别</li>
-          <li>情感倾向分析</li>
+          <li data-i18n="cap4_f1">图片内容识别理解</li>
+          <li data-i18n="cap4_f2">低信息量消息过滤</li>
+          <li data-i18n="cap4_f3">复读行为识别</li>
+          <li data-i18n="cap4_f4">情感倾向分析</li>
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-1" data-tooltip="子功能：长消息分段、防抖避免刷屏、情感润色、响应延迟模拟。|让输出更像真人。">
+      <div class="cap-card reveal reveal-delay-1" data-tooltip="子功能：长消息分段、防抖避免刷屏、情感润色、响应延迟模拟。|让输出更像真人。" data-i18n-tooltip="cap5_tooltip">
         <div class="cap-icon-wrap">✍️</div>
-        <h3 class="cap-title">输出处理</h3>
-        <p class="cap-desc">像真人一样说话，分段发送、情感润色、节奏自然</p>
+        <h3 class="cap-title" data-i18n="cap5_title">输出处理</h3>
+        <p class="cap-desc" data-i18n="cap5_desc">像真人一样说话，分段发送、情感润色、节奏自然</p>
         <ul class="cap-features">
-          <li>长消息自动分段发送</li>
-          <li>消息防抖避免刷屏</li>
-          <li>情感语气润色</li>
-          <li>响应延迟模拟真人</li>
+          <li data-i18n="cap5_f1">长消息自动分段发送</li>
+          <li data-i18n="cap5_f2">消息防抖避免刷屏</li>
+          <li data-i18n="cap5_f3">情感语气润色</li>
+          <li data-i18n="cap5_f4">响应延迟模拟真人</li>
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-2" data-tooltip="子功能：群组白黑名单、API 成本控制、敏感内容过滤、频率限制冷却。|确保行为可控。">
+      <div class="cap-card reveal reveal-delay-2" data-tooltip="子功能：群组白黑名单、API 成本控制、敏感内容过滤、频率限制冷却。|确保行为可控。" data-i18n-tooltip="cap6_tooltip">
         <div class="cap-icon-wrap">🛡️</div>
-        <h3 class="cap-title">安全控制</h3>
-        <p class="cap-desc">多重防护机制，确保 Bot 行为可控、成本可控</p>
+        <h3 class="cap-title" data-i18n="cap6_title">安全控制</h3>
+        <p class="cap-desc" data-i18n="cap6_desc">多重防护机制，确保 Bot 行为可控、成本可控</p>
         <ul class="cap-features">
-          <li>群组白名单/黑名单</li>
-          <li>API 调用成本控制</li>
-          <li>敏感内容过滤</li>
-          <li>频率限制与冷却</li>
+          <li data-i18n="cap6_f1">群组白名单/黑名单</li>
+          <li data-i18n="cap6_f2">API 调用成本控制</li>
+          <li data-i18n="cap6_f3">敏感内容过滤</li>
+          <li data-i18n="cap6_f4">频率限制与冷却</li>
         </ul>
       </div>
     </div>
@@ -2131,30 +2166,30 @@
   <div class="section-inner">
     <div class="section-header reveal">
       <span class="section-tag">INSTALL</span>
-      <h2 class="section-title">三步<span class="accent">快速安装</span></h2>
-      <p class="section-desc">零文件依赖，装好即用，几分钟让 Bot 拥有社交呼吸</p>
+      <h2 class="section-title" data-i18n="install_title">三步<span class="accent">快速安装</span></h2>
+      <p class="section-desc" data-i18n="install_desc">零文件依赖，装好即用，几分钟让 Bot 拥有社交呼吸</p>
     </div>
 
     <div class="install-steps">
       <div class="install-step reveal">
         <div class="install-step-num">1</div>
-        <h3 class="install-step-title">克隆仓库</h3>
-        <p class="install-step-desc">将插件克隆到 AstrBot 的 plugins 目录下</p>
+        <h3 class="install-step-title" data-i18n="install1_title">克隆仓库</h3>
+        <p class="install-step-desc" data-i18n="install1_desc">将插件克隆到 AstrBot 的 plugins 目录下</p>
         <div class="install-code">cd plugins<br>git clone https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup.git</div>
       </div>
 
       <div class="install-step reveal reveal-delay-1">
         <div class="install-step-num">2</div>
-        <h3 class="install-step-title">重启 AstrBot</h3>
-        <p class="install-step-desc">重启 AstrBot 服务，插件将自动加载并初始化</p>
-        <div class="install-code"># 重启你的 AstrBot 服务<br># 插件会自动注册并加载</div>
+        <h3 class="install-step-title" data-i18n="install2_title">重启 AstrBot</h3>
+        <p class="install-step-desc" data-i18n="install2_desc">重启 AstrBot 服务，插件将自动加载并初始化</p>
+        <div class="install-code" data-i18n="install2_code"># 重启你的 AstrBot 服务<br># 插件会自动注册并加载</div>
       </div>
 
       <div class="install-step reveal reveal-delay-2">
         <div class="install-step-num">3</div>
-        <h3 class="install-step-title">配置启用</h3>
-        <p class="install-step-desc">在 AstrBot 管理面板中配置灵犀参数，按需开启功能</p>
-        <div class="install-code"># 访问 AstrBot 管理面板<br># → 插件管理 → 灵犀 → 配置</div>
+        <h3 class="install-step-title" data-i18n="install3_title">配置启用</h3>
+        <p class="install-step-desc" data-i18n="install3_desc">在 AstrBot 管理面板中配置灵犀参数，按需开启功能</p>
+        <div class="install-code" data-i18n="install3_code"># 访问 AstrBot 管理面板<br># → 插件管理 → 灵犀 → 配置</div>
       </div>
     </div>
   </div>
@@ -2173,22 +2208,22 @@
   <div class="section-inner">
     <div class="section-header reveal">
       <span class="section-tag">PLATFORMS</span>
-      <h2 class="section-title">支持<span class="accent">平台</span></h2>
-      <p class="section-desc">灵犀已适配主流聊天平台，开箱即用</p>
+      <h2 class="section-title" data-i18n="platforms_title">支持<span class="accent">平台</span></h2>
+      <p class="section-desc" data-i18n="platforms_desc">灵犀已适配主流聊天平台，开箱即用</p>
     </div>
 
     <div class="platforms">
-      <div class="platform-card reveal" data-tooltip="适配详情：原生支持 Telegram Bot API，支持群组/私聊、图文消息、内联键盘。需配置 Bot Token。">
+      <div class="platform-card reveal" data-tooltip="适配详情：原生支持 Telegram Bot API，支持群组/私聊、图文消息、内联键盘。需配置 Bot Token。" data-i18n-tooltip="platform1_tooltip">
         <div class="platform-icon">✈️</div>
         <h3 class="platform-name">Telegram</h3>
-        <p class="platform-detail">原生支持</p>
+        <p class="platform-detail" data-i18n="platform1_detail">原生支持</p>
       </div>
-      <div class="platform-card reveal reveal-delay-1" data-tooltip="适配详情：通过 aiocqhttp 适配器对接 OneBot 协议，支持 QQ 群/私聊。需部署 NapCat/go-cqhttp。">
+      <div class="platform-card reveal reveal-delay-1" data-tooltip="适配详情：通过 aiocqhttp 适配器对接 OneBot 协议，支持 QQ 群/私聊。需部署 NapCat/go-cqhttp。" data-i18n-tooltip="platform2_tooltip">
         <div class="platform-icon">🐧</div>
         <h3 class="platform-name">QQ</h3>
-        <p class="platform-detail">aiocqhttp 适配器</p>
+        <p class="platform-detail" data-i18n="platform2_detail">aiocqhttp 适配器</p>
       </div>
-      <div class="platform-card reveal reveal-delay-2" data-tooltip="适配详情：要求 AstrBot ≥ v4.5.0，通过插件机制加载，零文件依赖，纯 Python 实现。">
+      <div class="platform-card reveal reveal-delay-2" data-tooltip="适配详情：要求 AstrBot ≥ v4.5.0，通过插件机制加载，零文件依赖，纯 Python 实现。" data-i18n-tooltip="platform3_tooltip">
         <div class="platform-icon">🤖</div>
         <h3 class="platform-name">AstrBot</h3>
         <p class="platform-detail">≥ v4.5.0</p>
@@ -2210,86 +2245,86 @@
   <div class="section-inner">
     <div class="section-header reveal">
       <span class="section-tag">CONFIG</span>
-      <h2 class="section-title">十一大<span class="accent">配置分组</span></h2>
-      <p class="section-desc">细粒度配置，按需开启，让灵犀适配你的每一个场景</p>
+      <h2 class="section-title" data-i18n="config_title">十一大<span class="accent">配置分组</span></h2>
+      <p class="section-desc" data-i18n="config_desc">细粒度配置，按需开启，让灵犀适配你的每一个场景</p>
     </div>
 
     <div class="config-grid">
-      <div class="config-item reveal" data-tooltip="默认值：enabled=true, debug=false。|取值范围：布尔开关 + 字符串参数。">
+      <div class="config-item reveal" data-tooltip="默认值：enabled=true, debug=false。|取值范围：布尔开关 + 字符串参数。" data-i18n-tooltip="config1_tooltip">
         <div class="config-num">01</div>
         <div class="config-info">
-          <div class="config-name">基础配置</div>
-          <div class="config-desc">插件开关、全局参数、调试模式</div>
+          <div class="config-name" data-i18n="config1_name">基础配置</div>
+          <div class="config-desc" data-i18n="config1_desc">插件开关、全局参数、调试模式</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：names=['灵犀'], threshold=0.6, cooldown=30s。|取值范围：字符串数组 + 0-1 浮点 + 秒数。">
+      <div class="config-item reveal" data-tooltip="默认值：names=['灵犀'], threshold=0.6, cooldown=30s。|取值范围：字符串数组 + 0-1 浮点 + 秒数。" data-i18n-tooltip="config2_tooltip">
         <div class="config-num">02</div>
         <div class="config-info">
-          <div class="config-name">唤醒配置</div>
-          <div class="config-desc">唤醒名称、唤醒阈值、唤醒冷却</div>
+          <div class="config-name" data-i18n="config2_name">唤醒配置</div>
+          <div class="config-desc" data-i18n="config2_desc">唤醒名称、唤醒阈值、唤醒冷却</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：max=100, cost=15/reply, recover=2/min。|取值范围：0-100 整数。">
+      <div class="config-item reveal" data-tooltip="默认值：max=100, cost=15/reply, recover=2/min。|取值范围：0-100 整数。" data-i18n-tooltip="config3_tooltip">
         <div class="config-num">03</div>
         <div class="config-info">
-          <div class="config-name">精力系统</div>
-          <div class="config-desc">精力上限、消耗速率、恢复速度</div>
+          <div class="config-name" data-i18n="config3_name">精力系统</div>
+          <div class="config-desc" data-i18n="config3_desc">精力上限、消耗速率、恢复速度</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：5 状态，阈值 [20,50,80,95]。|取值范围：状态转移概率 0-1。">
+      <div class="config-item reveal" data-tooltip="默认值：5 状态，阈值 [20,50,80,95]。|取值范围：状态转移概率 0-1。" data-i18n-tooltip="config4_tooltip">
         <div class="config-num">04</div>
         <div class="config-info">
-          <div class="config-name">心流状态机</div>
-          <div class="config-desc">状态切换阈值、停留时长、转移概率</div>
+          <div class="config-name" data-i18n="config4_name">心流状态机</div>
+          <div class="config-desc" data-i18n="config4_desc">状态切换阈值、停留时长、转移概率</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：idle_timeout=300s, probability=0.4。|取值范围：秒数 + 0-1 概率。">
+      <div class="config-item reveal" data-tooltip="默认值：idle_timeout=300s, probability=0.4。|取值范围：秒数 + 0-1 概率。" data-i18n-tooltip="config5_tooltip">
         <div class="config-num">05</div>
         <div class="config-info">
-          <div class="config-name">冷场救场</div>
-          <div class="config-desc">冷场判定时长、救场概率、话题库</div>
+          <div class="config-name" data-i18n="config5_name">冷场救场</div>
+          <div class="config-desc" data-i18n="config5_desc">冷场判定时长、救场概率、话题库</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：window=3s, max_wait=10s。|取值范围：秒数，策略：fixed/sliding。">
+      <div class="config-item reveal" data-tooltip="默认值：window=3s, max_wait=10s。|取值范围：秒数，策略：fixed/sliding。" data-i18n-tooltip="config6_tooltip">
         <div class="config-num">06</div>
         <div class="config-info">
-          <div class="config-name">消息防抖</div>
-          <div class="config-desc">防抖窗口、最大等待、触发策略</div>
+          <div class="config-name" data-i18n="config6_name">消息防抖</div>
+          <div class="config-desc" data-i18n="config6_desc">防抖窗口、最大等待、触发策略</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：window=20 条, profile=on。|取值范围：整数条数 + 布尔开关。">
+      <div class="config-item reveal" data-tooltip="默认值：window=20 条, profile=on。|取值范围：整数条数 + 布尔开关。" data-i18n-tooltip="config7_tooltip">
         <div class="config-num">07</div>
         <div class="config-info">
-          <div class="config-name">上下文记忆</div>
-          <div class="config-desc">记忆窗口、用户画像、群组氛围</div>
+          <div class="config-name" data-i18n="config7_name">上下文记忆</div>
+          <div class="config-desc" data-i18n="config7_desc">记忆窗口、用户画像、群组氛围</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：segment=80 字, delay=1-3s。|取值范围：字数 + 秒数区间。">
+      <div class="config-item reveal" data-tooltip="默认值：segment=80 字, delay=1-3s。|取值范围：字数 + 秒数区间。" data-i18n-tooltip="config8_tooltip">
         <div class="config-num">08</div>
         <div class="config-info">
-          <div class="config-name">输出处理</div>
-          <div class="config-desc">分段长度、发送延迟、情感润色</div>
+          <div class="config-name" data-i18n="config8_name">输出处理</div>
+          <div class="config-desc" data-i18n="config8_desc">分段长度、发送延迟、情感润色</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：whitelist=[], blacklist=[]。|取值范围：群号字符串数组，支持通配符。">
+      <div class="config-item reveal" data-tooltip="默认值：whitelist=[], blacklist=[]。|取值范围：群号字符串数组，支持通配符。" data-i18n-tooltip="config9_tooltip">
         <div class="config-num">09</div>
         <div class="config-info">
-          <div class="config-name">群组过滤</div>
-          <div class="config-desc">白名单、黑名单、群组独立配置</div>
+          <div class="config-name" data-i18n="config9_name">群组过滤</div>
+          <div class="config-desc" data-i18n="config9_desc">白名单、黑名单、群组独立配置</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：enabled=false, model='gpt-4o'。|取值范围：布尔 + 模型名称。">
+      <div class="config-item reveal" data-tooltip="默认值：enabled=false, model='gpt-4o'。|取值范围：布尔 + 模型名称。" data-i18n-tooltip="config10_tooltip">
         <div class="config-num">10</div>
         <div class="config-info">
-          <div class="config-name">图片理解</div>
-          <div class="config-desc">图片识别开关、识别模型、响应策略</div>
+          <div class="config-name" data-i18n="config10_name">图片理解</div>
+          <div class="config-desc" data-i18n="config10_desc">图片识别开关、识别模型、响应策略</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="默认值：rate_limit=10/min, cost_limit=100/day。|取值范围：次数/时间。">
+      <div class="config-item reveal" data-tooltip="默认值：rate_limit=10/min, cost_limit=100/day。|取值范围：次数/时间。" data-i18n-tooltip="config11_tooltip">
         <div class="config-num">11</div>
         <div class="config-info">
-          <div class="config-name">安全控制</div>
-          <div class="config-desc">频率限制、成本控制、敏感过滤</div>
+          <div class="config-name" data-i18n="config11_name">安全控制</div>
+          <div class="config-desc" data-i18n="config11_desc">频率限制、成本控制、敏感过滤</div>
         </div>
       </div>
     </div>
@@ -2309,55 +2344,429 @@
       <div class="footer-brand">
         <div class="footer-logo">
           <span class="nav-logo-icon">🔔</span>
-          <span class="footer-logo-text">灵犀</span>
+          <span class="footer-logo-text" data-i18n="nav_logo">灵犀</span>
         </div>
-        <p class="footer-desc">
+        <p class="footer-desc" data-i18n="footer_desc">
           AstrBot 平台的名称自然唤醒插件，通过精力系统、心流状态机、冷场救场与消息防抖的协同，赋予 Bot 自然的社交呼吸节律。
         </p>
         <span class="footer-license">AGPL-3.0 License</span>
       </div>
 
       <div>
-        <h4 class="footer-col-title">文档</h4>
+        <h4 class="footer-col-title" data-i18n="footer_docs">文档</h4>
         <ul class="footer-links">
-          <li><a href="docs/usage_guide.md">使用指南</a></li>
-          <li><a href="docs/troubleshooting_guide.md">故障排除</a></li>
-          <li><a href="CHANGELOG.md">更新日志</a></li>
+          <li><a href="docs/usage_guide.md" data-i18n="footer_usage_guide">使用指南</a></li>
+          <li><a href="docs/troubleshooting_guide.md" data-i18n="footer_troubleshooting">故障排除</a></li>
+          <li><a href="CHANGELOG.md" data-i18n="footer_changelog">更新日志</a></li>
         </ul>
       </div>
 
       <div>
-        <h4 class="footer-col-title">资源</h4>
+        <h4 class="footer-col-title" data-i18n="footer_resources">资源</h4>
         <ul class="footer-links">
-          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener">GitHub 仓库</a></li>
-          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/issues" target="_blank" rel="noopener">问题反馈</a></li>
-          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/releases" target="_blank" rel="noopener">版本发布</a></li>
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" data-i18n="footer_github_repo">GitHub 仓库</a></li>
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/issues" target="_blank" rel="noopener" data-i18n="footer_issues">问题反馈</a></li>
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/releases" target="_blank" rel="noopener" data-i18n="footer_releases">版本发布</a></li>
         </ul>
       </div>
 
       <div>
-        <h4 class="footer-col-title">社区</h4>
+        <h4 class="footer-col-title" data-i18n="footer_community">社区</h4>
         <ul class="footer-links">
-          <li><a href="https://github.com/AstrBotDevs/AstrBot" target="_blank" rel="noopener">AstrBot 官方</a></li>
-          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup#readme" target="_blank" rel="noopener">README 文档</a></li>
+          <li><a href="https://github.com/AstrBotDevs/AstrBot" target="_blank" rel="noopener" data-i18n="footer_astrbot">AstrBot 官方</a></li>
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup#readme" target="_blank" rel="noopener" data-i18n="footer_readme">README 文档</a></li>
         </ul>
       </div>
     </div>
 
     <div class="footer-bottom">
-      <div class="footer-copy">
+      <div class="footer-copy" data-i18n="footer_copy">
         © 2026 灵犀 · MagicalYuYu · 基于 AGPL-3.0 协议开源
       </div>
       <div class="footer-social">
-        <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" title="GitHub">⌥</a>
-        <a href="docs/usage_guide.md" title="文档">📖</a>
-        <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/issues" target="_blank" rel="noopener" title="问题反馈">✦</a>
+        <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" title="GitHub" data-i18n-title="footer_social_github">⌥</a>
+        <a href="docs/usage_guide.md" title="文档" data-i18n-title="footer_social_docs">📖</a>
+        <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/issues" target="_blank" rel="noopener" title="问题反馈" data-i18n-title="footer_social_issues">✦</a>
       </div>
     </div>
   </div>
 </footer>
 
 <script>
+  // ===== i18n 国际化系统 =====
+  const i18n = {
+    zh: {
+      // 文档标题
+      doc_title: '灵犀 — 心有灵犀，不唤自来 | AstrBot 智能唤醒插件',
+      // 导航栏
+      nav_logo: '灵犀',
+      nav_features: '功能亮点',
+      nav_compare: '效果对比',
+      nav_flow: '处理流程',
+      nav_capabilities: '六大能力',
+      nav_install: '安装',
+      nav_config: '配置',
+      nav_menu_aria: '菜单',
+      // Hero 区
+      hero_badge: 'AstrBot 智能唤醒插件 · v1.0',
+      hero_title: '心有灵犀<br>不唤自来',
+      hero_subtitle: '灵犀是 AstrBot 平台的名称自然唤醒插件，通过<strong>精力系统</strong>、<strong>心流状态机</strong>、<strong>冷场救场</strong>与<strong>消息防抖</strong>的协同，赋予 Bot 自然的社交呼吸节律。',
+      stat_features: '功能特性',
+      stat_platforms: '支持平台',
+      stat_configs: '配置分组',
+      stat_deps: '文件依赖',
+      hero_cta_install: '立即安装',
+      hero_cta_learn: '了解功能',
+      // 功能亮点
+      features_title: '十大核心<span class="accent">功能亮点</span>',
+      features_desc: '从唤醒判定到输出处理，灵犀用细节让 Bot 更像一个真实的聊天对象',
+      f1_title: '唤名即应', f1_desc: '用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应',
+      f1_tooltip: '使用场景：群聊中用户提及 Bot 名称时立即响应。|配置项：唤醒名称列表、唤醒冷却时间',
+      f2_title: '投缘便聊', f2_desc: '基于精力值与兴趣匹配，主动参与感兴趣的话题',
+      f2_tooltip: '使用场景：基于精力值与兴趣匹配主动参与话题。|配置项：兴趣关键词、精力消耗阈值',
+      f3_title: '累了就歇', f3_desc: '精力耗尽时自动进入休眠，避免无意义的刷屏回复',
+      f3_tooltip: '使用场景：精力耗尽时自动休眠，避免刷屏。|配置项：精力下限、休眠恢复速率',
+      f4_title: '冷场救场', f4_desc: '检测到群聊冷场时，主动抛出话题激活气氛',
+      f4_tooltip: '使用场景：群聊冷场超过阈值时主动抛出话题。|配置项：冷场判定时长、救场概率',
+      f5_title: '不会打断你', f5_desc: '智能识别对话节奏，不在他人热烈讨论时强行插入',
+      f5_tooltip: '使用场景：识别对话节奏，避免在热烈讨论时插入。|配置项：节奏检测窗口、插入阈值',
+      f6_title: '复读不打扰', f6_desc: '识别群内复读行为，不参与无意义的跟风刷屏',
+      f6_tooltip: '使用场景：识别群内复读行为，不参与无意义刷屏。|配置项：复读判定次数、屏蔽时长',
+      f7_title: '记得聊过什么', f7_desc: '上下文记忆系统，让 Bot 记住之前的对话内容',
+      f7_tooltip: '使用场景：上下文记忆系统，让 Bot 记住之前对话。|配置项：记忆窗口大小、画像积累开关',
+      f8_title: '看得懂图片', f8_desc: '支持图片消息理解，识别图片内容并作出回应',
+      f8_tooltip: '使用场景：图片消息理解，识别图片内容并回应。|配置项：图片识别模型、响应策略',
+      f9_title: '能省则省', f9_desc: '低信息量消息智能屏蔽，节省 API 调用成本',
+      f9_tooltip: '使用场景：低信息量消息智能屏蔽，节省 API 成本。|配置项：最小信息量阈值、屏蔽策略',
+      f10_title: '像真人分段说话', f10_desc: '长消息自动分段发送，模拟真人的聊天节奏',
+      f10_tooltip: '使用场景：长消息自动分段发送，模拟真人节奏。|配置项：分段长度、发送延迟',
+      // 对比板块
+      compare_title: '没有灵犀 vs <span class="accent">有了灵犀</span>',
+      compare_desc: '同样是群聊场景，灵犀让 Bot 的存在感从"工具"变成"伙伴"',
+      compare_before_title: '没有灵犀',
+      compare_after_title: '有了灵犀',
+      compare_b1_meta: '群友 A · 14:02', compare_b1_text: '今天天气真好啊',
+      compare_b2_meta: 'Bot · 14:02', compare_b2_text: '（沉默 · 未被 @，不响应）',
+      compare_b3_meta: '群友 B · 14:05', compare_b3_text: '@Bot 有人吗？聊聊天',
+      compare_b4_meta: 'Bot · 14:05', compare_b4_text: '您好，请使用 /help 查看可用指令',
+      compare_b_summary: '⚠ 缺乏主动社交能力 · 仅响应显式指令 · 群聊存在感稀薄',
+      compare_a1_meta: '群友 A · 14:02', compare_a1_text: '今天天气真好啊',
+      compare_a2_meta: '灵犀 · 14:02 · 心流关注', compare_a2_text: '是呀，这种天气特别适合出去走走～',
+      compare_a3_meta: '群友 B · 14:05', compare_a3_text: '有人吗？聊聊天',
+      compare_a4_meta: '灵犀 · 14:05 · 精力充沛', compare_a4_text: '在呢在呢，刚才还在想这天气适合干嘛呢，你们有什么计划吗？',
+      compare_a_summary: '✨ 自然社交呼吸 · 主动参与话题 · 从"工具"变成"伙伴"',
+      // 消息处理流程
+      flow_title: '消息处理<span class="accent">八步流程</span>',
+      flow_desc: '每一条消息都要经过精心设计的处理流水线，确保响应自然且高效',
+      flow1_title: '消息到达', flow1_desc: '接收来自 Telegram / QQ 的原始消息事件',
+      flow1_tooltip: '技术细节：通过 AstrBot 事件总线接收 MessageEvent，支持文本、图片、@ 等多类型消息。',
+      flow2_title: '群组过滤', flow2_desc: '按白名单/黑名单过滤群组，决定是否处理',
+      flow2_tooltip: '技术细节：读取白名单/黑名单配置，O(1) 时间复杂度判断，支持通配符匹配。',
+      flow3_title: '低信息量屏蔽', flow3_desc: '过滤纯表情、复读、过短消息等低价值内容',
+      flow3_tooltip: '技术细节：基于消息长度、表情占比、复读检测的综合评分，低于阈值则跳过后续流程。',
+      flow4_title: '心流状态更新', flow4_desc: '根据消息热度更新心流状态机的当前状态',
+      flow4_tooltip: '技术细节：根据消息热度、时间间隔、话题匹配度更新五态状态机，影响唤醒概率。',
+      flow5_title: '唤醒判定', flow5_desc: '综合名称提及、精力值、兴趣度判断是否唤醒',
+      flow5_tooltip: '技术细节：综合名称提及（权重 0.5）、精力值（0.3）、兴趣度（0.2）的加权评分，超过阈值即唤醒。',
+      flow6_title: '消息防抖', flow6_desc: '等待消息窗口稳定，避免连续触发多次响应',
+      flow6_tooltip: '技术细节：滑动窗口算法，默认 3 秒窗口，窗口内消息累积，窗口结束才触发响应。',
+      flow7_title: '上下文构建', flow7_desc: '组装历史对话、用户画像、群组氛围等上下文',
+      flow7_tooltip: '技术细节：组装历史 N 条对话、用户画像、群组氛围标签，Token 数控制在模型上限内。',
+      flow8_title: '输出处理', flow8_desc: '分段发送、情感润色、精力扣除与状态收尾',
+      flow8_tooltip: '技术细节：按标点分段、随机延迟 1-3 秒发送、情感语气润色、扣除精力并更新状态。',
+      // 心流状态机
+      fsm_title: '心流状态机实时演示',
+      fsm_subtitle: '观察 Bot 如何在不同状态间自然切换',
+      fsm_state_0: '休眠', fsm_state_1: '倾听', fsm_state_2: '活跃', fsm_state_3: '兴奋', fsm_state_4: '疲倦',
+      fsm_desc_0: '休眠状态：精力不足，Bot 静默观察，等待唤醒信号',
+      fsm_desc_1: '倾听状态：检测到潜在话题，Bot 开始关注对话走向',
+      fsm_desc_2: '活跃状态：话题匹配兴趣，Bot 自然介入并参与讨论',
+      fsm_desc_3: '兴奋状态：被点名或话题高度契合，Bot 全力响应',
+      fsm_desc_4: '疲倦状态：精力接近耗尽，Bot 减少发言，准备休息',
+      // 六大能力
+      cap_title: '六大核心<span class="accent">能力体系</span>',
+      cap_desc: '从感知到表达，灵犀构建了一套完整的"社交呼吸"系统',
+      cap1_title: '智能唤醒', cap1_desc: '多维度唤醒判定，让 Bot 在合适的时机自然介入对话',
+      cap1_f1: '名称提及即时唤醒', cap1_f2: '精力值兴趣度评估', cap1_f3: '冷场检测主动救场', cap1_f4: '对话节奏智能识别',
+      cap1_tooltip: '子功能：名称提及唤醒、精力兴趣评估、冷场检测救场、节奏智能识别。|触发条件：消息到达且通过过滤。',
+      cap2_title: '节律系统', cap2_desc: '精力与心流状态机协同，赋予 Bot 自然的呼吸节律',
+      cap2_f1: '精力值动态消耗与恢复', cap2_f2: '五态心流状态机切换', cap2_f3: '疲劳度自然累积', cap2_f4: '昼夜节律适配',
+      cap2_tooltip: '子功能：精力动态消耗恢复、五态心流状态机、疲劳累积、昼夜节律。|核心：让 Bot 有自然的呼吸感。',
+      cap3_title: '上下文记忆', cap3_desc: '多层级记忆系统，让 Bot 真正"记得"聊过什么',
+      cap3_f1: '短期对话窗口记忆', cap3_f2: '长期用户画像积累', cap3_f3: '群组氛围感知', cap3_f4: '话题延续与切换',
+      cap3_tooltip: '子功能：短期对话窗口、长期用户画像、群组氛围感知、话题延续切换。|存储：内存 + 可选持久化。',
+      cap4_title: '对话理解', cap4_desc: '多模态消息理解，不只是文字，图片也能看懂',
+      cap4_f1: '图片内容识别理解', cap4_f2: '低信息量消息过滤', cap4_f3: '复读行为识别', cap4_f4: '情感倾向分析',
+      cap4_tooltip: '子功能：图片内容识别、低信息量过滤、复读识别、情感分析。|支持多模态输入。',
+      cap5_title: '输出处理', cap5_desc: '像真人一样说话，分段发送、情感润色、节奏自然',
+      cap5_f1: '长消息自动分段发送', cap5_f2: '消息防抖避免刷屏', cap5_f3: '情感语气润色', cap5_f4: '响应延迟模拟真人',
+      cap5_tooltip: '子功能：长消息分段、防抖避免刷屏、情感润色、响应延迟模拟。|让输出更像真人。',
+      cap6_title: '安全控制', cap6_desc: '多重防护机制，确保 Bot 行为可控、成本可控',
+      cap6_f1: '群组白名单/黑名单', cap6_f2: 'API 调用成本控制', cap6_f3: '敏感内容过滤', cap6_f4: '频率限制与冷却',
+      cap6_tooltip: '子功能：群组白黑名单、API 成本控制、敏感内容过滤、频率限制冷却。|确保行为可控。',
+      // 安装步骤
+      install_title: '三步<span class="accent">快速安装</span>',
+      install_desc: '零文件依赖，装好即用，几分钟让 Bot 拥有社交呼吸',
+      install1_title: '克隆仓库', install1_desc: '将插件克隆到 AstrBot 的 plugins 目录下',
+      install2_title: '重启 AstrBot', install2_desc: '重启 AstrBot 服务，插件将自动加载并初始化',
+      install2_code: '# 重启你的 AstrBot 服务<br># 插件会自动注册并加载',
+      install3_title: '配置启用', install3_desc: '在 AstrBot 管理面板中配置灵犀参数，按需开启功能',
+      install3_code: '# 访问 AstrBot 管理面板<br># → 插件管理 → 灵犀 → 配置',
+      // 支持平台
+      platforms_title: '支持<span class="accent">平台</span>',
+      platforms_desc: '灵犀已适配主流聊天平台，开箱即用',
+      platform1_detail: '原生支持',
+      platform2_detail: 'aiocqhttp 适配器',
+      platform1_tooltip: '适配详情：原生支持 Telegram Bot API，支持群组/私聊、图文消息、内联键盘。需配置 Bot Token。',
+      platform2_tooltip: '适配详情：通过 aiocqhttp 适配器对接 OneBot 协议，支持 QQ 群/私聊。需部署 NapCat/go-cqhttp。',
+      platform3_tooltip: '适配详情：要求 AstrBot ≥ v4.5.0，通过插件机制加载，零文件依赖，纯 Python 实现。',
+      // 配置表
+      config_title: '十一大<span class="accent">配置分组</span>',
+      config_desc: '细粒度配置，按需开启，让灵犀适配你的每一个场景',
+      config1_name: '基础配置', config1_desc: '插件开关、全局参数、调试模式',
+      config1_tooltip: '默认值：enabled=true, debug=false。|取值范围：布尔开关 + 字符串参数。',
+      config2_name: '唤醒配置', config2_desc: '唤醒名称、唤醒阈值、唤醒冷却',
+      config2_tooltip: "默认值：names=['灵犀'], threshold=0.6, cooldown=30s。|取值范围：字符串数组 + 0-1 浮点 + 秒数。",
+      config3_name: '精力系统', config3_desc: '精力上限、消耗速率、恢复速度',
+      config3_tooltip: '默认值：max=100, cost=15/reply, recover=2/min。|取值范围：0-100 整数。',
+      config4_name: '心流状态机', config4_desc: '状态切换阈值、停留时长、转移概率',
+      config4_tooltip: '默认值：5 状态，阈值 [20,50,80,95]。|取值范围：状态转移概率 0-1。',
+      config5_name: '冷场救场', config5_desc: '冷场判定时长、救场概率、话题库',
+      config5_tooltip: '默认值：idle_timeout=300s, probability=0.4。|取值范围：秒数 + 0-1 概率。',
+      config6_name: '消息防抖', config6_desc: '防抖窗口、最大等待、触发策略',
+      config6_tooltip: '默认值：window=3s, max_wait=10s。|取值范围：秒数，策略：fixed/sliding。',
+      config7_name: '上下文记忆', config7_desc: '记忆窗口、用户画像、群组氛围',
+      config7_tooltip: '默认值：window=20 条, profile=on。|取值范围：整数条数 + 布尔开关。',
+      config8_name: '输出处理', config8_desc: '分段长度、发送延迟、情感润色',
+      config8_tooltip: '默认值：segment=80 字, delay=1-3s。|取值范围：字数 + 秒数区间。',
+      config9_name: '群组过滤', config9_desc: '白名单、黑名单、群组独立配置',
+      config9_tooltip: '默认值：whitelist=[], blacklist=[]。|取值范围：群号字符串数组，支持通配符。',
+      config10_name: '图片理解', config10_desc: '图片识别开关、识别模型、响应策略',
+      config10_tooltip: "默认值：enabled=false, model='gpt-4o'。|取值范围：布尔 + 模型名称。",
+      config11_name: '安全控制', config11_desc: '频率限制、成本控制、敏感过滤',
+      config11_tooltip: '默认值：rate_limit=10/min, cost_limit=100/day。|取值范围：次数/时间。',
+      // 页脚
+      footer_desc: 'AstrBot 平台的名称自然唤醒插件，通过精力系统、心流状态机、冷场救场与消息防抖的协同，赋予 Bot 自然的社交呼吸节律。',
+      footer_docs: '文档', footer_resources: '资源', footer_community: '社区',
+      footer_usage_guide: '使用指南', footer_troubleshooting: '故障排除', footer_changelog: '更新日志',
+      footer_github_repo: 'GitHub 仓库', footer_issues: '问题反馈', footer_releases: '版本发布',
+      footer_astrbot: 'AstrBot 官方', footer_readme: 'README 文档',
+      footer_copy: '© 2026 灵犀 · MagicalYuYu · 基于 AGPL-3.0 协议开源',
+      footer_social_github: 'GitHub', footer_social_docs: '文档', footer_social_issues: '问题反馈'
+    },
+    en: {
+      // Document title
+      doc_title: 'Lingxi — Smart Wake, Always There, Never Intrusive | AstrBot Wake Plugin',
+      // Navigation
+      nav_logo: 'Lingxi',
+      nav_features: 'Features',
+      nav_compare: 'Comparison',
+      nav_flow: 'Pipeline',
+      nav_capabilities: 'Capabilities',
+      nav_install: 'Install',
+      nav_config: 'Config',
+      nav_menu_aria: 'Menu',
+      // Hero
+      hero_badge: 'AstrBot Smart Wake Plugin · v1.0',
+      hero_title: 'Smart Wake —<br>Always There, Never Intrusive',
+      hero_subtitle: 'Lingxi is a natural wake plugin for AstrBot. Through the synergy of the <strong>Energy System</strong>, <strong>Flow State Machine</strong>, <strong>Dead Air Rescue</strong>, and <strong>Message Debounce</strong>, it gives your Bot a natural social rhythm.',
+      stat_features: 'Features',
+      stat_platforms: 'Platforms',
+      stat_configs: 'Config Groups',
+      stat_deps: 'File Dependencies',
+      hero_cta_install: 'Install Now',
+      hero_cta_learn: 'Explore Features',
+      // Features
+      features_title: 'Ten Core <span class="accent">Features</span>',
+      features_desc: 'From wake detection to output processing, Lingxi uses thoughtful details to make your Bot feel like a real conversational partner.',
+      f1_title: 'Name Wake', f1_desc: 'Responds instantly when users mention the Bot\'s name in messages',
+      f1_tooltip: 'Use case: Responds instantly when users mention the Bot\'s name in group chats.|Config: Wake name list, wake cooldown time',
+      f2_title: 'Topic Join', f2_desc: 'Joins conversations proactively based on energy level and interest matching',
+      f2_tooltip: 'Use case: Proactively joins topics based on energy level and interest matching.|Config: Interest keywords, energy cost threshold',
+      f3_title: 'Smart Rest', f3_desc: 'Automatically enters sleep mode when energy runs low, avoiding meaningless spam',
+      f3_tooltip: 'Use case: Auto-sleeps when energy is depleted, avoiding spam.|Config: Energy floor, sleep recovery rate',
+      f4_title: 'Dead Air Rescue', f4_desc: 'Detects dead air in group chats and proactively sparks new conversations',
+      f4_tooltip: 'Use case: Proactively raises new topics when group chat goes quiet beyond a threshold.|Config: Dead air detection time, rescue probability',
+      f5_title: 'No Interruption', f5_desc: 'Intelligently senses conversation rhythm and never forces its way into active discussions',
+      f5_tooltip: 'Use case: Senses conversation rhythm, avoiding interruptions during active discussions.|Config: Rhythm detection window, insertion threshold',
+      f6_title: 'Repeat Suppression', f6_desc: 'Recognizes copycat behavior and stays out of meaningless spam chains',
+      f6_tooltip: 'Use case: Detects copycat behavior in groups, opting out of meaningless spam.|Config: Repeat detection count, block duration',
+      f7_title: 'Conversation Memory', f7_desc: 'Context-aware memory system that lets the Bot remember previous conversations',
+      f7_tooltip: 'Use case: Context memory system that lets the Bot remember previous conversations.|Config: Memory window size, profile accumulation toggle',
+      f8_title: 'Image Understanding', f8_desc: 'Supports image message comprehension, recognizing and responding to image content',
+      f8_tooltip: 'Use case: Image message understanding, recognizing and responding to image content.|Config: Image recognition model, response strategy',
+      f9_title: 'Smart Savings', f9_desc: 'Intelligently filters low-information messages to save API costs',
+      f9_tooltip: 'Use case: Smart filtering of low-information messages to save API costs.|Config: Minimum information threshold, filter strategy',
+      f10_title: 'Human-like Pacing', f10_desc: 'Auto-segments long messages and sends them with a natural, human rhythm',
+      f10_tooltip: 'Use case: Auto-segments long messages, simulating a human rhythm.|Config: Segment length, send delay',
+      // Comparison
+      compare_title: 'Without Lingxi vs <span class="accent">With Lingxi</span>',
+      compare_desc: 'Same group chat scenario — Lingxi turns your Bot from a "tool" into a "companion"',
+      compare_before_title: 'Without Lingxi',
+      compare_after_title: 'With Lingxi',
+      compare_b1_meta: 'Member A · 14:02', compare_b1_text: 'The weather is really nice today',
+      compare_b2_meta: 'Bot · 14:02', compare_b2_text: '(Silent · not @-mentioned, no response)',
+      compare_b3_meta: 'Member B · 14:05', compare_b3_text: '@Bot anyone there? Let\'s chat',
+      compare_b4_meta: 'Bot · 14:05', compare_b4_text: 'Hello, please use /help to see available commands',
+      compare_b_summary: '⚠ No proactive social skills · only responds to explicit commands · barely visible in group chats',
+      compare_a1_meta: 'Member A · 14:02', compare_a1_text: 'The weather is really nice today',
+      compare_a2_meta: 'Lingxi · 14:02 · Flow: Attentive', compare_a2_text: 'Yeah, this kind of weather is perfect for a walk outside~',
+      compare_a3_meta: 'Member B · 14:05', compare_a3_text: 'Anyone there? Let\'s chat',
+      compare_a4_meta: 'Lingxi · 14:05 · Energy: Full', compare_a4_text: "I'm here! Was just thinking about what this weather is good for — any plans?",
+      compare_a_summary: '✨ Natural social rhythm · proactively joins topics · from "tool" to "companion"',
+      // Pipeline
+      flow_title: 'Eight-Step <span class="accent">Pipeline</span>',
+      flow_desc: 'Every message flows through a carefully designed pipeline to ensure natural, efficient responses',
+      flow1_title: 'Message Arrival', flow1_desc: 'Receives raw message events from Telegram / QQ',
+      flow1_tooltip: 'Technical: Receives MessageEvent via AstrBot event bus; supports text, image, @-mention and other message types.',
+      flow2_title: 'Group Filter', flow2_desc: 'Filters groups by whitelist/blacklist to decide whether to process',
+      flow2_tooltip: 'Technical: Reads whitelist/blacklist config with O(1) lookup; supports wildcard matching.',
+      flow3_title: 'Low-Info Filter', flow3_desc: 'Filters out pure emojis, copycats, and overly short messages',
+      flow3_tooltip: 'Technical: Composite score based on message length, emoji ratio, and copycat detection; skips downstream if below threshold.',
+      flow4_title: 'Flow State Update', flow4_desc: 'Updates the Flow State Machine based on message heat',
+      flow4_tooltip: 'Technical: Updates the five-state machine based on message heat, time gap, and topic match — affects wake probability.',
+      flow5_title: 'Wake Decision', flow5_desc: 'Combines name mention, energy, and interest to decide whether to wake',
+      flow5_tooltip: 'Technical: Weighted score combining name mention (0.5), energy (0.3), and interest (0.2); wakes when score exceeds threshold.',
+      flow6_title: 'Message Debounce', flow6_desc: 'Waits for the message window to stabilize, avoiding repeated triggers',
+      flow6_tooltip: 'Technical: Sliding window algorithm, default 3s window; messages accumulate within the window and trigger only when it closes.',
+      flow7_title: 'Context Assembly', flow7_desc: 'Assembles history, user profile, and group vibe into context',
+      flow7_tooltip: 'Technical: Assembles last N turns of dialogue, user profile, and group vibe tags; token count kept within model limits.',
+      flow8_title: 'Output Processing', flow8_desc: 'Segmented sending, emotional polish, energy deduction, and state wrap-up',
+      flow8_tooltip: 'Technical: Segments by punctuation, random 1-3s send delay, emotional tone polish, deducts energy and updates state.',
+      // Flow State Machine
+      fsm_title: 'Flow State Machine — Live Demo',
+      fsm_subtitle: 'Watch how the Bot naturally transitions between states',
+      fsm_state_0: 'Dormant', fsm_state_1: 'Listening', fsm_state_2: 'Active', fsm_state_3: 'Excited', fsm_state_4: 'Tired',
+      fsm_desc_0: 'Dormant: Energy is low — the Bot stays silent and watches, waiting for a wake signal',
+      fsm_desc_1: 'Listening: A potential topic is detected — the Bot starts paying attention to where the chat is going',
+      fsm_desc_2: 'Active: The topic matches its interests — the Bot naturally joins in and takes part',
+      fsm_desc_3: 'Excited: Directly mentioned or highly relevant topic — the Bot responds with full energy',
+      fsm_desc_4: 'Tired: Energy is nearly depleted — the Bot slows down and gets ready to rest',
+      // Capabilities
+      cap_title: 'Six Core <span class="accent">Capability Systems</span>',
+      cap_desc: 'From perception to expression, Lingxi builds a complete "social rhythm" system',
+      cap1_title: 'Smart Wake', cap1_desc: 'Multi-dimensional wake detection lets the Bot naturally join conversations at the right moment',
+      cap1_f1: 'Instant name-mention wake', cap1_f2: 'Energy and interest evaluation', cap1_f3: 'Dead air detection and rescue', cap1_f4: 'Conversation rhythm awareness',
+      cap1_tooltip: 'Sub-features: Name mention wake, energy/interest evaluation, dead air detection and rescue, rhythm awareness.|Trigger: Message arrives and passes filters.',
+      cap2_title: 'Rhythm System', cap2_desc: 'Energy and Flow State Machine work together to give the Bot a natural breathing rhythm',
+      cap2_f1: 'Dynamic energy consumption and recovery', cap2_f2: 'Five-state Flow State Machine transitions', cap2_f3: 'Natural fatigue accumulation', cap2_f4: 'Day-night rhythm adaptation',
+      cap2_tooltip: 'Sub-features: Dynamic energy consumption/recovery, five-state Flow State Machine, fatigue accumulation, day-night rhythm.|Core: Gives the Bot a natural sense of breathing.',
+      cap3_title: 'Context Memory', cap3_desc: 'Multi-layer memory system that lets the Bot truly "remember" what was said',
+      cap3_f1: 'Short-term dialogue window memory', cap3_f2: 'Long-term user profile accumulation', cap3_f3: 'Group vibe awareness', cap3_f4: 'Topic continuation and switching',
+      cap3_tooltip: 'Sub-features: Short-term dialogue window, long-term user profile, group vibe sensing, topic continuation/switching.|Storage: In-memory + optional persistence.',
+      cap4_title: 'Dialogue Understanding', cap4_desc: 'Multi-modal message understanding — not just text, but images too',
+      cap4_f1: 'Image content recognition', cap4_f2: 'Low-information message filtering', cap4_f3: 'Copycat behavior detection', cap4_f4: 'Sentiment analysis',
+      cap4_tooltip: 'Sub-features: Image content recognition, low-info filtering, copycat detection, sentiment analysis.|Supports multi-modal input.',
+      cap5_title: 'Output Processing', cap5_desc: 'Speaks like a human — segmented sending, emotional polish, natural pacing',
+      cap5_f1: 'Long message auto-segmentation', cap5_f2: 'Message debounce to prevent spam', cap5_f3: 'Emotional tone polish', cap5_f4: 'Human-like response delay',
+      cap5_tooltip: 'Sub-features: Long message segmentation, debounce to prevent spam, emotional polish, response delay simulation.|Makes output feel more human.',
+      cap6_title: 'Safety Control', cap6_desc: 'Multiple layers of protection to keep Bot behavior and costs under control',
+      cap6_f1: 'Group whitelist/blacklist', cap6_f2: 'API call cost control', cap6_f3: 'Sensitive content filtering', cap6_f4: 'Rate limiting and cooldown',
+      cap6_tooltip: 'Sub-features: Group whitelist/blacklist, API cost control, sensitive content filtering, rate limiting/cooldown.|Ensures behavior stays controllable.',
+      // Install
+      install_title: 'Three-Step <span class="accent">Quick Install</span>',
+      install_desc: 'Zero file dependencies — install and go. Give your Bot a social rhythm in minutes',
+      install1_title: 'Clone the Repo', install1_desc: "Clone the plugin into AstrBot's plugins directory",
+      install2_title: 'Restart AstrBot', install2_desc: 'Restart AstrBot — the plugin will auto-load and initialize',
+      install2_code: '# Restart your AstrBot service<br># The plugin will auto-register and load',
+      install3_title: 'Configure & Enable', install3_desc: "Set Lingxi's parameters in the AstrBot admin panel and toggle features as needed",
+      install3_code: '# Open the AstrBot admin panel<br># → Plugin Management → Lingxi → Config',
+      // Platforms
+      platforms_title: 'Supported <span class="accent">Platforms</span>',
+      platforms_desc: 'Lingxi is adapted to mainstream chat platforms — works out of the box',
+      platform1_detail: 'Native support',
+      platform2_detail: 'aiocqhttp adapter',
+      platform1_tooltip: 'Details: Native support for Telegram Bot API — supports groups/private chats, image/text messages, inline keyboards. Requires Bot Token.',
+      platform2_tooltip: 'Details: Connects via aiocqhttp adapter to the OneBot protocol — supports QQ groups/private chats. Requires NapCat/go-cqhttp.',
+      platform3_tooltip: 'Details: Requires AstrBot ≥ v4.5.0, loaded via the plugin mechanism. Zero file dependencies, pure Python.',
+      // Config
+      config_title: 'Eleven <span class="accent">Config Groups</span>',
+      config_desc: 'Fine-grained, toggle-as-needed configuration — tune Lingxi for every scenario',
+      config1_name: 'Basic Config', config1_desc: 'Plugin toggle, global parameters, debug mode',
+      config1_tooltip: 'Default: enabled=true, debug=false.|Range: Boolean toggles + string parameters.',
+      config2_name: 'Wake Config', config2_desc: 'Wake names, wake threshold, wake cooldown',
+      config2_tooltip: "Default: names=['Lingxi'], threshold=0.6, cooldown=30s.|Range: String array + 0-1 float + seconds.",
+      config3_name: 'Energy System', config3_desc: 'Energy cap, consumption rate, recovery speed',
+      config3_tooltip: 'Default: max=100, cost=15/reply, recover=2/min.|Range: 0-100 integer.',
+      config4_name: 'Flow State Machine', config4_desc: 'State transition thresholds, dwell time, transition probabilities',
+      config4_tooltip: 'Default: 5 states, thresholds [20,50,80,95].|Range: State transition probability 0-1.',
+      config5_name: 'Dead Air Rescue', config5_desc: 'Dead air detection time, rescue probability, topic library',
+      config5_tooltip: 'Default: idle_timeout=300s, probability=0.4.|Range: Seconds + 0-1 probability.',
+      config6_name: 'Message Debounce', config6_desc: 'Debounce window, max wait, trigger strategy',
+      config6_tooltip: 'Default: window=3s, max_wait=10s.|Range: Seconds, strategy: fixed/sliding.',
+      config7_name: 'Context Memory', config7_desc: 'Memory window, user profile, group vibe',
+      config7_tooltip: 'Default: window=20 messages, profile=on.|Range: Integer count + boolean toggle.',
+      config8_name: 'Output Processing', config8_desc: 'Segment length, send delay, emotional polish',
+      config8_tooltip: 'Default: segment=80 chars, delay=1-3s.|Range: Character count + second range.',
+      config9_name: 'Group Filter', config9_desc: 'Whitelist, blacklist, per-group config',
+      config9_tooltip: 'Default: whitelist=[], blacklist=[].|Range: Group ID string array, supports wildcards.',
+      config10_name: 'Image Understanding', config10_desc: 'Image recognition toggle, recognition model, response strategy',
+      config10_tooltip: "Default: enabled=false, model='gpt-4o'.|Range: Boolean + model name.",
+      config11_name: 'Safety Control', config11_desc: 'Rate limit, cost control, sensitive filtering',
+      config11_tooltip: 'Default: rate_limit=10/min, cost_limit=100/day.|Range: Count/time.',
+      // Footer
+      footer_desc: 'A natural wake plugin for AstrBot. Through the synergy of the Energy System, Flow State Machine, Dead Air Rescue, and Message Debounce, it gives your Bot a natural social rhythm.',
+      footer_docs: 'Docs', footer_resources: 'Resources', footer_community: 'Community',
+      footer_usage_guide: 'Usage Guide', footer_troubleshooting: 'Troubleshooting', footer_changelog: 'Changelog',
+      footer_github_repo: 'GitHub Repo', footer_issues: 'Report Issues', footer_releases: 'Releases',
+      footer_astrbot: 'AstrBot Official', footer_readme: 'README',
+      footer_copy: '© 2026 Lingxi · MagicalYuYu · Released under AGPL-3.0',
+      footer_social_github: 'GitHub', footer_social_docs: 'Docs', footer_social_issues: 'Report Issues'
+    }
+  };
+
+  function detectLanguage() {
+    const saved = localStorage.getItem('lx-lang');
+    if (saved) return saved;
+    const browserLang = navigator.language || navigator.userLanguage || 'en';
+    return browserLang.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  }
+
+  let currentLang = detectLanguage();
+
+  function applyLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('lx-lang', lang);
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    if (i18n[lang].doc_title) document.title = i18n[lang].doc_title;
+    // 翻译文本内容
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (i18n[lang][key] !== undefined) el.innerHTML = i18n[lang][key];
+    });
+    // 翻译 tooltip
+    document.querySelectorAll('[data-i18n-tooltip]').forEach(el => {
+      const key = el.getAttribute('data-i18n-tooltip');
+      if (i18n[lang][key] !== undefined) el.setAttribute('data-tooltip', i18n[lang][key]);
+    });
+    // 翻译 aria-label
+    document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+      const key = el.getAttribute('data-i18n-aria');
+      if (i18n[lang][key] !== undefined) el.setAttribute('aria-label', i18n[lang][key]);
+    });
+    // 翻译 title 属性
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      if (i18n[lang][key] !== undefined) el.setAttribute('title', i18n[lang][key]);
+    });
+    // 更新语言切换按钮激活态
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+    // 同步更新心流状态机描述
+    if (typeof updateFsmDesc === 'function') updateFsmDesc();
+  }
+
+  // 语言切换按钮事件
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      applyLanguage(btn.dataset.lang);
+    });
+  });
+
+  // 初始应用语言
+  applyLanguage(currentLang);
+
   // ============ 移动端导航 ============
   const navToggle = document.getElementById('navToggle');
   const navLinks = document.getElementById('navLinks');
@@ -2436,13 +2845,24 @@
   const fsmStates = document.querySelectorAll('.fsm-state');
   const fsmDesc = document.getElementById('fsmDesc');
   const fsmMachine = document.querySelector('.flow-state-machine');
-  const fsmDescriptions = [
-    '休眠状态：精力不足，Bot 静默观察，等待唤醒信号',
-    '倾听状态：检测到潜在话题，Bot 开始关注对话走向',
-    '活跃状态：话题匹配兴趣，Bot 自然介入并参与讨论',
-    '兴奋状态：被点名或话题高度契合，Bot 全力响应',
-    '疲倦状态：精力接近耗尽，Bot 减少发言，准备休息'
-  ];
+
+  // 从 i18n 对象动态获取当前语言的描述
+  function getFsmDescriptions() {
+    return [
+      i18n[currentLang].fsm_desc_0,
+      i18n[currentLang].fsm_desc_1,
+      i18n[currentLang].fsm_desc_2,
+      i18n[currentLang].fsm_desc_3,
+      i18n[currentLang].fsm_desc_4
+    ];
+  }
+
+  // 切换语言时同步更新当前状态描述
+  function updateFsmDesc() {
+    const descriptions = getFsmDescriptions();
+    fsmDesc.textContent = descriptions[fsmCurrentIndex];
+  }
+
   let fsmCurrentIndex = 0;
   let fsmSwitchTimer = null;   // 内容淡入淡出过渡定时器
   let fsmAutoTimer = null;     // 自动切换定时器（2.8s 间隔）
@@ -2461,7 +2881,8 @@
       fsmStates.forEach((s, i) => {
         s.classList.toggle('active', i === fsmCurrentIndex);
       });
-      fsmDesc.textContent = fsmDescriptions[fsmCurrentIndex];
+      const descriptions = getFsmDescriptions();
+      fsmDesc.textContent = descriptions[fsmCurrentIndex];
       fsmDesc.classList.remove('switching');
     }, 200);
   }
@@ -2494,7 +2915,7 @@
   fsmStates.forEach((s, i) => {
     s.classList.toggle('active', i === 0);
   });
-  fsmDesc.textContent = fsmDescriptions[0];
+  fsmDesc.textContent = getFsmDescriptions()[0];
 
   // 启动自动切换
   startFsmAuto();
