@@ -295,10 +295,33 @@
     position: absolute;
     top: 18%;
     right: 12%;
-    font-size: 64px;
+    font-size: 68px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     animation: bellFloat 6s ease-in-out infinite;
-    filter: drop-shadow(0 0 30px rgba(251, 191, 36, 0.6));
+    filter:
+      drop-shadow(0 0 4px rgba(8, 17, 15, 0.95))
+      drop-shadow(0 0 10px rgba(8, 17, 15, 0.65))
+      drop-shadow(0 6px 16px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 28px rgba(251, 191, 36, 0.5));
     z-index: 1;
+  }
+
+  /* 铃铛深色半透明圆形底座：让铃铛从暖色背景中浮出，提高辨识度 */
+  .hero-bell::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 1.3em;
+    height: 1.3em;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(8, 17, 15, 0.82) 0%, rgba(15, 29, 24, 0.55) 55%, transparent 100%);
+    z-index: -1;
+    pointer-events: none;
   }
 
   .hero-bell-2 {
@@ -306,7 +329,9 @@
     left: 8%;
     font-size: 40px;
     animation: bellFloat 8s ease-in-out infinite 1s;
-    filter: drop-shadow(0 0 20px rgba(52, 211, 153, 0.5));
+    filter:
+      drop-shadow(0 0 3px rgba(8, 17, 15, 0.9))
+      drop-shadow(0 0 20px rgba(52, 211, 153, 0.5));
     opacity: 0.7;
   }
 
@@ -2419,9 +2444,10 @@
 
   counters.forEach(c => counterObserver.observe(c));
 
-  // ============ 心流状态机悬浮交互 ============
+  // ============ 心流状态机自动切换 + 悬浮交互 ============
   const fsmStates = document.querySelectorAll('.fsm-state');
   const fsmDesc = document.getElementById('fsmDesc');
+  const fsmMachine = document.querySelector('.flow-state-machine');
   const fsmDescriptions = [
     '休眠状态：精力不足，Bot 静默观察，等待唤醒信号',
     '倾听状态：检测到潜在话题，Bot 开始关注对话走向',
@@ -2430,7 +2456,9 @@
     '疲倦状态：精力接近耗尽，Bot 减少发言，准备休息'
   ];
   let fsmCurrentIndex = 0;
-  let fsmSwitchTimer = null;
+  let fsmSwitchTimer = null;   // 内容淡入淡出过渡定时器
+  let fsmAutoTimer = null;     // 自动切换定时器（2.8s 间隔）
+  let fsmResumeTimer = null;   // 鼠标移出后延迟恢复自动切换的定时器（3s）
 
   function setFsmState(index) {
     if (index === fsmCurrentIndex || index < 0 || index >= fsmStates.length) return;
@@ -2450,17 +2478,64 @@
     }, 200);
   }
 
+  // 启动自动切换：每 2.8 秒切换到下一个状态
+  function startFsmAuto() {
+    stopFsmAuto();
+    fsmAutoTimer = setInterval(() => {
+      const next = (fsmCurrentIndex + 1) % fsmStates.length;
+      setFsmState(next);
+    }, 2800);
+  }
+
+  // 停止自动切换
+  function stopFsmAuto() {
+    if (fsmAutoTimer) {
+      clearInterval(fsmAutoTimer);
+      fsmAutoTimer = null;
+    }
+  }
+
+  // 暂停自动切换并取消任何待恢复的定时器
+  function pauseFsmAuto() {
+    clearTimeout(fsmResumeTimer);
+    fsmResumeTimer = null;
+    stopFsmAuto();
+  }
+
   // 初始激活第一个状态
   fsmStates.forEach((s, i) => {
     s.classList.toggle('active', i === 0);
   });
   fsmDesc.textContent = fsmDescriptions[0];
 
-  // 鼠标悬浮切换状态，移开时保持当前状态（不恢复、不自动切换）
+  // 启动自动切换
+  startFsmAuto();
+
+  // 鼠标悬浮状态节点：立即切换到该状态 + 暂停自动切换
   fsmStates.forEach((state, idx) => {
-    state.addEventListener('mouseenter', () => setFsmState(idx));
+    state.addEventListener('mouseenter', () => {
+      pauseFsmAuto();
+      setFsmState(idx);
+    });
     // 触屏点击支持
-    state.addEventListener('click', () => setFsmState(idx));
+    state.addEventListener('click', () => {
+      pauseFsmAuto();
+      setFsmState(idx);
+    });
+  });
+
+  // 鼠标进入状态机区域：取消待恢复的定时器（避免误恢复）
+  fsmMachine.addEventListener('mouseenter', () => {
+    clearTimeout(fsmResumeTimer);
+    fsmResumeTimer = null;
+  });
+
+  // 鼠标移出状态机区域：3 秒后恢复自动切换
+  fsmMachine.addEventListener('mouseleave', () => {
+    clearTimeout(fsmResumeTimer);
+    fsmResumeTimer = setTimeout(() => {
+      startFsmAuto();
+    }, 3000);
   });
 
   // ============ 平滑滚动 ============
@@ -2537,42 +2612,53 @@
     lxTooltip.classList.remove('visible');
   }
 
-  // 计算 tooltip 位置，自动避免超出视口
+  // 计算 tooltip 位置：根据元素在视口中的水平位置智能选择弹出方向
   function positionLxTooltip(target) {
     const rect = target.getBoundingClientRect();
     const tipRect = lxTooltip.getBoundingClientRect();
     const padding = 12;
     const gap = 14;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
 
-    // 默认放在元素上方居中
-    let x = rect.left + rect.width / 2 - tipRect.width / 2;
-    let y = rect.top - tipRect.height - gap;
+    // 元素中心点相对于视口宽度的比例，用于判断弹出方向
+    const centerX = rect.left + rect.width / 2;
+    const ratio = centerX / vw;
 
-    // 如果上方空间不足，放在下方
-    if (y < padding) {
-      y = rect.bottom + gap;
-    }
+    let x, y;
 
-    // 如果下方也超出，就放在元素右侧
-    if (y + tipRect.height > window.innerHeight - padding) {
+    if (ratio < 0.35) {
+      // 页面左半部分：tooltip 弹出在元素左侧（右边缘对齐元素左边缘，垂直居中）
+      x = rect.left - tipRect.width - gap;
       y = rect.top + rect.height / 2 - tipRect.height / 2;
+    } else if (ratio > 0.65) {
+      // 页面右半部分：tooltip 弹出在元素右侧（左边缘对齐元素右边缘，垂直居中）
       x = rect.right + gap;
+      y = rect.top + rect.height / 2 - tipRect.height / 2;
+    } else {
+      // 页面中间部分：默认上方弹出
+      x = rect.left + rect.width / 2 - tipRect.width / 2;
+      y = rect.top - tipRect.height - gap;
+      // 上方空间不足则放下方
+      if (y < padding) {
+        y = rect.bottom + gap;
+      }
     }
 
-    // 水平边界修正
+    // 水平边界修正：确保不超出视口
     if (x < padding) {
       x = padding;
     }
-    if (x + tipRect.width > window.innerWidth - padding) {
-      x = window.innerWidth - tipRect.width - padding;
+    if (x + tipRect.width > vw - padding) {
+      x = vw - tipRect.width - padding;
     }
 
-    // 垂直边界最终修正
-    if (y + tipRect.height > window.innerHeight - padding) {
-      y = window.innerHeight - tipRect.height - padding;
-    }
+    // 垂直边界修正：确保不超出视口
     if (y < padding) {
       y = padding;
+    }
+    if (y + tipRect.height > vh - padding) {
+      y = vh - tipRect.height - padding;
     }
 
     lxTooltip.style.left = x + 'px';
