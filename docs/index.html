@@ -2753,8 +2753,8 @@
     document.querySelectorAll('.lang-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.lang === lang);
     });
-    // 同步更新心流状态机描述
-    if (typeof updateFsmDesc === 'function') updateFsmDesc();
+    // 同步更新心流状态机描述（如果 fsmDesc 已初始化）
+    try { if (typeof updateFsmDesc === 'function') updateFsmDesc(); } catch(e) {}
   }
 
   // 语言切换按钮事件
