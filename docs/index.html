@@ -752,16 +752,7 @@
     font-style: italic;
   }
 
-  .compare-col.before .chat-bubble:nth-child(1) { animation-delay: 0.2s; }
-  .compare-col.before .chat-bubble:nth-child(2) { animation-delay: 0.5s; }
-  .compare-col.before .chat-bubble:nth-child(3) { animation-delay: 0.8s; }
-  .compare-col.before .chat-bubble:nth-child(4) { animation-delay: 1.1s; }
-
-  .compare-col.after .chat-bubble:nth-child(1) { animation-delay: 0.3s; }
-  .compare-col.after .chat-bubble:nth-child(2) { animation-delay: 0.6s; }
-  .compare-col.after .chat-bubble:nth-child(3) { animation-delay: 0.9s; }
-  .compare-col.after .chat-bubble:nth-child(4) { animation-delay: 1.2s; }
-  .compare-col.after .chat-bubble:nth-child(5) { animation-delay: 1.5s; }
+  /* 入场动画延迟通过 inline style 设置，避免 nth-child 受 header 干扰 */
 
   @keyframes bubbleIn {
     0% {
@@ -775,7 +766,34 @@
   }
 
   .compare-col .chat-bubble {
-    animation: bubbleFloat 5s ease-in-out infinite;
+    /* 合并入场动画与浮动动画：bubbleIn 先执行 0.6s 完成（forwards 保持 opacity:1），随后 bubbleFloat 无限循环 */
+    animation: bubbleIn 0.6s ease forwards, bubbleFloat 5s ease-in-out 0.6s infinite;
+  }
+
+  /* 总结气泡样式（用于对比板块末尾的效果/问题总结） */
+  .chat-bubble.summary {
+    max-width: 100%;
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px dashed rgba(251, 191, 36, 0.4);
+    color: var(--amber-soft);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-style: italic;
+    text-align: center;
+    margin-top: 8px;
+    padding: 12px 16px;
+  }
+
+  .compare-col.before .chat-bubble.summary {
+    background: rgba(251, 113, 133, 0.08);
+    border-color: rgba(251, 113, 133, 0.4);
+    color: var(--rose);
+  }
+
+  .compare-col.after .chat-bubble.summary {
+    background: rgba(52, 211, 153, 0.08);
+    border-color: rgba(52, 211, 153, 0.4);
+    color: var(--emerald-soft);
   }
 
   @keyframes bubbleFloat {
@@ -1001,18 +1019,33 @@
     color: var(--text-secondary);
     font-size: 14px;
     font-weight: 600;
-    transition: all 0.5s ease;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     display: flex;
     align-items: center;
     gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .fsm-state:hover {
+    transform: scale(1.12) translateY(-2px);
+    border-color: rgba(251, 191, 36, 0.6);
+    color: var(--amber-soft);
+    background: rgba(251, 191, 36, 0.1);
+    box-shadow: 0 0 24px rgba(251, 191, 36, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
   }
 
   .fsm-state.active {
     background: var(--grad-warm);
     color: #08110f;
     border-color: transparent;
-    transform: scale(1.08);
-    box-shadow: var(--glow-amber);
+    transform: scale(1.12);
+    box-shadow: var(--glow-amber), 0 0 32px rgba(251, 191, 36, 0.5);
+  }
+
+  .fsm-state.active:hover {
+    transform: scale(1.18) translateY(-2px);
+    box-shadow: var(--glow-amber), 0 0 40px rgba(251, 146, 60, 0.6);
   }
 
   .fsm-state-dot {
@@ -1034,6 +1067,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: opacity 0.4s ease, transform 0.4s ease, color 0.4s ease;
+    padding: 0 16px;
+    line-height: 1.7;
+  }
+
+  .fsm-desc.switching {
+    opacity: 0;
+    transform: translateY(8px);
   }
 
   /* ============ 安装步骤 ============ */
@@ -1515,6 +1556,50 @@
     background: rgba(251, 191, 36, 0.3);
     color: var(--text-primary);
   }
+
+  /* ============ 全局 Tooltip 悬浮弹窗 ============ */
+  .lx-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: rgba(8, 17, 15, 0.96);
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-primary);
+    max-width: 300px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), 0 0 18px rgba(251, 191, 36, 0.18);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    line-height: 1.6;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+
+  .lx-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .lx-tooltip-title {
+    color: var(--amber-soft);
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .lx-tooltip-body {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  /* 标记可悬浮的元素 */
+  [data-tooltip] {
+    cursor: help;
+  }
 </style>
 </head>
 <body>
@@ -1643,103 +1728,103 @@
   <div class="features-scroll reveal">
     <div class="features-track" id="featuresTrack">
       <!-- 第一组 -->
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：群聊中用户提及 Bot 名称时立即响应。|配置项：唤醒名称列表、唤醒冷却时间">
         <div class="feature-icon">🎯</div>
         <h3 class="feature-title">唤名即应</h3>
         <p class="feature-desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：基于精力值与兴趣匹配主动参与话题。|配置项：兴趣关键词、精力消耗阈值">
         <div class="feature-icon">💬</div>
         <h3 class="feature-title">投缘便聊</h3>
         <p class="feature-desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：精力耗尽时自动休眠，避免刷屏。|配置项：精力下限、休眠恢复速率">
         <div class="feature-icon">😴</div>
         <h3 class="feature-title">累了就歇</h3>
         <p class="feature-desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：群聊冷场超过阈值时主动抛出话题。|配置项：冷场判定时长、救场概率">
         <div class="feature-icon">🔥</div>
         <h3 class="feature-title">冷场救场</h3>
         <p class="feature-desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：识别对话节奏，避免在热烈讨论时插入。|配置项：节奏检测窗口、插入阈值">
         <div class="feature-icon">🤫</div>
         <h3 class="feature-title">不会打断你</h3>
         <p class="feature-desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：识别群内复读行为，不参与无意义刷屏。|配置项：复读判定次数、屏蔽时长">
         <div class="feature-icon">🔇</div>
         <h3 class="feature-title">复读不打扰</h3>
         <p class="feature-desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：上下文记忆系统，让 Bot 记住之前对话。|配置项：记忆窗口大小、画像积累开关">
         <div class="feature-icon">🧠</div>
         <h3 class="feature-title">记得聊过什么</h3>
         <p class="feature-desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：图片消息理解，识别图片内容并回应。|配置项：图片识别模型、响应策略">
         <div class="feature-icon">🖼️</div>
         <h3 class="feature-title">看得懂图片</h3>
         <p class="feature-desc">支持图片消息理解，识别图片内容并作出回应</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：低信息量消息智能屏蔽，节省 API 成本。|配置项：最小信息量阈值、屏蔽策略">
         <div class="feature-icon">⚡</div>
         <h3 class="feature-title">能省则省</h3>
         <p class="feature-desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：长消息自动分段发送，模拟真人节奏。|配置项：分段长度、发送延迟">
         <div class="feature-icon">📝</div>
         <h3 class="feature-title">像真人分段说话</h3>
         <p class="feature-desc">长消息自动分段发送，模拟真人的聊天节奏</p>
       </div>
       <!-- 第二组（重复，用于无限滚动） -->
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：群聊中用户提及 Bot 名称时立即响应。|配置项：唤醒名称列表、唤醒冷却时间">
         <div class="feature-icon">🎯</div>
         <h3 class="feature-title">唤名即应</h3>
         <p class="feature-desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：基于精力值与兴趣匹配主动参与话题。|配置项：兴趣关键词、精力消耗阈值">
         <div class="feature-icon">💬</div>
         <h3 class="feature-title">投缘便聊</h3>
         <p class="feature-desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：精力耗尽时自动休眠，避免刷屏。|配置项：精力下限、休眠恢复速率">
         <div class="feature-icon">😴</div>
         <h3 class="feature-title">累了就歇</h3>
         <p class="feature-desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：群聊冷场超过阈值时主动抛出话题。|配置项：冷场判定时长、救场概率">
         <div class="feature-icon">🔥</div>
         <h3 class="feature-title">冷场救场</h3>
         <p class="feature-desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：识别对话节奏，避免在热烈讨论时插入。|配置项：节奏检测窗口、插入阈值">
         <div class="feature-icon">🤫</div>
         <h3 class="feature-title">不会打断你</h3>
         <p class="feature-desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：识别群内复读行为，不参与无意义刷屏。|配置项：复读判定次数、屏蔽时长">
         <div class="feature-icon">🔇</div>
         <h3 class="feature-title">复读不打扰</h3>
         <p class="feature-desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：上下文记忆系统，让 Bot 记住之前对话。|配置项：记忆窗口大小、画像积累开关">
         <div class="feature-icon">🧠</div>
         <h3 class="feature-title">记得聊过什么</h3>
         <p class="feature-desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：图片消息理解，识别图片内容并回应。|配置项：图片识别模型、响应策略">
         <div class="feature-icon">🖼️</div>
         <h3 class="feature-title">看得懂图片</h3>
         <p class="feature-desc">支持图片消息理解，识别图片内容并作出回应</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：低信息量消息智能屏蔽，节省 API 成本。|配置项：最小信息量阈值、屏蔽策略">
         <div class="feature-icon">⚡</div>
         <h3 class="feature-title">能省则省</h3>
         <p class="feature-desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
       </div>
-      <div class="feature-card">
+      <div class="feature-card" data-tooltip="使用场景：长消息自动分段发送，模拟真人节奏。|配置项：分段长度、发送延迟">
         <div class="feature-icon">📝</div>
         <h3 class="feature-title">像真人分段说话</h3>
         <p class="feature-desc">长消息自动分段发送，模拟真人的聊天节奏</p>
@@ -1771,21 +1856,24 @@
           <span class="compare-emoji">😐</span>
           <h3 class="compare-title">没有灵犀</h3>
         </div>
-        <div class="chat-bubble user">
-          <div class="chat-meta">用户 A · 14:02</div>
+        <div class="chat-bubble user" style="animation-delay: 0.2s, 0.8s;">
+          <div class="chat-meta">群友 A · 14:02</div>
           今天天气真好啊
         </div>
-        <div class="chat-bubble bot-cold">
+        <div class="chat-bubble bot-cold" style="animation-delay: 0.5s, 1.1s;">
           <div class="chat-meta">Bot · 14:02</div>
-          （无响应 · 未被 @）
+          （沉默 · 未被 @，不响应）
         </div>
-        <div class="chat-bubble user">
-          <div class="chat-meta">用户 B · 14:05</div>
-          有人吗？聊聊天
+        <div class="chat-bubble user" style="animation-delay: 0.8s, 1.4s;">
+          <div class="chat-meta">群友 B · 14:05</div>
+          @Bot 有人吗？聊聊天
         </div>
-        <div class="chat-bubble bot-cold">
+        <div class="chat-bubble bot-cold" style="animation-delay: 1.1s, 1.7s;">
           <div class="chat-meta">Bot · 14:05</div>
-          （依然沉默 · 等待指令）
+          您好，请使用 /help 查看可用指令
+        </div>
+        <div class="chat-bubble summary" style="animation-delay: 1.4s, 2.0s;">
+          ⚠ 缺乏主动社交能力 · 仅响应显式指令 · 群聊存在感稀薄
         </div>
       </div>
 
@@ -1794,25 +1882,24 @@
           <span class="compare-emoji">✨</span>
           <h3 class="compare-title">有了灵犀</h3>
         </div>
-        <div class="chat-bubble user">
-          <div class="chat-meta">用户 A · 14:02</div>
+        <div class="chat-bubble user" style="animation-delay: 0.3s, 0.9s;">
+          <div class="chat-meta">群友 A · 14:02</div>
           今天天气真好啊
         </div>
-        <div class="chat-bubble bot">
-          <div class="chat-meta">灵犀 · 14:02</div>
+        <div class="chat-bubble bot" style="animation-delay: 0.6s, 1.2s;">
+          <div class="chat-meta">灵犀 · 14:02 · 心流关注</div>
           是呀，这种天气特别适合出去走走～
         </div>
-        <div class="chat-bubble user">
-          <div class="chat-meta">用户 B · 14:05</div>
+        <div class="chat-bubble user" style="animation-delay: 0.9s, 1.5s;">
+          <div class="chat-meta">群友 B · 14:05</div>
           有人吗？聊聊天
         </div>
-        <div class="chat-bubble bot">
-          <div class="chat-meta">灵犀 · 14:05</div>
-          在呢在呢，刚才还在想这天气适合干嘛呢
+        <div class="chat-bubble bot" style="animation-delay: 1.2s, 1.8s;">
+          <div class="chat-meta">灵犀 · 14:05 · 精力充沛</div>
+          在呢在呢，刚才还在想这天气适合干嘛呢，你们有什么计划吗？
         </div>
-        <div class="chat-bubble bot">
-          <div class="chat-meta">灵犀 · 14:06</div>
-          你们有什么计划吗？
+        <div class="chat-bubble summary" style="animation-delay: 1.5s, 2.1s;">
+          ✨ 自然社交呼吸 · 主动参与话题 · 从"工具"变成"伙伴"
         </div>
       </div>
     </div>
@@ -1837,56 +1924,56 @@
     </div>
 
     <div class="flow-container">
-      <div class="flow-step reveal">
+      <div class="flow-step reveal" data-tooltip="技术细节：通过 AstrBot 事件总线接收 MessageEvent，支持文本、图片、@ 等多类型消息。">
         <div class="flow-num">1</div>
         <div class="flow-icon">📨</div>
         <h3 class="flow-title">消息到达</h3>
         <p class="flow-desc">接收来自 Telegram / QQ 的原始消息事件</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-1">
+      <div class="flow-step reveal reveal-delay-1" data-tooltip="技术细节：读取白名单/黑名单配置，O(1) 时间复杂度判断，支持通配符匹配。">
         <div class="flow-num">2</div>
         <div class="flow-icon">👥</div>
         <h3 class="flow-title">群组过滤</h3>
         <p class="flow-desc">按白名单/黑名单过滤群组，决定是否处理</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-2">
+      <div class="flow-step reveal reveal-delay-2" data-tooltip="技术细节：基于消息长度、表情占比、复读检测的综合评分，低于阈值则跳过后续流程。">
         <div class="flow-num">3</div>
         <div class="flow-icon">🔇</div>
         <h3 class="flow-title">低信息量屏蔽</h3>
         <p class="flow-desc">过滤纯表情、复读、过短消息等低价值内容</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-3">
+      <div class="flow-step reveal reveal-delay-3" data-tooltip="技术细节：根据消息热度、时间间隔、话题匹配度更新五态状态机，影响唤醒概率。">
         <div class="flow-num">4</div>
         <div class="flow-icon">🌊</div>
         <h3 class="flow-title">心流状态更新</h3>
         <p class="flow-desc">根据消息热度更新心流状态机的当前状态</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal">
+      <div class="flow-step reveal" data-tooltip="技术细节：综合名称提及（权重 0.5）、精力值（0.3）、兴趣度（0.2）的加权评分，超过阈值即唤醒。">
         <div class="flow-num">5</div>
         <div class="flow-icon">🔔</div>
         <h3 class="flow-title">唤醒判定</h3>
         <p class="flow-desc">综合名称提及、精力值、兴趣度判断是否唤醒</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-1">
+      <div class="flow-step reveal reveal-delay-1" data-tooltip="技术细节：滑动窗口算法，默认 3 秒窗口，窗口内消息累积，窗口结束才触发响应。">
         <div class="flow-num">6</div>
         <div class="flow-icon">⏱️</div>
         <h3 class="flow-title">消息防抖</h3>
         <p class="flow-desc">等待消息窗口稳定，避免连续触发多次响应</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-2">
+      <div class="flow-step reveal reveal-delay-2" data-tooltip="技术细节：组装历史 N 条对话、用户画像、群组氛围标签，Token 数控制在模型上限内。">
         <div class="flow-num">7</div>
         <div class="flow-icon">🧩</div>
         <h3 class="flow-title">上下文构建</h3>
         <p class="flow-desc">组装历史对话、用户画像、群组氛围等上下文</p>
         <div class="flow-arrow">→</div>
       </div>
-      <div class="flow-step reveal reveal-delay-3">
+      <div class="flow-step reveal reveal-delay-3" data-tooltip="技术细节：按标点分段、随机延迟 1-3 秒发送、情感语气润色、扣除精力并更新状态。">
         <div class="flow-num">8</div>
         <div class="flow-icon">📤</div>
         <h3 class="flow-title">输出处理</h3>
@@ -1945,7 +2032,7 @@
     </div>
 
     <div class="capabilities-grid">
-      <div class="cap-card reveal">
+      <div class="cap-card reveal" data-tooltip="子功能：名称提及唤醒、精力兴趣评估、冷场检测救场、节奏智能识别。|触发条件：消息到达且通过过滤。">
         <div class="cap-icon-wrap">🎯</div>
         <h3 class="cap-title">智能唤醒</h3>
         <p class="cap-desc">多维度唤醒判定，让 Bot 在合适的时机自然介入对话</p>
@@ -1957,7 +2044,7 @@
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-1">
+      <div class="cap-card reveal reveal-delay-1" data-tooltip="子功能：精力动态消耗恢复、五态心流状态机、疲劳累积、昼夜节律。|核心：让 Bot 有自然的呼吸感。">
         <div class="cap-icon-wrap">🌊</div>
         <h3 class="cap-title">节律系统</h3>
         <p class="cap-desc">精力与心流状态机协同，赋予 Bot 自然的呼吸节律</p>
@@ -1969,7 +2056,7 @@
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-2">
+      <div class="cap-card reveal reveal-delay-2" data-tooltip="子功能：短期对话窗口、长期用户画像、群组氛围感知、话题延续切换。|存储：内存 + 可选持久化。">
         <div class="cap-icon-wrap">🧠</div>
         <h3 class="cap-title">上下文记忆</h3>
         <p class="cap-desc">多层级记忆系统，让 Bot 真正"记得"聊过什么</p>
@@ -1981,7 +2068,7 @@
         </ul>
       </div>
 
-      <div class="cap-card reveal">
+      <div class="cap-card reveal" data-tooltip="子功能：图片内容识别、低信息量过滤、复读识别、情感分析。|支持多模态输入。">
         <div class="cap-icon-wrap">👁️</div>
         <h3 class="cap-title">对话理解</h3>
         <p class="cap-desc">多模态消息理解，不只是文字，图片也能看懂</p>
@@ -1993,7 +2080,7 @@
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-1">
+      <div class="cap-card reveal reveal-delay-1" data-tooltip="子功能：长消息分段、防抖避免刷屏、情感润色、响应延迟模拟。|让输出更像真人。">
         <div class="cap-icon-wrap">✍️</div>
         <h3 class="cap-title">输出处理</h3>
         <p class="cap-desc">像真人一样说话，分段发送、情感润色、节奏自然</p>
@@ -2005,7 +2092,7 @@
         </ul>
       </div>
 
-      <div class="cap-card reveal reveal-delay-2">
+      <div class="cap-card reveal reveal-delay-2" data-tooltip="子功能：群组白黑名单、API 成本控制、敏感内容过滤、频率限制冷却。|确保行为可控。">
         <div class="cap-icon-wrap">🛡️</div>
         <h3 class="cap-title">安全控制</h3>
         <p class="cap-desc">多重防护机制，确保 Bot 行为可控、成本可控</p>
@@ -2080,17 +2167,17 @@
     </div>
 
     <div class="platforms">
-      <div class="platform-card reveal">
+      <div class="platform-card reveal" data-tooltip="适配详情：原生支持 Telegram Bot API，支持群组/私聊、图文消息、内联键盘。需配置 Bot Token。">
         <div class="platform-icon">✈️</div>
         <h3 class="platform-name">Telegram</h3>
         <p class="platform-detail">原生支持</p>
       </div>
-      <div class="platform-card reveal reveal-delay-1">
+      <div class="platform-card reveal reveal-delay-1" data-tooltip="适配详情：通过 aiocqhttp 适配器对接 OneBot 协议，支持 QQ 群/私聊。需部署 NapCat/go-cqhttp。">
         <div class="platform-icon">🐧</div>
         <h3 class="platform-name">QQ</h3>
         <p class="platform-detail">aiocqhttp 适配器</p>
       </div>
-      <div class="platform-card reveal reveal-delay-2">
+      <div class="platform-card reveal reveal-delay-2" data-tooltip="适配详情：要求 AstrBot ≥ v4.5.0，通过插件机制加载，零文件依赖，纯 Python 实现。">
         <div class="platform-icon">🤖</div>
         <h3 class="platform-name">AstrBot</h3>
         <p class="platform-detail">≥ v4.5.0</p>
@@ -2117,77 +2204,77 @@
     </div>
 
     <div class="config-grid">
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：enabled=true, debug=false。|取值范围：布尔开关 + 字符串参数。">
         <div class="config-num">01</div>
         <div class="config-info">
           <div class="config-name">基础配置</div>
           <div class="config-desc">插件开关、全局参数、调试模式</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：names=['灵犀'], threshold=0.6, cooldown=30s。|取值范围：字符串数组 + 0-1 浮点 + 秒数。">
         <div class="config-num">02</div>
         <div class="config-info">
           <div class="config-name">唤醒配置</div>
           <div class="config-desc">唤醒名称、唤醒阈值、唤醒冷却</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：max=100, cost=15/reply, recover=2/min。|取值范围：0-100 整数。">
         <div class="config-num">03</div>
         <div class="config-info">
           <div class="config-name">精力系统</div>
           <div class="config-desc">精力上限、消耗速率、恢复速度</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：5 状态，阈值 [20,50,80,95]。|取值范围：状态转移概率 0-1。">
         <div class="config-num">04</div>
         <div class="config-info">
           <div class="config-name">心流状态机</div>
           <div class="config-desc">状态切换阈值、停留时长、转移概率</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：idle_timeout=300s, probability=0.4。|取值范围：秒数 + 0-1 概率。">
         <div class="config-num">05</div>
         <div class="config-info">
           <div class="config-name">冷场救场</div>
           <div class="config-desc">冷场判定时长、救场概率、话题库</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：window=3s, max_wait=10s。|取值范围：秒数，策略：fixed/sliding。">
         <div class="config-num">06</div>
         <div class="config-info">
           <div class="config-name">消息防抖</div>
           <div class="config-desc">防抖窗口、最大等待、触发策略</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：window=20 条, profile=on。|取值范围：整数条数 + 布尔开关。">
         <div class="config-num">07</div>
         <div class="config-info">
           <div class="config-name">上下文记忆</div>
           <div class="config-desc">记忆窗口、用户画像、群组氛围</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：segment=80 字, delay=1-3s。|取值范围：字数 + 秒数区间。">
         <div class="config-num">08</div>
         <div class="config-info">
           <div class="config-name">输出处理</div>
           <div class="config-desc">分段长度、发送延迟、情感润色</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：whitelist=[], blacklist=[]。|取值范围：群号字符串数组，支持通配符。">
         <div class="config-num">09</div>
         <div class="config-info">
           <div class="config-name">群组过滤</div>
           <div class="config-desc">白名单、黑名单、群组独立配置</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：enabled=false, model='gpt-4o'。|取值范围：布尔 + 模型名称。">
         <div class="config-num">10</div>
         <div class="config-info">
           <div class="config-name">图片理解</div>
           <div class="config-desc">图片识别开关、识别模型、响应策略</div>
         </div>
       </div>
-      <div class="config-item reveal">
+      <div class="config-item reveal" data-tooltip="默认值：rate_limit=10/min, cost_limit=100/day。|取值范围：次数/时间。">
         <div class="config-num">11</div>
         <div class="config-info">
           <div class="config-name">安全控制</div>
@@ -2332,7 +2419,7 @@
 
   counters.forEach(c => counterObserver.observe(c));
 
-  // ============ 心流状态机循环演示 ============
+  // ============ 心流状态机悬浮交互 ============
   const fsmStates = document.querySelectorAll('.fsm-state');
   const fsmDesc = document.getElementById('fsmDesc');
   const fsmDescriptions = [
@@ -2342,19 +2429,39 @@
     '兴奋状态：被点名或话题高度契合，Bot 全力响应',
     '疲倦状态：精力接近耗尽，Bot 减少发言，准备休息'
   ];
-  let fsmIndex = 0;
+  let fsmCurrentIndex = 0;
+  let fsmSwitchTimer = null;
 
-  function updateFsm() {
-    fsmStates.forEach((s, i) => {
-      s.classList.toggle('active', i === fsmIndex);
-    });
-    fsmDesc.textContent = fsmDescriptions[fsmIndex];
-    fsmIndex = (fsmIndex + 1) % fsmStates.length;
+  function setFsmState(index) {
+    if (index === fsmCurrentIndex || index < 0 || index >= fsmStates.length) return;
+    fsmCurrentIndex = index;
+
+    // 切换前先添加过渡类，让旧内容淡出
+    fsmDesc.classList.add('switching');
+
+    // 延迟切换内容，实现淡出→淡入的过渡
+    clearTimeout(fsmSwitchTimer);
+    fsmSwitchTimer = setTimeout(() => {
+      fsmStates.forEach((s, i) => {
+        s.classList.toggle('active', i === fsmCurrentIndex);
+      });
+      fsmDesc.textContent = fsmDescriptions[fsmCurrentIndex];
+      fsmDesc.classList.remove('switching');
+    }, 200);
   }
 
-  // 初始激活第一个
-  updateFsm();
-  setInterval(updateFsm, 2800);
+  // 初始激活第一个状态
+  fsmStates.forEach((s, i) => {
+    s.classList.toggle('active', i === 0);
+  });
+  fsmDesc.textContent = fsmDescriptions[0];
+
+  // 鼠标悬浮切换状态，移开时保持当前状态（不恢复、不自动切换）
+  fsmStates.forEach((state, idx) => {
+    state.addEventListener('mouseenter', () => setFsmState(idx));
+    // 触屏点击支持
+    state.addEventListener('click', () => setFsmState(idx));
+  });
 
   // ============ 平滑滚动 ============
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -2391,6 +2498,97 @@
     requestAnimationFrame(animateWaves);
   }
   animateWaves();
+
+  // ============ 全局 Tooltip 悬浮弹窗 ============
+  // 创建 tooltip 容器
+  const lxTooltip = document.createElement('div');
+  lxTooltip.className = 'lx-tooltip';
+  document.body.appendChild(lxTooltip);
+
+  let lxTooltipTimer = null;
+
+  // 显示 tooltip：解析 data-tooltip 内容（支持 | 分隔多段）
+  function showLxTooltip(target) {
+    const raw = target.getAttribute('data-tooltip');
+    if (!raw) return;
+
+    // 解析内容：用 | 分隔多段，第一段为标题，其余为正文
+    const parts = raw.split('|');
+    let html = '';
+    if (parts.length > 1) {
+      html = '<div class="lx-tooltip-title">' + parts[0] + '</div>';
+      html += '<div class="lx-tooltip-body">' + parts.slice(1).join('<br>') + '</div>';
+    } else {
+      html = '<div class="lx-tooltip-body">' + parts[0] + '</div>';
+    }
+    lxTooltip.innerHTML = html;
+
+    // 延迟显示，避免快速划过时闪烁
+    clearTimeout(lxTooltipTimer);
+    lxTooltipTimer = setTimeout(() => {
+      lxTooltip.classList.add('visible');
+      positionLxTooltip(target);
+    }, 150);
+  }
+
+  // 隐藏 tooltip
+  function hideLxTooltip() {
+    clearTimeout(lxTooltipTimer);
+    lxTooltip.classList.remove('visible');
+  }
+
+  // 计算 tooltip 位置，自动避免超出视口
+  function positionLxTooltip(target) {
+    const rect = target.getBoundingClientRect();
+    const tipRect = lxTooltip.getBoundingClientRect();
+    const padding = 12;
+    const gap = 14;
+
+    // 默认放在元素上方居中
+    let x = rect.left + rect.width / 2 - tipRect.width / 2;
+    let y = rect.top - tipRect.height - gap;
+
+    // 如果上方空间不足，放在下方
+    if (y < padding) {
+      y = rect.bottom + gap;
+    }
+
+    // 如果下方也超出，就放在元素右侧
+    if (y + tipRect.height > window.innerHeight - padding) {
+      y = rect.top + rect.height / 2 - tipRect.height / 2;
+      x = rect.right + gap;
+    }
+
+    // 水平边界修正
+    if (x < padding) {
+      x = padding;
+    }
+    if (x + tipRect.width > window.innerWidth - padding) {
+      x = window.innerWidth - tipRect.width - padding;
+    }
+
+    // 垂直边界最终修正
+    if (y + tipRect.height > window.innerHeight - padding) {
+      y = window.innerHeight - tipRect.height - padding;
+    }
+    if (y < padding) {
+      y = padding;
+    }
+
+    lxTooltip.style.left = x + 'px';
+    lxTooltip.style.top = y + 'px';
+  }
+
+  // 为所有带 data-tooltip 的元素绑定事件
+  document.querySelectorAll('[data-tooltip]').forEach(el => {
+    el.addEventListener('mouseenter', () => showLxTooltip(el));
+    el.addEventListener('mouseleave', hideLxTooltip);
+    // 滚动时隐藏，避免位置错乱
+    el.addEventListener('mouseleave', hideLxTooltip);
+  });
+
+  // 页面滚动时隐藏 tooltip
+  window.addEventListener('scroll', hideLxTooltip, { passive: true });
 </script>
 
 </body>
