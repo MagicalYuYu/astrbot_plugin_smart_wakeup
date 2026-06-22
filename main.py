@@ -1549,7 +1549,11 @@ class LingxiPlugin(Star):
                 "3. 去除寒暄、重复和无关内容\n"
                 "4. 摘要长度不超过原文的30%\n"
                 "5. 【重要】必须保留 BOT 的回复内容要点，特别是 BOT 已回应过的话题和观点，"
-                "以便后续对话中 BOT 知道自己已经说过什么，避免重复回应\n\n"
+                "以便后续对话中 BOT 知道自己已经说过什么，避免重复回应\n"
+                "6. 【重要】禁止使用'自己'等代词指代他人行为，必须用具体昵称明确行为主体，"
+                "例如'小柒吃到撑'而非'吃到撑拿自己垫背'，避免代词指代歧义导致发言者识别错误\n"
+                "7. 【重要】转述他人对 BOT 的行为时，必须标注 BOT 为承受方，"
+                "例如'十刀祝BOT父亲节快乐'而非'祝自己父亲节快乐'\n\n"
                 f"群聊消息：\n{context_text}"
             )
 
@@ -1969,7 +1973,7 @@ class LingxiPlugin(Star):
         # LLM 执行中检查：防止概率唤醒并发触发重复输出
         if group_id in self._llm_running_groups:
             elapsed = time.time() - self._llm_running_groups[group_id]
-            if elapsed > 300:
+            if elapsed > 120:
                 logger.warning(f"概率唤醒 | LLM执行中标志超时清除 群={group_id} 已等待{elapsed:.0f}秒")
                 del self._llm_running_groups[group_id]
             else:
@@ -2125,7 +2129,7 @@ class LingxiPlugin(Star):
         # 自动清除标志防止冷场救场永久阻塞
         if group_id in self._llm_running_groups:
             elapsed = time.time() - self._llm_running_groups[group_id]
-            if elapsed > 300:  # 5分钟超时
+            if elapsed > 120:  # 2分钟超时（正常LLM调用应在60秒内完成）
                 logger.warning(f"LLM执行中标志超时清除 | 群={group_id} 已等待{elapsed:.0f}秒，自动清除")
                 del self._llm_running_groups[group_id]
             else:
@@ -3123,6 +3127,9 @@ class LingxiPlugin(Star):
                     "群聊中用户常省略主语，省略主语的句子通常指说话者自己。"
                     "例如「怎么突然就变成XX了？」通常意为「我怎么突然就变成XX了？」，"
                     "而非指他人。请结合上下文对话关系标注（→ 回复/回应BOT）正确理解省略主语的句子。\n"
+                    "注意：如果群聊中出现【调试定位】等方括号标记，这是用户在标记此前对话存在异常，"
+                    "你应意识到标记之前的对话中可能存在发言者识别错误或回复对象错位的问题，"
+                    "在后续回复中务必仔细核对发言者身份，避免延续错误。\n"
                     "</conversation_guidance>"
                 )
             )
@@ -3401,6 +3408,13 @@ class LingxiPlugin(Star):
             # 提取 send_message_to_user 的消息文本
             tool_text = self._extract_tool_message_text(tool_args)
 
+            # P0 修复：对 tool_args 中的文本统一过滤思考标签和上下文标签
+            # ToolCall 场景下 LLM 可能在 tool_args 中混入思考标签，此处是唯一的过滤机会
+            self._filter_tool_args_text(tool_args)
+
+            # 重新提取过滤后的文本用于重复检测
+            tool_text = self._extract_tool_message_text(tool_args)
+
             # 检查是否与已发送内容重复
             if tool_text and group_id and self._is_duplicate_content(group_id, tool_text):
                 # ── 防线1: 修改 tool_args（可能影响 valid_params，取决于框架是否传引用）──
@@ -3449,6 +3463,35 @@ class LingxiPlugin(Star):
             elif isinstance(msg, str):
                 texts.append(msg)
         return '\n'.join(texts)
+
+    def _filter_tool_args_text(self, tool_args: dict):
+        """对 tool_args 中的文本统一过滤思考标签和上下文标签
+
+        ToolCall 场景下 LLM 可能在 send_message_to_user 的参数中混入
+        思考标签或上下文标签，此处是唯一的过滤机会。
+        """
+        messages = tool_args.get('messages', [])
+        for i, msg in enumerate(messages):
+            if isinstance(msg, dict):
+                text = msg.get('text', '')
+                if text:
+                    filtered = self._filter_context_tags(text)
+                    if self.filter_thinking_tags:
+                        filtered = self._filter_thinking_tags(filtered)
+                    filtered = self._filter_duplicate_response(filtered)
+                    if filtered != text:
+                        msg['text'] = filtered
+                        logger.info(
+                            f"[ToolCallFilter] tool_args 文本已过滤 | "
+                            f"原文 {len(text)} 字 → 过滤后 {len(filtered)} 字"
+                        )
+            elif isinstance(msg, str) and msg:
+                filtered = self._filter_context_tags(msg)
+                if self.filter_thinking_tags:
+                    filtered = self._filter_thinking_tags(filtered)
+                filtered = self._filter_duplicate_response(filtered)
+                if filtered != msg:
+                    messages[i] = filtered
 
     def _record_token_usage(self, event: AstrMessageEvent, prompt_tokens: int, completion_tokens: int,
                             model_name: str = "", is_estimated: bool = False):
@@ -3674,6 +3717,10 @@ class LingxiPlugin(Star):
                     role_label = sender if sender else "用户"
                 else:
                     role_label = "Bot"
+                    # P1 根因修复：对 BOT 回复做要点化处理，避免 LLM 延续自己的原文措辞
+                    # 当 LLM 看到自己说过的原文时，会倾向于复制相同的表达（如重复"小玉都看不下去了"），
+                    # 只保留话题要点而非原文，从根源上切断 LLM 复制自身措辞的倾向
+                    text = self._summarize_bot_reply_for_memory(text)
                 # 截断过长的单条消息
                 if len(text) > 200:
                     text = text[:100] + "..."
@@ -3689,6 +3736,56 @@ class LingxiPlugin(Star):
             return ""
 
         return "<conversation_memory>\n" + "\n\n".join(parts) + "\n</conversation_memory>"
+
+    def _summarize_bot_reply_for_memory(self, text: str) -> str:
+        """将 BOT 的回复原文转为要点摘要，用于对话记忆注入
+
+        根因修复：LLM 看到自己说过的原文时，会倾向于延续相同的措辞和表达方式，
+        导致重复输出（如连续两次说"小玉都看不下去了"）。
+        将原文转为要点摘要后，LLM 只知道"自己之前回应过某个话题"，
+        但看不到原文措辞，从而不会复制自己的表达。
+
+        策略：
+        - 短回复（<=15字）：保留原文（简短附和本身不易重复）
+        - 中等回复（16-60字）：提取首句 + 末句要点
+        - 长回复（>60字）：提取首句要点 + 末句要点，中间省略
+        """
+        text = text.strip()
+        if not text:
+            return text
+
+        # 短回复保留原文
+        if len(text) <= 15:
+            return text
+
+        # 按句号/问号/感叹号/换行分割为句子
+        sentences = re.split(r'(?<=[。？！\n])', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+
+        if len(sentences) <= 1:
+            # 单句长回复：截取前半部分 + 省略标记
+            if len(text) > 40:
+                return text[:30] + "...(已回应此话题)"
+            return text
+
+        if len(sentences) == 2:
+            # 两句：首句 + 末句要点
+            first = sentences[0]
+            last = sentences[-1]
+            if len(first) > 30:
+                first = first[:25] + "..."
+            if len(last) > 30:
+                last = last[:25] + "..."
+            return f"{first}...{last}(已回应)"
+
+        # 三句及以上：首句 + 末句要点
+        first = sentences[0]
+        last = sentences[-1]
+        if len(first) > 25:
+            first = first[:20] + "..."
+        if len(last) > 25:
+            last = last[:20] + "..."
+        return f"{first}...(省略)...{last}(已回应)"
 
     @filter.on_decorating_result()
     async def on_decorating_result(self, event: AstrMessageEvent):
