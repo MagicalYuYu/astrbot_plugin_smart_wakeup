@@ -14,896 +14,2384 @@
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
   :root {
-    --bg-primary: #0a0a12;
-    --bg-secondary: #11111e;
-    --bg-card: #181828;
-    --bg-card-hover: #20203a;
-    --accent-indigo: #6366f1;
-    --accent-blue: #4f8fff;
-    --accent-cyan: #00d4ff;
-    --accent-purple: #a855f7;
-    --accent-pink: #f472b6;
-    --accent-green: #34d399;
-    --accent-orange: #fb923c;
-    --accent-red: #f87171;
-    --accent-yellow: #fbbf24;
-    --accent-teal: #2dd4bf;
-    --text-primary: #eeeef5;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
-    --border-color: rgba(255,255,255,0.06);
-    --border-hover: rgba(99,102,241,0.2);
-    --glow-indigo: 0 0 60px rgba(99,102,241,0.12);
-    --glow-purple: 0 0 60px rgba(168,85,247,0.12);
-    --glow-cyan: 0 0 60px rgba(0,212,255,0.12);
-    --glow-green: 0 0 60px rgba(52,211,153,0.12);
-    --radius-sm: 10px;
-    --radius-md: 14px;
-    --radius-lg: 20px;
-    --radius-xl: 24px;
+    /* 主背景：深墨绿/深青黑色 */
+    --bg-primary: #08110f;
+    --bg-secondary: #0a1612;
+    --bg-card: #0f1d18;
+    --bg-card-hover: #14271f;
+    --bg-glass: rgba(15, 29, 24, 0.65);
+
+    /* 主色调：翡翠绿 + 琥珀金 + 珊瑚橙 */
+    --emerald: #34d399;
+    --emerald-deep: #10b981;
+    --emerald-soft: #6ee7b7;
+    --amber: #fbbf24;
+    --amber-deep: #f59e0b;
+    --amber-soft: #fcd34d;
+    --coral: #fb923c;
+    --coral-deep: #f97316;
+    --coral-soft: #fdba74;
+
+    /* 辅助色 */
+    --mint: #2dd4bf;
+    --warm-amber: #f59e0b;
+    --rose: #fb7185;
+    --cream: #fef3c7;
+
+    /* 文字 */
+    --text-primary: #ecfdf5;
+    --text-secondary: #a7f3d0;
+    --text-muted: #6ee7b7;
+    --text-dim: #4b6358;
+
+    /* 渐变 */
+    --grad-warm: linear-gradient(135deg, #34d399 0%, #fbbf24 50%, #fb923c 100%);
+    --grad-emerald: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    --grad-amber: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+    --grad-coral: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+    --grad-mint: linear-gradient(135deg, #2dd4bf 0%, #34d399 100%);
+
+    /* 光晕 */
+    --glow-emerald: 0 0 40px rgba(52, 211, 153, 0.35);
+    --glow-amber: 0 0 40px rgba(251, 191, 36, 0.35);
+    --glow-coral: 0 0 40px rgba(251, 146, 60, 0.35);
+    --glow-warm: 0 0 60px rgba(251, 191, 36, 0.25);
+
+    /* 阴影 */
+    --shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.4);
+    --shadow-warm: 0 12px 48px rgba(251, 146, 60, 0.18);
+    --shadow-emerald: 0 12px 48px rgba(52, 211, 153, 0.18);
+
+    /* 圆角 */
+    --radius-sm: 12px;
+    --radius-md: 20px;
+    --radius-lg: 28px;
+    --radius-xl: 36px;
+    --radius-full: 999px;
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
 
   body {
-    font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+    font-family: 'Noto Sans SC', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.7;
     overflow-x: hidden;
+    position: relative;
+    min-height: 100vh;
   }
 
-  /* ===== NAV ===== */
-  nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-    padding: 0 2rem; height: 64px;
-    display: flex; align-items: center; justify-content: space-between;
-    background: rgba(10,10,18,0.8);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border-color);
+  /* 背景有机光晕 */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -20%;
+    left: -10%;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(circle, rgba(52, 211, 153, 0.12) 0%, transparent 70%);
+    filter: blur(80px);
+    z-index: 0;
+    pointer-events: none;
+    animation: floatGlow 18s ease-in-out infinite;
   }
 
-  .nav-logo { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; text-decoration: none; }
-  .nav-logo .g { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -20%;
+    right: -10%;
+    width: 55%;
+    height: 55%;
+    background: radial-gradient(circle, rgba(251, 146, 60, 0.10) 0%, transparent 70%);
+    filter: blur(90px);
+    z-index: 0;
+    pointer-events: none;
+    animation: floatGlow 22s ease-in-out infinite reverse;
+  }
 
-  .nav-links { display: flex; gap: 2rem; align-items: center; list-style: none; }
-  .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.88rem; font-weight: 500; transition: color 0.2s; }
-  .nav-links a:hover { color: var(--text-primary); }
+  @keyframes floatGlow {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(40px, -30px) scale(1.1); }
+    66% { transform: translate(-30px, 40px) scale(0.95); }
+  }
+
+  /* ============ 导航栏 ============ */
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding: 18px 0;
+    background: rgba(8, 17, 15, 0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(52, 211, 153, 0.12);
+    transition: all 0.4s ease;
+  }
+
+  .nav-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .nav-logo-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--grad-warm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: var(--glow-amber);
+    animation: bellRing 4s ease-in-out infinite;
+  }
+
+  @keyframes bellRing {
+    0%, 90%, 100% { transform: rotate(0deg); }
+    92% { transform: rotate(-12deg); }
+    94% { transform: rotate(12deg); }
+    96% { transform: rotate(-8deg); }
+    98% { transform: rotate(8deg); }
+  }
+
+  .nav-logo-text {
+    background: var(--grad-warm);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .nav-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: var(--radius-full);
+    transition: all 0.3s ease;
+    position: relative;
+  }
+
+  .nav-link:hover {
+    color: var(--text-primary);
+    background: rgba(52, 211, 153, 0.12);
+  }
 
   .nav-cta {
-    padding: 8px 20px !important;
-    background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple));
-    border-radius: 100px !important;
-    color: white !important;
-    font-weight: 600 !important;
-    transition: transform 0.2s, box-shadow 0.2s !important;
+    background: var(--grad-warm);
+    color: #08110f;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: var(--radius-full);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 20px rgba(251, 191, 36, 0.3);
   }
-  .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(99,102,241,0.3); }
 
-  /* ===== HERO ===== */
+  .nav-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(251, 191, 36, 0.5);
+  }
+
+  .nav-mobile-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 24px;
+    cursor: pointer;
+  }
+
+  /* ============ Hero 区 ============ */
   .hero {
-    position: relative; min-height: 100vh;
-    display: flex; align-items: center; justify-content: center;
-    text-align: center; overflow: hidden; padding-top: 64px;
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 120px 32px 80px;
+    overflow: hidden;
   }
 
-  .hero-bg {
-    position: absolute; inset: 0;
-    background:
-      radial-gradient(ellipse 80% 50% at 50% 40%, rgba(99,102,241,0.08) 0%, transparent 60%),
-      radial-gradient(ellipse 50% 40% at 25% 60%, rgba(168,85,247,0.05) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 40% at 75% 50%, rgba(0,212,255,0.04) 0%, transparent 50%);
+  .hero-waves {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    pointer-events: none;
   }
 
-  .hero-grid {
-    position: absolute; inset: 0;
-    background-image:
-      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
-    background-size: 80px 80px;
-    mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, black 10%, transparent 70%);
+  .hero-wave {
+    position: absolute;
+    left: 0;
+    width: 200%;
+    height: 120px;
+    opacity: 0.5;
   }
 
-  .hero-content { position: relative; z-index: 1; max-width: 860px; padding: 2rem; }
+  .hero-wave svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero-wave-1 {
+    top: 15%;
+    animation: waveMove 20s linear infinite;
+  }
+
+  .hero-wave-2 {
+    top: 35%;
+    animation: waveMove 28s linear infinite reverse;
+    opacity: 0.3;
+  }
+
+  .hero-wave-3 {
+    top: 60%;
+    animation: waveMove 24s linear infinite;
+    opacity: 0.25;
+  }
+
+  @keyframes waveMove {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .hero-bell {
+    position: absolute;
+    top: 18%;
+    right: 12%;
+    font-size: 64px;
+    animation: bellFloat 6s ease-in-out infinite;
+    filter: drop-shadow(0 0 30px rgba(251, 191, 36, 0.6));
+    z-index: 1;
+  }
+
+  .hero-bell-2 {
+    top: 65%;
+    left: 8%;
+    font-size: 40px;
+    animation: bellFloat 8s ease-in-out infinite 1s;
+    filter: drop-shadow(0 0 20px rgba(52, 211, 153, 0.5));
+    opacity: 0.7;
+  }
+
+  @keyframes bellFloat {
+    0%, 100% { transform: translateY(0) rotate(-5deg); }
+    50% { transform: translateY(-25px) rotate(5deg); }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    max-width: 900px;
+  }
 
   .hero-badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 18px;
-    background: rgba(99,102,241,0.08);
-    border: 1px solid rgba(99,102,241,0.15);
-    border-radius: 100px;
-    font-size: 0.82rem; color: var(--accent-indigo);
-    margin-bottom: 2rem; letter-spacing: 0.3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    border-radius: var(--radius-full);
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    color: var(--emerald-soft);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 32px;
+    backdrop-filter: blur(10px);
+    animation: badgePulse 3s ease-in-out infinite;
   }
 
-  .hero-badge .dot { width: 6px; height: 6px; background: var(--accent-green); border-radius: 50%; animation: pulse 2s infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  @keyframes badgePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
+    50% { box-shadow: 0 0 0 12px rgba(52, 211, 153, 0); }
+  }
 
-  .hero-emoji { font-size: 4rem; margin-bottom: 1rem; animation: float 4s ease-in-out infinite; }
-  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  .hero-badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--emerald);
+    box-shadow: 0 0 10px var(--emerald);
+    animation: dotBlink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes dotBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
 
   .hero-title {
-    font-size: clamp(2.8rem, 6.5vw, 5rem);
-    font-weight: 900; line-height: 1.08;
-    margin-bottom: 1rem; letter-spacing: -0.03em;
+    font-size: clamp(40px, 7vw, 88px);
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 24px;
+    background: var(--grad-warm);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+    animation: titleBreath 4s ease-in-out infinite;
   }
 
-  .hero-title .gradient-text {
-    background: linear-gradient(135deg, var(--accent-indigo) 0%, var(--accent-cyan) 40%, var(--accent-purple) 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  }
-
-  .hero-tagline {
-    font-size: clamp(1.1rem, 2vw, 1.4rem);
-    color: var(--text-primary); font-weight: 500;
-    margin-bottom: 1.5rem;
+  @keyframes titleBreath {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 30px rgba(251, 191, 36, 0.3)); }
+    50% { filter: brightness(1.15) drop-shadow(0 0 50px rgba(251, 146, 60, 0.5)); }
   }
 
   .hero-subtitle {
-    font-size: clamp(1rem, 1.6vw, 1.2rem);
+    font-size: clamp(16px, 2vw, 20px);
     color: var(--text-secondary);
-    max-width: 600px; margin: 0 auto 2.5rem;
-    font-weight: 300; line-height: 1.9;
+    margin-bottom: 48px;
+    max-width: 680px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.8;
   }
 
-  .hero-subtitle strong { color: var(--text-primary); font-weight: 600; }
-
-  .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
-
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 12px 28px; border-radius: 100px;
-    font-size: 0.95rem; font-weight: 600;
-    text-decoration: none; transition: all 0.25s; cursor: pointer; border: none;
+  .hero-subtitle strong {
+    color: var(--amber-soft);
+    font-weight: 600;
   }
 
-  .btn-primary { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-purple)); color: white; }
-  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99,102,241,0.25); }
-
-  .btn-secondary { background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); color: var(--text-primary); }
-  .btn-secondary:hover { border-color: var(--border-hover); background: rgba(255,255,255,0.06); transform: translateY(-2px); }
-
-  .hero-stats { display: flex; gap: 3rem; justify-content: center; flex-wrap: wrap; }
-  .hero-stat { text-align: center; }
-  .hero-stat-num {
-    font-size: 1.8rem; font-weight: 800;
-    background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  }
-  .hero-stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
-
-  /* ===== SECTIONS ===== */
-  .section { max-width: 1100px; margin: 0 auto; padding: 6rem 2rem; }
-
-  .section-label {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 0.78rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 2.5px;
-    margin-bottom: 1rem;
+  .hero-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    max-width: 800px;
+    margin: 0 auto 48px;
   }
 
-  .section-label.indigo { color: var(--accent-indigo); }
-  .section-label.purple { color: var(--accent-purple); }
-  .section-label.cyan { color: var(--accent-cyan); }
-  .section-label.green { color: var(--accent-green); }
-  .section-label.orange { color: var(--accent-orange); }
-  .section-label.pink { color: var(--accent-pink); }
-  .section-label.teal { color: var(--accent-teal); }
-
-  .section-title { font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 800; margin-bottom: 0.8rem; letter-spacing: -0.02em; }
-  .section-desc { font-size: 1.05rem; color: var(--text-secondary); max-width: 680px; margin-bottom: 3rem; line-height: 1.8; }
-  .section-desc strong { color: var(--text-primary); font-weight: 600; }
-
-  /* ===== FEATURE MARQUEE ===== */
-  .feature-marquee {
-    position: relative; overflow: hidden;
-    margin: 0 -2rem; padding: 1rem 0;
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 6%, black 94%, transparent 100%);
-    mask-image: linear-gradient(90deg, transparent 0%, black 6%, black 94%, transparent 100%);
+  .stat-card {
+    background: var(--bg-glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(52, 211, 153, 0.15);
+    border-radius: var(--radius-md);
+    padding: 24px 16px;
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
   }
 
-  .feature-track {
-    display: flex; gap: 16px; width: max-content;
-    animation: marquee-scroll 50s linear infinite;
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--grad-warm);
+    opacity: 0;
+    transition: opacity 0.4s ease;
   }
 
-  .feature-marquee:hover .feature-track { animation-play-state: paused; }
+  .stat-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(251, 191, 36, 0.4);
+    box-shadow: var(--shadow-warm);
+  }
 
-  @keyframes marquee-scroll {
+  .stat-card:hover::before {
+    opacity: 1;
+  }
+
+  .stat-number {
+    font-size: 40px;
+    font-weight: 900;
+    background: var(--grad-warm);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-family: 'Inter', sans-serif;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 36px;
+    border-radius: var(--radius-full);
+    background: var(--grad-warm);
+    color: #08110f;
+    font-weight: 700;
+    font-size: 15px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 30px rgba(251, 191, 36, 0.35);
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(251, 146, 60, 0.5);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 36px;
+    border-radius: var(--radius-full);
+    background: rgba(52, 211, 153, 0.08);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 15px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(52, 211, 153, 0.3);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(52, 211, 153, 0.15);
+    border-color: rgba(251, 191, 36, 0.5);
+    transform: translateY(-3px);
+  }
+
+  /* ============ 通用 Section ============ */
+  .section {
+    position: relative;
+    padding: 100px 32px;
+    z-index: 1;
+  }
+
+  .section-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .section-header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+
+  .section-tag {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: var(--radius-full);
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: var(--amber-soft);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-size: clamp(32px, 4vw, 48px);
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+
+  .section-title .accent {
+    background: var(--grad-warm);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .section-desc {
+    font-size: 16px;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin: 0 auto;
+    line-height: 1.8;
+  }
+
+  /* 波浪分隔线 */
+  .wave-divider {
+    position: relative;
+    width: 100%;
+    height: 80px;
+    overflow: hidden;
+    line-height: 0;
+  }
+
+  .wave-divider svg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ============ 功能亮点 - 横向滚动 ============ */
+  .features-scroll {
+    position: relative;
+    overflow: hidden;
+    padding: 40px 0;
+    mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 8%, #000 92%, transparent 100%);
+  }
+
+  .features-track {
+    display: flex;
+    gap: 24px;
+    width: max-content;
+    animation: scrollX 50s linear infinite;
+  }
+
+  .features-scroll:hover .features-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes scrollX {
     0% { transform: translateX(0); }
-    100% { transform: translateX(calc(-50% - 8px)); }
+    100% { transform: translateX(-50%); }
   }
 
   .feature-card {
+    width: 280px;
     background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 1.5rem;
-    transition: all 0.3s;
-    position: relative; overflow: hidden;
-    width: 260px; flex-shrink: 0;
+    border: 1px solid rgba(52, 211, 153, 0.12);
+    border-radius: var(--radius-lg);
+    padding: 32px 28px;
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
   }
 
   .feature-card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, var(--accent-indigo), var(--accent-cyan));
-    opacity: 0; transition: opacity 0.3s;
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.08) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
   }
 
-  .feature-card:hover::before { opacity: 1; }
-  .feature-card:hover { border-color: rgba(99,102,241,0.15); transform: translateY(-3px); }
+  .feature-card:hover {
+    transform: translateY(-8px);
+    border-color: rgba(251, 191, 36, 0.4);
+    box-shadow: var(--shadow-warm);
+  }
 
-  .feature-icon { font-size: 1.5rem; margin-bottom: 0.6rem; }
-  .feature-title { font-size: 0.98rem; font-weight: 700; margin-bottom: 0.3rem; }
-  .feature-desc { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; }
+  .feature-card:hover::before {
+    opacity: 1;
+  }
 
-  /* ===== COMPARISON - 呼吸感 ===== */
-  .comparison-wrapper { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 768px) { .comparison-wrapper { grid-template-columns: 1fr; } }
+  .feature-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    margin-bottom: 20px;
+    background: var(--grad-emerald);
+    box-shadow: var(--glow-emerald);
+  }
 
-  .comparison-col {
+  .feature-card:nth-child(3n+2) .feature-icon {
+    background: var(--grad-amber);
+    box-shadow: var(--glow-amber);
+  }
+
+  .feature-card:nth-child(3n+3) .feature-icon {
+    background: var(--grad-coral);
+    box-shadow: var(--glow-coral);
+  }
+
+  .feature-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+  }
+
+  .feature-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ============ 对比板块 ============ */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 48px;
+  }
+
+  .compare-col {
     background: var(--bg-card);
-    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    padding: 2rem;
-    position: relative; overflow: hidden;
-    animation: breathe 6s ease-in-out infinite;
+    padding: 32px;
+    border: 1px solid rgba(52, 211, 153, 0.1);
+    position: relative;
+    overflow: hidden;
   }
 
-  .comparison-col.before { border-color: rgba(248,113,113,0.1); animation-delay: 0s; }
-  .comparison-col.after { border-color: rgba(52,211,153,0.1); animation-delay: 3s; }
-
-  @keyframes breathe {
-    0%, 100% { transform: translateY(0); box-shadow: 0 0 0 rgba(0,0,0,0); }
-    50% { transform: translateY(-6px); box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
+  .compare-col.before {
+    border-color: rgba(251, 113, 133, 0.2);
   }
 
-  .comparison-col::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
-  .comparison-col.before::before { background: linear-gradient(90deg, var(--accent-red), var(--accent-orange)); }
-  .comparison-col.after::before { background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); }
+  .compare-col.after {
+    border-color: rgba(52, 211, 153, 0.3);
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.05) 0%, var(--bg-card) 60%);
+  }
 
-  .comparison-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; font-weight: 700; font-size: 1.05rem; }
-  .comparison-header.before-h { color: var(--accent-red); }
-  .comparison-header.after-h { color: var(--accent-green); }
+  .compare-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .compare-emoji {
+    font-size: 28px;
+  }
+
+  .compare-title {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .compare-col.before .compare-title {
+    color: var(--rose);
+  }
+
+  .compare-col.after .compare-title {
+    color: var(--emerald);
+  }
 
   .chat-bubble {
-    padding: 12px 16px; border-radius: var(--radius-sm);
-    margin-bottom: 10px; font-size: 0.85rem; line-height: 1.6;
+    max-width: 85%;
+    padding: 14px 18px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    position: relative;
+    opacity: 0;
+    animation: bubbleIn 0.6s ease forwards;
   }
 
-  .chat-bubble.user { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.1); margin-left: 15%; }
-  .chat-bubble.bot { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); margin-right: 15%; }
-  .chat-bubble.system { background: rgba(251,191,36,0.05); border: 1px solid rgba(251,191,36,0.1); margin-right: 15%; font-style: italic; color: var(--text-secondary); }
-
-  .chat-bubble .label { font-size: 0.7rem; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 1px; }
-  .chat-bubble.user .label { color: var(--accent-indigo); }
-  .chat-bubble.bot .label { color: var(--accent-purple); }
-  .chat-bubble.system .label { color: var(--accent-yellow); }
-
-  .chat-tag { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 4px; font-weight: 600; }
-  .chat-tag.energy { background: rgba(251,146,60,0.1); color: var(--accent-orange); }
-  .chat-tag.flow { background: rgba(168,85,247,0.1); color: var(--accent-purple); }
-  .chat-tag.rescue { background: rgba(52,211,153,0.1); color: var(--accent-green); }
-
-  /* ===== FLOW DIAGRAM ===== */
-  .flow-container {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-xl);
-    padding: 3rem 2.5rem;
-    position: relative; overflow: hidden;
+  .chat-bubble.user {
+    background: rgba(251, 146, 60, 0.12);
+    border: 1px solid rgba(251, 146, 60, 0.25);
+    color: var(--coral-soft);
+    border-bottom-right-radius: 6px;
+    margin-left: auto;
+    text-align: right;
   }
 
-  .flow-container::before {
-    content: ''; position: absolute; inset: 0;
-    background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(99,102,241,0.02) 0%, transparent 70%);
+  .chat-bubble.bot {
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    color: var(--emerald-soft);
+    border-bottom-left-radius: 6px;
   }
 
-  .flow-steps { display: flex; flex-direction: column; gap: 0; position: relative; z-index: 1; }
-  .flow-step { display: flex; align-items: flex-start; gap: 20px; padding: 0.8rem 0; }
-  .flow-step-indicator { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-
-  .flow-step-num {
-    width: 40px; height: 40px; border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 0.9rem; color: white;
-    position: relative; z-index: 1;
+  .chat-bubble.bot-cold {
+    background: rgba(75, 99, 88, 0.2);
+    border: 1px solid rgba(75, 99, 88, 0.3);
+    color: var(--text-dim);
+    border-bottom-left-radius: 6px;
+    font-style: italic;
   }
 
-  .flow-step-line { width: 2px; flex: 1; min-height: 14px; background: linear-gradient(180deg, rgba(99,102,241,0.2), rgba(168,85,247,0.2)); }
-  .flow-step:last-child .flow-step-line { display: none; }
+  .compare-col.before .chat-bubble:nth-child(1) { animation-delay: 0.2s; }
+  .compare-col.before .chat-bubble:nth-child(2) { animation-delay: 0.5s; }
+  .compare-col.before .chat-bubble:nth-child(3) { animation-delay: 0.8s; }
+  .compare-col.before .chat-bubble:nth-child(4) { animation-delay: 1.1s; }
 
-  .flow-step-content { flex: 1; padding-top: 5px; }
-  .flow-step-title { font-weight: 700; font-size: 0.98rem; margin-bottom: 3px; }
-  .flow-step-desc { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+  .compare-col.after .chat-bubble:nth-child(1) { animation-delay: 0.3s; }
+  .compare-col.after .chat-bubble:nth-child(2) { animation-delay: 0.6s; }
+  .compare-col.after .chat-bubble:nth-child(3) { animation-delay: 0.9s; }
+  .compare-col.after .chat-bubble:nth-child(4) { animation-delay: 1.2s; }
+  .compare-col.after .chat-bubble:nth-child(5) { animation-delay: 1.5s; }
 
-  .flow-step-tag {
-    display: inline-block; padding: 2px 10px;
-    border-radius: 6px; font-size: 0.7rem; font-weight: 600; margin-top: 4px;
+  @keyframes bubbleIn {
+    0% {
+      opacity: 0;
+      transform: translateY(15px) scale(0.95);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
-  /* ===== ABILITY GRID ===== */
-  .ability-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  @media (max-width: 768px) { .ability-grid { grid-template-columns: 1fr; } }
-
-  .ability-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 2rem 1.5rem;
-    text-align: center;
-    transition: all 0.3s;
-    position: relative; overflow: hidden;
+  .compare-col .chat-bubble {
+    animation: bubbleFloat 5s ease-in-out infinite;
   }
 
-  .ability-card:hover { transform: translateY(-5px); }
-  .ability-card:nth-child(1):hover { border-color: rgba(99,102,241,0.25); box-shadow: var(--glow-indigo); }
-  .ability-card:nth-child(2):hover { border-color: rgba(168,85,247,0.25); box-shadow: var(--glow-purple); }
-  .ability-card:nth-child(3):hover { border-color: rgba(0,212,255,0.25); box-shadow: var(--glow-cyan); }
-  .ability-card:nth-child(4):hover { border-color: rgba(52,211,153,0.25); box-shadow: var(--glow-green); }
-  .ability-card:nth-child(5):hover { border-color: rgba(251,146,60,0.25); box-shadow: 0 0 60px rgba(251,146,60,0.12); }
-  .ability-card:nth-child(6):hover { border-color: rgba(45,212,191,0.25); box-shadow: 0 0 60px rgba(45,212,191,0.12); }
-
-  .ability-icon { font-size: 2.2rem; margin-bottom: 0.8rem; }
-  .ability-title { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.3rem; }
-  .ability-desc { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; }
-
-  /* ===== PLATFORM CARDS ===== */
-  .platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-
-  .platform-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 1.5rem; text-align: center;
-    transition: all 0.3s;
+  @keyframes bubbleFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
   }
 
-  .platform-card:hover { transform: translateY(-3px); border-color: var(--border-hover); }
-
-  .platform-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-  .platform-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.3rem; }
-  .platform-desc { font-size: 0.8rem; color: var(--text-muted); }
-
-  /* ===== QUICK START ===== */
-  .quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
-
-  .quick-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 2rem; transition: all 0.3s;
-  }
-
-  .quick-card:hover { transform: translateY(-3px); border-color: var(--border-hover); }
-
-  .quick-step { font-size: 0.72rem; font-weight: 700; color: var(--accent-indigo); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 0.5rem; }
-  .quick-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.6rem; }
-  .quick-desc { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.7; }
-
-  .quick-code {
-    display: block; margin-top: 0.8rem;
-    padding: 10px 14px;
-    background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
+  .chat-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.82rem; color: var(--accent-cyan);
+  }
+
+  /* ============ 消息处理流程 ============ */
+  .flow-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-top: 48px;
+    position: relative;
+  }
+
+  .flow-step {
+    background: var(--bg-card);
+    border: 1px solid rgba(52, 211, 153, 0.15);
+    border-radius: var(--radius-md);
+    padding: 24px 20px;
+    position: relative;
+    transition: all 0.4s ease;
+  }
+
+  .flow-step:hover {
+    transform: translateY(-6px);
+    border-color: rgba(251, 191, 36, 0.4);
+    box-shadow: var(--shadow-warm);
+  }
+
+  .flow-num {
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--grad-warm);
+    color: #08110f;
+    font-weight: 800;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+  }
+
+  .flow-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    margin-top: 8px;
+  }
+
+  .flow-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+
+  .flow-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .flow-arrow {
+    position: absolute;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--amber);
+    font-size: 20px;
+    z-index: 2;
+  }
+
+  /* ============ 六大能力 ============ */
+  .capabilities-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 48px;
+  }
+
+  .cap-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(52, 211, 153, 0.12);
+    border-radius: var(--radius-lg);
+    padding: 36px 32px;
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cap-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--grad-warm);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+  }
+
+  .cap-card:hover {
+    transform: translateY(-8px);
+    border-color: rgba(251, 191, 36, 0.35);
+    box-shadow: var(--shadow-warm);
+  }
+
+  .cap-card:hover::before {
+    transform: scaleX(1);
+  }
+
+  .cap-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin-bottom: 24px;
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.2);
+  }
+
+  .cap-card:nth-child(2) .cap-icon-wrap {
+    background: rgba(251, 191, 36, 0.1);
+    border-color: rgba(251, 191, 36, 0.2);
+  }
+
+  .cap-card:nth-child(3) .cap-icon-wrap {
+    background: rgba(251, 146, 60, 0.1);
+    border-color: rgba(251, 146, 60, 0.2);
+  }
+
+  .cap-card:nth-child(4) .cap-icon-wrap {
+    background: rgba(45, 212, 191, 0.1);
+    border-color: rgba(45, 212, 191, 0.2);
+  }
+
+  .cap-card:nth-child(5) .cap-icon-wrap {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.2);
+  }
+
+  .cap-card:nth-child(6) .cap-icon-wrap {
+    background: rgba(251, 113, 133, 0.1);
+    border-color: rgba(251, 113, 133, 0.2);
+  }
+
+  .cap-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  .cap-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+
+  .cap-features {
+    list-style: none;
+    padding: 0;
+  }
+
+  .cap-features li {
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 6px 0;
+    padding-left: 24px;
+    position: relative;
+  }
+
+  .cap-features li::before {
+    content: '✦';
+    position: absolute;
+    left: 0;
+    color: var(--amber);
+    font-size: 12px;
+  }
+
+  /* ============ 心流状态机 ============ */
+  .flow-state-machine {
+    background: var(--bg-card);
+    border: 1px solid rgba(52, 211, 153, 0.15);
+    border-radius: var(--radius-lg);
+    padding: 40px;
+    margin-top: 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .fsm-states {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+
+  .fsm-state {
+    padding: 14px 24px;
+    border-radius: var(--radius-full);
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.2);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.5s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .fsm-state.active {
+    background: var(--grad-warm);
+    color: #08110f;
+    border-color: transparent;
+    transform: scale(1.08);
+    box-shadow: var(--glow-amber);
+  }
+
+  .fsm-state-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .fsm-state.active .fsm-state-dot {
+    animation: dotBlink 1s ease-in-out infinite;
+  }
+
+  .fsm-desc {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ============ 安装步骤 ============ */
+  .install-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    margin-top: 48px;
+    position: relative;
+  }
+
+  .install-step {
+    text-align: center;
+    position: relative;
+  }
+
+  .install-step-num {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 2px solid rgba(251, 191, 36, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 900;
+    margin: 0 auto 24px;
+    color: var(--amber);
+    position: relative;
+    transition: all 0.4s ease;
+  }
+
+  .install-step:hover .install-step-num {
+    background: var(--grad-warm);
+    color: #08110f;
+    border-color: transparent;
+    transform: scale(1.1);
+    box-shadow: var(--glow-amber);
+  }
+
+  .install-step-num::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    width: calc(100% + 32px);
+    height: 2px;
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.4) 0%, transparent 100%);
+    transform: translateY(-50%);
+  }
+
+  .install-step:last-child .install-step-num::after {
+    display: none;
+  }
+
+  .install-step-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  .install-step-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+
+  .install-code {
+    background: var(--bg-secondary);
+    border: 1px solid rgba(52, 211, 153, 0.15);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--emerald-soft);
+    text-align: left;
     overflow-x: auto;
   }
 
-  /* ===== CONFIG TABLE ===== */
-  .config-table {
-    width: 100%; border-collapse: separate; border-spacing: 0;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg); overflow: hidden;
+  /* ============ 支持平台 ============ */
+  .platforms {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 48px;
   }
 
-  .config-table th, .config-table td { padding: 12px 20px; text-align: left; font-size: 0.88rem; }
-  .config-table thead th { background: rgba(255,255,255,0.02); font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
-  .config-table tbody td { border-bottom: 1px solid var(--border-color); color: var(--text-secondary); }
-  .config-table tbody tr:last-child td { border-bottom: none; }
-  .config-table tbody td:nth-child(2) { color: var(--accent-cyan); font-weight: 600; }
+  .platform-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(52, 211, 153, 0.12);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    text-align: center;
+    transition: all 0.4s ease;
+  }
 
-  /* ===== FOOTER ===== */
-  footer { text-align: center; padding: 4rem 2rem; border-top: 1px solid var(--border-color); }
-  .footer-logo { font-size: 1.3rem; font-weight: 900; margin-bottom: 0.5rem; }
-  .footer-logo .g { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-  .footer-desc { font-size: 0.85rem; color: var(--text-muted); max-width: 400px; margin: 0 auto 1.5rem; }
-  .footer-links { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; }
-  .footer-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; transition: color 0.2s; }
-  .footer-links a:hover { color: var(--accent-indigo); }
+  .platform-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(251, 191, 36, 0.35);
+    box-shadow: var(--shadow-warm);
+  }
 
-  .divider { max-width: 1100px; margin: 0 auto; padding: 0 2rem; }
-  .divider-line { height: 1px; background: linear-gradient(90deg, transparent, var(--border-color), transparent); }
+  .platform-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
 
-  @media (max-width: 640px) {
-    .nav-links { display: none; }
-    .hero-stats { gap: 1.5rem; }
-    .section { padding: 4rem 1.5rem; }
+  .platform-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+
+  .platform-detail {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ============ 配置表 ============ */
+  .config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 48px;
+  }
+
+  .config-item {
+    background: var(--bg-card);
+    border: 1px solid rgba(52, 211, 153, 0.12);
+    border-radius: var(--radius-md);
+    padding: 20px 24px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .config-item:hover {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: var(--bg-card-hover);
+    transform: translateX(4px);
+  }
+
+  .config-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    color: var(--emerald);
+    font-weight: 700;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .config-info {
+    flex: 1;
+  }
+
+  .config-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .config-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* ============ Footer ============ */
+  .footer {
+    position: relative;
+    padding: 80px 32px 40px;
+    background: var(--bg-secondary);
+    border-top: 1px solid rgba(52, 211, 153, 0.1);
+    z-index: 1;
+  }
+
+  .footer-wave {
+    position: absolute;
+    top: -1px;
+    left: 0;
+    right: 0;
+    height: 60px;
+    transform: translateY(-100%);
+  }
+
+  .footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 48px;
+  }
+
+  .footer-brand {
+    max-width: 360px;
+  }
+
+  .footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+
+  .footer-logo-text {
+    background: var(--grad-warm);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .footer-desc {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+
+  .footer-license {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: var(--amber-soft);
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .footer-col-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .footer-links {
+    list-style: none;
+  }
+
+  .footer-links li {
+    margin-bottom: 10px;
+  }
+
+  .footer-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .footer-links a:hover {
+    color: var(--amber-soft);
+  }
+
+  .footer-bottom {
+    padding-top: 32px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer-copy {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .footer-social {
+    display: flex;
+    gap: 12px;
+  }
+
+  .footer-social a {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-size: 16px;
+  }
+
+  .footer-social a:hover {
+    background: var(--grad-warm);
+    color: #08110f;
+    border-color: transparent;
+    transform: translateY(-3px);
+  }
+
+  /* ============ 滚动入场动画 ============ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+
+  /* ============ 响应式 ============ */
+  @media (max-width: 1024px) {
+    .flow-container {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .flow-arrow {
+      display: none;
+    }
+
+    .capabilities-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .install-steps {
+      grid-template-columns: 1fr;
+      gap: 48px;
+    }
+
+    .install-step-num::after {
+      display: none;
+    }
+
+    .platforms {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .footer-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .nav-links {
+      display: none;
+    }
+
+    .nav-mobile-toggle {
+      display: block;
+    }
+
+    .nav-links.open {
+      display: flex;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      flex-direction: column;
+      background: rgba(8, 17, 15, 0.95);
+      backdrop-filter: blur(20px);
+      padding: 20px;
+      gap: 8px;
+      border-bottom: 1px solid rgba(52, 211, 153, 0.15);
+    }
+
+    .hero {
+      padding: 100px 20px 60px;
+    }
+
+    .hero-bell {
+      font-size: 40px;
+      right: 8%;
+    }
+
+    .hero-bell-2 {
+      font-size: 28px;
+    }
+
+    .hero-stats {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .stat-card {
+      padding: 18px 12px;
+    }
+
+    .stat-number {
+      font-size: 28px;
+    }
+
+    .section {
+      padding: 60px 20px;
+    }
+
+    .compare-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .flow-container {
+      grid-template-columns: 1fr;
+    }
+
+    .capabilities-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .platforms {
+      grid-template-columns: 1fr;
+    }
+
+    .config-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .footer-grid {
+      grid-template-columns: 1fr;
+      gap: 32px;
+    }
+
+    .fsm-states {
+      gap: 8px;
+    }
+
+    .fsm-state {
+      padding: 10px 16px;
+      font-size: 12px;
+    }
+  }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--emerald) 0%, var(--amber) 100%);
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--amber) 0%, var(--coral) 100%);
+  }
+
+  /* 选中文本 */
+  ::selection {
+    background: rgba(251, 191, 36, 0.3);
+    color: var(--text-primary);
   }
 </style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav>
-  <a href="#" class="nav-logo"><span class="g">灵犀</span></a>
-  <ul class="nav-links">
-    <li><a href="#features">功能</a></li>
-    <li><a href="#compare">对比</a></li>
-    <li><a href="#how">原理</a></li>
-    <li><a href="#abilities">能力</a></li>
-    <li><a href="#start">安装</a></li>
-    <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" class="nav-cta">GitHub</a></li>
-  </ul>
+<!-- ============ 导航栏 ============ -->
+<nav class="nav" id="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <span class="nav-logo-icon">🔔</span>
+      <span class="nav-logo-text">灵犀</span>
+    </a>
+    <div class="nav-links" id="navLinks">
+      <a href="#features" class="nav-link">功能亮点</a>
+      <a href="#compare" class="nav-link">效果对比</a>
+      <a href="#flow" class="nav-link">处理流程</a>
+      <a href="#capabilities" class="nav-link">六大能力</a>
+      <a href="#install" class="nav-link">安装</a>
+      <a href="#config" class="nav-link">配置</a>
+      <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
+    </div>
+    <button class="nav-mobile-toggle" id="navToggle" aria-label="菜单">☰</button>
+  </div>
 </nav>
 
-<!-- HERO -->
+<!-- ============ Hero 区 ============ -->
 <section class="hero">
-  <div class="hero-bg"></div>
-  <div class="hero-grid"></div>
+  <div class="hero-waves">
+    <div class="hero-wave hero-wave-1">
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+        <path d="M0,60 C150,100 350,20 600,60 C850,100 1050,20 1200,60 L2400,60 C2250,100 2050,20 1800,60 C1550,100 1350,20 1200,60 Z" fill="none" stroke="url(#waveGrad1)" stroke-width="2" opacity="0.6"/>
+        <defs>
+          <linearGradient id="waveGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#34d399"/>
+            <stop offset="50%" stop-color="#fbbf24"/>
+            <stop offset="100%" stop-color="#fb923c"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <div class="hero-wave hero-wave-2">
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+        <path d="M0,60 C200,20 400,100 600,60 C800,20 1000,100 1200,60 L2400,60 C2200,20 2000,100 1800,60 C1600,20 1400,100 1200,60 Z" fill="none" stroke="url(#waveGrad2)" stroke-width="1.5" opacity="0.5"/>
+        <defs>
+          <linearGradient id="waveGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#2dd4bf"/>
+            <stop offset="100%" stop-color="#f59e0b"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <div class="hero-wave hero-wave-3">
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+        <path d="M0,60 C300,90 500,30 700,60 C900,90 1100,30 1200,60 L2400,60 C2100,90 1900,30 1700,60 C1500,90 1300,30 1200,60 Z" fill="none" stroke="url(#waveGrad3)" stroke-width="1" opacity="0.4"/>
+        <defs>
+          <linearGradient id="waveGrad3" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#fb923c"/>
+            <stop offset="100%" stop-color="#34d399"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  </div>
+
+  <div class="hero-bell">🔔</div>
+  <div class="hero-bell hero-bell-2">🔔</div>
+
   <div class="hero-content">
     <div class="hero-badge">
-      <span class="dot"></span>
-      v1.4.2 · AstrBot 插件
+      <span class="hero-badge-dot"></span>
+      <span>AstrBot 智能唤醒插件 · v1.0</span>
     </div>
-    <div class="hero-emoji">🔔</div>
-    <h1 class="hero-title">
-      <span class="gradient-text">心有灵犀</span><br>不唤自来
-    </h1>
-    <p class="hero-tagline">让 Bot 拥有自然的社交呼吸</p>
+    <h1 class="hero-title">心有灵犀<br>不唤自来</h1>
     <p class="hero-subtitle">
-      唤名即应，投缘便聊；群冷场了就来，聊久了也会累——<br>
-      由<strong>精力系统</strong>、<strong>心流状态</strong>、<strong>冷场救场</strong>与<strong>消息防抖</strong>默契配合而成的节律
+      灵犀是 AstrBot 平台的名称自然唤醒插件，通过<strong>精力系统</strong>、<strong>心流状态机</strong>、<strong>冷场救场</strong>与<strong>消息防抖</strong>的协同，赋予 Bot 自然的社交呼吸节律。
     </p>
-    <div class="hero-actions">
-      <a href="#start" class="btn btn-primary">快速安装</a>
-      <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" class="btn btn-secondary">查看源码</a>
-    </div>
+
     <div class="hero-stats">
-      <div class="hero-stat">
-        <div class="hero-stat-num">30+</div>
-        <div class="hero-stat-label">功能项</div>
+      <div class="stat-card">
+        <div class="stat-number" data-target="30" data-suffix="+">0</div>
+        <div class="stat-label">功能特性</div>
       </div>
-      <div class="hero-stat">
-        <div class="hero-stat-num">2</div>
-        <div class="hero-stat-label">支持平台</div>
+      <div class="stat-card">
+        <div class="stat-number" data-target="2">0</div>
+        <div class="stat-label">支持平台</div>
       </div>
-      <div class="hero-stat">
-        <div class="hero-stat-num">11</div>
-        <div class="hero-stat-label">配置分组</div>
+      <div class="stat-card">
+        <div class="stat-number" data-target="11">0</div>
+        <div class="stat-label">配置分组</div>
       </div>
-      <div class="hero-stat">
-        <div class="hero-stat-num">0</div>
-        <div class="hero-stat-label">文件依赖</div>
+      <div class="stat-card">
+        <div class="stat-number" data-target="0">0</div>
+        <div class="stat-label">文件依赖</div>
       </div>
+    </div>
+
+    <div class="hero-actions">
+      <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" class="btn-primary">
+        <span>立即安装</span>
+        <span>→</span>
+      </a>
+      <a href="#features" class="btn-secondary">
+        <span>了解功能</span>
+      </a>
     </div>
   </div>
 </section>
 
-<div class="divider"><div class="divider-line"></div></div>
+<!-- 波浪分隔线 -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1200 80" preserveAspectRatio="none">
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40 L1200,80 L0,80 Z" fill="rgba(52, 211, 153, 0.04)"/>
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40" fill="none" stroke="rgba(251, 191, 36, 0.2)" stroke-width="1"/>
+  </svg>
+</div>
 
-<!-- FEATURES MARQUEE -->
+<!-- ============ 功能亮点 - 横向滚动 ============ -->
 <section class="section" id="features">
-  <div class="section-label indigo">✨ 功能</div>
-  <h2 class="section-title">让 Bot 像真人一样聊天</h2>
-  <p class="section-desc">不是简单的关键词匹配，而是一套完整的社交节律系统——</p>
+  <div class="section-inner">
+    <div class="section-header reveal">
+      <span class="section-tag">FEATURES</span>
+      <h2 class="section-title">十大核心<span class="accent">功能亮点</span></h2>
+      <p class="section-desc">从唤醒判定到输出处理，灵犀用细节让 Bot 更像一个真实的聊天对象</p>
+    </div>
+  </div>
 
-  <div class="feature-marquee">
-    <div class="feature-track">
+  <div class="features-scroll reveal">
+    <div class="features-track" id="featuresTrack">
+      <!-- 第一组 -->
       <div class="feature-card">
-        <div class="feature-icon">🔔</div>
-        <div class="feature-title">唤名即应</div>
-        <div class="feature-desc">消息包含 Bot 名称即触发回复，支持多别名、大小写不敏感</div>
+        <div class="feature-icon">🎯</div>
+        <h3 class="feature-title">唤名即应</h3>
+        <p class="feature-desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">💬</div>
-        <div class="feature-title">投缘便聊</div>
-        <div class="feature-desc">命中关键词或概率计算通过时自然加入话题</div>
+        <h3 class="feature-title">投缘便聊</h3>
+        <p class="feature-desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">😴</div>
-        <div class="feature-title">累了就歇</div>
-        <div class="feature-desc">精力系统模拟社交疲劳，回复消耗精力，随时间恢复</div>
+        <h3 class="feature-title">累了就歇</h3>
+        <p class="feature-desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🧊</div>
-        <div class="feature-title">冷场救场</div>
-        <div class="feature-desc">群聊停滞超时后主动参与，有冷却期防止频繁救场</div>
+        <div class="feature-icon">🔥</div>
+        <h3 class="feature-title">冷场救场</h3>
+        <p class="feature-desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🤚</div>
-        <div class="feature-title">不会打断你</div>
-        <div class="feature-desc">消息防抖等待用户说完再回复，聚合多条消息</div>
+        <div class="feature-icon">🤫</div>
+        <h3 class="feature-title">不会打断你</h3>
+        <p class="feature-desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🦜</div>
-        <div class="feature-title">复读不打扰</div>
-        <div class="feature-desc">检测复读链大幅降低回复概率，维护复读氛围</div>
+        <div class="feature-icon">🔇</div>
+        <h3 class="feature-title">复读不打扰</h3>
+        <p class="feature-desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🧠</div>
-        <div class="feature-title">记得聊过什么</div>
-        <div class="feature-desc">分层对话记忆：近期保留原文 + 远期压缩摘要</div>
+        <h3 class="feature-title">记得聊过什么</h3>
+        <p class="feature-desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🖼️</div>
-        <div class="feature-title">看得懂图片</div>
-        <div class="feature-desc">图片上下文关联，理解图片内容避免上下文断裂</div>
+        <h3 class="feature-title">看得懂图片</h3>
+        <p class="feature-desc">支持图片消息理解，识别图片内容并作出回应</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">💰</div>
-        <div class="feature-title">能省则省</div>
-        <div class="feature-desc">上下文压缩、智能模型路由、Token 消耗追踪</div>
+        <div class="feature-icon">⚡</div>
+        <h3 class="feature-title">能省则省</h3>
+        <p class="feature-desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">⌨️</div>
-        <div class="feature-title">像真人分段说话</div>
-        <div class="feature-desc">长回复智能分段发送，模拟输入节奏</div>
+        <div class="feature-icon">📝</div>
+        <h3 class="feature-title">像真人分段说话</h3>
+        <p class="feature-desc">长消息自动分段发送，模拟真人的聊天节奏</p>
       </div>
-      <!-- 复制一份实现无缝循环 -->
+      <!-- 第二组（重复，用于无限滚动） -->
       <div class="feature-card">
-        <div class="feature-icon">🔔</div>
-        <div class="feature-title">唤名即应</div>
-        <div class="feature-desc">消息包含 Bot 名称即触发回复，支持多别名、大小写不敏感</div>
+        <div class="feature-icon">🎯</div>
+        <h3 class="feature-title">唤名即应</h3>
+        <p class="feature-desc">用户在消息中提到 Bot 名称时，立即进入唤醒状态并响应</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">💬</div>
-        <div class="feature-title">投缘便聊</div>
-        <div class="feature-desc">命中关键词或概率计算通过时自然加入话题</div>
+        <h3 class="feature-title">投缘便聊</h3>
+        <p class="feature-desc">基于精力值与兴趣匹配，主动参与感兴趣的话题</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">😴</div>
-        <div class="feature-title">累了就歇</div>
-        <div class="feature-desc">精力系统模拟社交疲劳，回复消耗精力，随时间恢复</div>
+        <h3 class="feature-title">累了就歇</h3>
+        <p class="feature-desc">精力耗尽时自动进入休眠，避免无意义的刷屏回复</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🧊</div>
-        <div class="feature-title">冷场救场</div>
-        <div class="feature-desc">群聊停滞超时后主动参与，有冷却期防止频繁救场</div>
+        <div class="feature-icon">🔥</div>
+        <h3 class="feature-title">冷场救场</h3>
+        <p class="feature-desc">检测到群聊冷场时，主动抛出话题激活气氛</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🤚</div>
-        <div class="feature-title">不会打断你</div>
-        <div class="feature-desc">消息防抖等待用户说完再回复，聚合多条消息</div>
+        <div class="feature-icon">🤫</div>
+        <h3 class="feature-title">不会打断你</h3>
+        <p class="feature-desc">智能识别对话节奏，不在他人热烈讨论时强行插入</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🦜</div>
-        <div class="feature-title">复读不打扰</div>
-        <div class="feature-desc">检测复读链大幅降低回复概率，维护复读氛围</div>
+        <div class="feature-icon">🔇</div>
+        <h3 class="feature-title">复读不打扰</h3>
+        <p class="feature-desc">识别群内复读行为，不参与无意义的跟风刷屏</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🧠</div>
-        <div class="feature-title">记得聊过什么</div>
-        <div class="feature-desc">分层对话记忆：近期保留原文 + 远期压缩摘要</div>
+        <h3 class="feature-title">记得聊过什么</h3>
+        <p class="feature-desc">上下文记忆系统，让 Bot 记住之前的对话内容</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🖼️</div>
-        <div class="feature-title">看得懂图片</div>
-        <div class="feature-desc">图片上下文关联，理解图片内容避免上下文断裂</div>
+        <h3 class="feature-title">看得懂图片</h3>
+        <p class="feature-desc">支持图片消息理解，识别图片内容并作出回应</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">💰</div>
-        <div class="feature-title">能省则省</div>
-        <div class="feature-desc">上下文压缩、智能模型路由、Token 消耗追踪</div>
+        <div class="feature-icon">⚡</div>
+        <h3 class="feature-title">能省则省</h3>
+        <p class="feature-desc">低信息量消息智能屏蔽，节省 API 调用成本</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">⌨️</div>
-        <div class="feature-title">像真人分段说话</div>
-        <div class="feature-desc">长回复智能分段发送，模拟输入节奏</div>
+        <div class="feature-icon">📝</div>
+        <h3 class="feature-title">像真人分段说话</h3>
+        <p class="feature-desc">长消息自动分段发送，模拟真人的聊天节奏</p>
       </div>
     </div>
   </div>
 </section>
 
-<div class="divider"><div class="divider-line"></div></div>
+<!-- 波浪分隔线 -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1200 80" preserveAspectRatio="none">
+    <path d="M0,40 C200,0 400,80 600,40 C800,0 1000,80 1200,40 L1200,80 L0,80 Z" fill="rgba(251, 191, 36, 0.03)"/>
+    <path d="M0,40 C200,0 400,80 600,40 C800,0 1000,80 1200,40" fill="none" stroke="rgba(52, 211, 153, 0.2)" stroke-width="1"/>
+  </svg>
+</div>
 
-<!-- COMPARISON -->
+<!-- ============ 对比板块 ============ -->
 <section class="section" id="compare">
-  <div class="section-label green">✨ 对比</div>
-  <h2 class="section-title">有灵犀 vs 没有灵犀</h2>
-  <p class="section-desc">同样的群聊，完全不同的 Bot 表现——</p>
-
-  <div class="comparison-wrapper">
-    <div class="comparison-col before">
-      <div class="comparison-header before-h">😫 没有灵犀</div>
-      <div class="chat-bubble user">
-        <div class="label">群友 A</div>
-        今天天气不错
-      </div>
-      <div class="chat-bubble bot">
-        <div class="label">Bot</div>
-        （沉默……需要 @ 才回复）
-      </div>
-      <div class="chat-bubble user">
-        <div class="label">群友 B</div>
-        @Bot 你觉得呢？
-      </div>
-      <div class="chat-bubble bot">
-        <div class="label">Bot</div>
-        今天天气确实不错。
-      </div>
-      <div class="chat-bubble system">
-        <div class="label">问题</div>
-        不 @ 不说话 · 回复机械 · 无上下文 · 群冷场也不管
-      </div>
+  <div class="section-inner">
+    <div class="section-header reveal">
+      <span class="section-tag">COMPARISON</span>
+      <h2 class="section-title">没有灵犀 vs <span class="accent">有了灵犀</span></h2>
+      <p class="section-desc">同样是群聊场景，灵犀让 Bot 的存在感从"工具"变成"伙伴"</p>
     </div>
 
-    <div class="comparison-col after">
-      <div class="comparison-header after-h">😎 有了灵犀</div>
-      <div class="chat-bubble user">
-        <div class="label">群友 A</div>
-        今天天气不错
+    <div class="compare-grid">
+      <div class="compare-col before reveal">
+        <div class="compare-header">
+          <span class="compare-emoji">😐</span>
+          <h3 class="compare-title">没有灵犀</h3>
+        </div>
+        <div class="chat-bubble user">
+          <div class="chat-meta">用户 A · 14:02</div>
+          今天天气真好啊
+        </div>
+        <div class="chat-bubble bot-cold">
+          <div class="chat-meta">Bot · 14:02</div>
+          （无响应 · 未被 @）
+        </div>
+        <div class="chat-bubble user">
+          <div class="chat-meta">用户 B · 14:05</div>
+          有人吗？聊聊天
+        </div>
+        <div class="chat-bubble bot-cold">
+          <div class="chat-meta">Bot · 14:05</div>
+          （依然沉默 · 等待指令）
+        </div>
       </div>
-      <div class="chat-bubble bot">
-        <div class="label">Bot</div>
-        <span class="chat-tag flow">[心流·关注]</span><br>
-        是啊，这种天气最适合出去溜达了
-      </div>
-      <div class="chat-bubble user">
-        <div class="label">群友 B</div>
-        可惜要加班 😢
-      </div>
-      <div class="chat-bubble bot">
-        <div class="label">Bot</div>
-        <span class="chat-tag energy">[精力 0.7]</span><br>
-        加班人加油！等忙完了好好犒劳自己
-      </div>
-      <div class="chat-bubble system">
-        <div class="label">效果</div>
-        自然加入话题 · 有情绪感知 · 精力系统控节奏 · 冷场会救场
-      </div>
-    </div>
-  </div>
-</section>
 
-<div class="divider"><div class="divider-line"></div></div>
-
-<!-- HOW IT WORKS -->
-<section class="section" id="how">
-  <div class="section-label purple">⚙️ 原理</div>
-  <h2 class="section-title">消息处理流程</h2>
-  <p class="section-desc">每条群聊消息经过层层筛选和判断，最终决定 Bot 是否回复、如何回复——</p>
-
-  <div class="flow-container">
-    <div class="flow-steps">
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#6366f1,#4f46e5);">1</div>
-          <div class="flow-step-line"></div>
+      <div class="compare-col after reveal reveal-delay-1">
+        <div class="compare-header">
+          <span class="compare-emoji">✨</span>
+          <h3 class="compare-title">有了灵犀</h3>
         </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">📨 消息到达</div>
-          <div class="flow-step-desc">群聊消息进入插件，记录到消息缓冲区</div>
+        <div class="chat-bubble user">
+          <div class="chat-meta">用户 A · 14:02</div>
+          今天天气真好啊
         </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#f87171,#ef4444);">2</div>
-          <div class="flow-step-line"></div>
+        <div class="chat-bubble bot">
+          <div class="chat-meta">灵犀 · 14:02</div>
+          是呀，这种天气特别适合出去走走～
         </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">🚫 群组过滤</div>
-          <div class="flow-step-desc">黑名单/白名单外的群直接跳过，指令前缀跳过</div>
-          <span class="flow-step-tag" style="background:rgba(248,113,113,0.1);color:var(--accent-red);">快速过滤</span>
+        <div class="chat-bubble user">
+          <div class="chat-meta">用户 B · 14:05</div>
+          有人吗？聊聊天
         </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#fb923c,#f97316);">3</div>
-          <div class="flow-step-line"></div>
+        <div class="chat-bubble bot">
+          <div class="chat-meta">灵犀 · 14:05</div>
+          在呢在呢，刚才还在想这天气适合干嘛呢
         </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">🔇 低信息量屏蔽</div>
-          <div class="flow-step-desc">纯图片/贴纸/表情包等无效消息自动过滤</div>
-          <span class="flow-step-tag" style="background:rgba(251,146,60,0.1);color:var(--accent-orange);">省 Token</span>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#a855f7,#8b5cf6);">4</div>
-          <div class="flow-step-line"></div>
-        </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">🧠 心流状态更新</div>
-          <div class="flow-step-desc">旁观 → 关注 → 心流 → 疲劳，四状态动态调整</div>
-          <span class="flow-step-tag" style="background:rgba(168,85,247,0.1);color:var(--accent-purple);">状态机</span>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#00d4ff,#06b6d4);">5</div>
-          <div class="flow-step-line"></div>
-        </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">🔍 唤醒判定</div>
-          <div class="flow-step-desc">名称唤醒(确定性) / 关键词唤醒(概率) / 概率唤醒(动态) / 冷场救场(超时)</div>
-          <span class="flow-step-tag" style="background:rgba(0,212,255,0.1);color:var(--accent-cyan);">核心逻辑</span>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#34d399,#10b981);">6</div>
-          <div class="flow-step-line"></div>
-        </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">🤚 消息防抖</div>
-          <div class="flow-step-desc">等待用户停止发言，聚合多条消息后统一回复</div>
-          <span class="flow-step-tag" style="background:rgba(52,211,153,0.1);color:var(--accent-green);">不打断</span>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);">7</div>
-          <div class="flow-step-line"></div>
-        </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">🧩 上下文构建</div>
-          <div class="flow-step-desc">分层记忆 + 增量注入 + 摘要压缩 + 图片识别</div>
-          <span class="flow-step-tag" style="background:rgba(251,191,36,0.1);color:var(--accent-yellow);">智能压缩</span>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-step-indicator">
-          <div class="flow-step-num" style="background:linear-gradient(135deg,#f472b6,#ec4899);">8</div>
-        </div>
-        <div class="flow-step-content">
-          <div class="flow-step-title">📤 输出处理</div>
-          <div class="flow-step-desc">思考标签过滤 → 去重 → 智能分段发送 → 记录历史</div>
-          <span class="flow-step-tag" style="background:rgba(244,114,182,0.1);color:var(--accent-pink);">像真人</span>
+        <div class="chat-bubble bot">
+          <div class="chat-meta">灵犀 · 14:06</div>
+          你们有什么计划吗？
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<div class="divider"><div class="divider-line"></div></div>
+<!-- 波浪分隔线 -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1200 80" preserveAspectRatio="none">
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40 L1200,80 L0,80 Z" fill="rgba(251, 146, 60, 0.03)"/>
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40" fill="none" stroke="rgba(251, 146, 60, 0.2)" stroke-width="1"/>
+  </svg>
+</div>
 
-<!-- CORE ABILITIES -->
-<section class="section" id="abilities">
-  <div class="section-label orange">🛡️ 六大能力</div>
-  <h2 class="section-title">全方位的社交智能</h2>
-  <p class="section-desc">六大维度协同工作，让 Bot 的每一次发言都恰到好处——</p>
+<!-- ============ 消息处理流程 ============ -->
+<section class="section" id="flow">
+  <div class="section-inner">
+    <div class="section-header reveal">
+      <span class="section-tag">PIPELINE</span>
+      <h2 class="section-title">消息处理<span class="accent">八步流程</span></h2>
+      <p class="section-desc">每一条消息都要经过精心设计的处理流水线，确保响应自然且高效</p>
+    </div>
 
-  <div class="ability-grid">
-    <div class="ability-card">
-      <div class="ability-icon">🔔</div>
-      <div class="ability-title">智能唤醒</div>
-      <div class="ability-desc">名称唤醒 + 关键词唤醒 + 概率唤醒 + 冷场救场，四重机制覆盖所有场景</div>
+    <div class="flow-container">
+      <div class="flow-step reveal">
+        <div class="flow-num">1</div>
+        <div class="flow-icon">📨</div>
+        <h3 class="flow-title">消息到达</h3>
+        <p class="flow-desc">接收来自 Telegram / QQ 的原始消息事件</p>
+        <div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step reveal reveal-delay-1">
+        <div class="flow-num">2</div>
+        <div class="flow-icon">👥</div>
+        <h3 class="flow-title">群组过滤</h3>
+        <p class="flow-desc">按白名单/黑名单过滤群组，决定是否处理</p>
+        <div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step reveal reveal-delay-2">
+        <div class="flow-num">3</div>
+        <div class="flow-icon">🔇</div>
+        <h3 class="flow-title">低信息量屏蔽</h3>
+        <p class="flow-desc">过滤纯表情、复读、过短消息等低价值内容</p>
+        <div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step reveal reveal-delay-3">
+        <div class="flow-num">4</div>
+        <div class="flow-icon">🌊</div>
+        <h3 class="flow-title">心流状态更新</h3>
+        <p class="flow-desc">根据消息热度更新心流状态机的当前状态</p>
+        <div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step reveal">
+        <div class="flow-num">5</div>
+        <div class="flow-icon">🔔</div>
+        <h3 class="flow-title">唤醒判定</h3>
+        <p class="flow-desc">综合名称提及、精力值、兴趣度判断是否唤醒</p>
+        <div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step reveal reveal-delay-1">
+        <div class="flow-num">6</div>
+        <div class="flow-icon">⏱️</div>
+        <h3 class="flow-title">消息防抖</h3>
+        <p class="flow-desc">等待消息窗口稳定，避免连续触发多次响应</p>
+        <div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step reveal reveal-delay-2">
+        <div class="flow-num">7</div>
+        <div class="flow-icon">🧩</div>
+        <h3 class="flow-title">上下文构建</h3>
+        <p class="flow-desc">组装历史对话、用户画像、群组氛围等上下文</p>
+        <div class="flow-arrow">→</div>
+      </div>
+      <div class="flow-step reveal reveal-delay-3">
+        <div class="flow-num">8</div>
+        <div class="flow-icon">📤</div>
+        <h3 class="flow-title">输出处理</h3>
+        <p class="flow-desc">分段发送、情感润色、精力扣除与状态收尾</p>
+      </div>
     </div>
-    <div class="ability-card">
-      <div class="ability-icon">⚡</div>
-      <div class="ability-title">节律系统</div>
-      <div class="ability-desc">精力系统 + 心流状态机 + 消息防抖 + 复读抑制，让 Bot 有疲劳、有节奏</div>
-    </div>
-    <div class="ability-card">
-      <div class="ability-icon">🧠</div>
-      <div class="ability-title">上下文记忆</div>
-      <div class="ability-desc">分层记忆 + 上下文压缩 + 增量注入 + 图片识别，记得住、省 Token</div>
-    </div>
-    <div class="ability-card">
-      <div class="ability-icon">💡</div>
-      <div class="ability-title">对话理解</div>
-      <div class="ability-desc">在场用户感知 + 对话关系标注 + 图片占位符，理解对话脉络</div>
-    </div>
-    <div class="ability-card">
-      <div class="ability-icon">📤</div>
-      <div class="ability-title">输出处理</div>
-      <div class="ability-desc">消息分段 + 模型路由 + 输出去重 + 思考过滤，输出自然不出戏</div>
-    </div>
-    <div class="ability-card">
-      <div class="ability-icon">🛡️</div>
-      <div class="ability-title">安全控制</div>
-      <div class="ability-desc">回复抑制 + 轻量回应 + 用户/群组覆盖 + Token 追踪，精细可控</div>
+
+    <!-- 心流状态机展示 -->
+    <div class="flow-state-machine reveal">
+      <div class="section-header" style="margin-bottom: 32px;">
+        <h3 style="font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">心流状态机实时演示</h3>
+        <p style="font-size: 14px; color: var(--text-secondary);">观察 Bot 如何在不同状态间自然切换</p>
+      </div>
+      <div class="fsm-states" id="fsmStates">
+        <div class="fsm-state" data-state="0">
+          <span class="fsm-state-dot"></span>
+          <span>休眠</span>
+        </div>
+        <div class="fsm-state" data-state="1">
+          <span class="fsm-state-dot"></span>
+          <span>倾听</span>
+        </div>
+        <div class="fsm-state" data-state="2">
+          <span class="fsm-state-dot"></span>
+          <span>活跃</span>
+        </div>
+        <div class="fsm-state" data-state="3">
+          <span class="fsm-state-dot"></span>
+          <span>兴奋</span>
+        </div>
+        <div class="fsm-state" data-state="4">
+          <span class="fsm-state-dot"></span>
+          <span>疲倦</span>
+        </div>
+      </div>
+      <div class="fsm-desc" id="fsmDesc">休眠状态：精力不足，Bot 静默观察，等待唤醒信号</div>
     </div>
   </div>
 </section>
 
-<div class="divider"><div class="divider-line"></div></div>
+<!-- 波浪分隔线 -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1200 80" preserveAspectRatio="none">
+    <path d="M0,40 C200,0 400,80 600,40 C800,0 1000,80 1200,40 L1200,80 L0,80 Z" fill="rgba(52, 211, 153, 0.04)"/>
+    <path d="M0,40 C200,0 400,80 600,40 C800,0 1000,80 1200,40" fill="none" stroke="rgba(45, 212, 191, 0.2)" stroke-width="1"/>
+  </svg>
+</div>
 
-<!-- QUICK START -->
-<section class="section" id="start">
-  <div class="section-label pink">🚀 安装</div>
-  <h2 class="section-title">三步上手灵犀</h2>
-  <p class="section-desc">安装简单，配置灵活——</p>
+<!-- ============ 六大能力 ============ -->
+<section class="section" id="capabilities">
+  <div class="section-inner">
+    <div class="section-header reveal">
+      <span class="section-tag">CAPABILITIES</span>
+      <h2 class="section-title">六大核心<span class="accent">能力体系</span></h2>
+      <p class="section-desc">从感知到表达，灵犀构建了一套完整的"社交呼吸"系统</p>
+    </div>
 
-  <div class="quick-grid">
-    <div class="quick-card">
-      <div class="quick-step">Step 1</div>
-      <div class="quick-title">安装插件</div>
-      <div class="quick-desc">在 AstrBot 插件市场搜索「灵犀」点击安装，或手动放入 <code style="color:var(--accent-cyan);">data/plugins/</code> 目录。</div>
-    </div>
-    <div class="quick-card">
-      <div class="quick-step">Step 2</div>
-      <div class="quick-title">配置 Bot 名称</div>
-      <div class="quick-desc">在 AstrBot WebUI → 插件管理 → 灵犀 → 配置中，设置 <code style="color:var(--accent-cyan);">bot_name</code>（必填）。</div>
-    </div>
-    <div class="quick-card">
-      <div class="quick-step">Step 3</div>
-      <div class="quick-title">开始使用</div>
-      <div class="quick-desc">在群聊中 @Bot 或直接叫名字即可触发回复，其他功能自动运行。</div>
-    </div>
-  </div>
+    <div class="capabilities-grid">
+      <div class="cap-card reveal">
+        <div class="cap-icon-wrap">🎯</div>
+        <h3 class="cap-title">智能唤醒</h3>
+        <p class="cap-desc">多维度唤醒判定，让 Bot 在合适的时机自然介入对话</p>
+        <ul class="cap-features">
+          <li>名称提及即时唤醒</li>
+          <li>精力值兴趣度评估</li>
+          <li>冷场检测主动救场</li>
+          <li>对话节奏智能识别</li>
+        </ul>
+      </div>
 
-  <div style="text-align:center;margin-top:2.5rem;">
-    <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/blob/main/docs/usage_guide.md" target="_blank" class="btn btn-secondary">📖 完整使用指南</a>
+      <div class="cap-card reveal reveal-delay-1">
+        <div class="cap-icon-wrap">🌊</div>
+        <h3 class="cap-title">节律系统</h3>
+        <p class="cap-desc">精力与心流状态机协同，赋予 Bot 自然的呼吸节律</p>
+        <ul class="cap-features">
+          <li>精力值动态消耗与恢复</li>
+          <li>五态心流状态机切换</li>
+          <li>疲劳度自然累积</li>
+          <li>昼夜节律适配</li>
+        </ul>
+      </div>
+
+      <div class="cap-card reveal reveal-delay-2">
+        <div class="cap-icon-wrap">🧠</div>
+        <h3 class="cap-title">上下文记忆</h3>
+        <p class="cap-desc">多层级记忆系统，让 Bot 真正"记得"聊过什么</p>
+        <ul class="cap-features">
+          <li>短期对话窗口记忆</li>
+          <li>长期用户画像积累</li>
+          <li>群组氛围感知</li>
+          <li>话题延续与切换</li>
+        </ul>
+      </div>
+
+      <div class="cap-card reveal">
+        <div class="cap-icon-wrap">👁️</div>
+        <h3 class="cap-title">对话理解</h3>
+        <p class="cap-desc">多模态消息理解，不只是文字，图片也能看懂</p>
+        <ul class="cap-features">
+          <li>图片内容识别理解</li>
+          <li>低信息量消息过滤</li>
+          <li>复读行为识别</li>
+          <li>情感倾向分析</li>
+        </ul>
+      </div>
+
+      <div class="cap-card reveal reveal-delay-1">
+        <div class="cap-icon-wrap">✍️</div>
+        <h3 class="cap-title">输出处理</h3>
+        <p class="cap-desc">像真人一样说话，分段发送、情感润色、节奏自然</p>
+        <ul class="cap-features">
+          <li>长消息自动分段发送</li>
+          <li>消息防抖避免刷屏</li>
+          <li>情感语气润色</li>
+          <li>响应延迟模拟真人</li>
+        </ul>
+      </div>
+
+      <div class="cap-card reveal reveal-delay-2">
+        <div class="cap-icon-wrap">🛡️</div>
+        <h3 class="cap-title">安全控制</h3>
+        <p class="cap-desc">多重防护机制，确保 Bot 行为可控、成本可控</p>
+        <ul class="cap-features">
+          <li>群组白名单/黑名单</li>
+          <li>API 调用成本控制</li>
+          <li>敏感内容过滤</li>
+          <li>频率限制与冷却</li>
+        </ul>
+      </div>
+    </div>
   </div>
 </section>
 
-<div class="divider"><div class="divider-line"></div></div>
+<!-- 波浪分隔线 -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1200 80" preserveAspectRatio="none">
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40 L1200,80 L0,80 Z" fill="rgba(251, 191, 36, 0.03)"/>
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40" fill="none" stroke="rgba(245, 158, 11, 0.2)" stroke-width="1"/>
+  </svg>
+</div>
 
-<!-- PLATFORMS -->
+<!-- ============ 安装步骤 ============ -->
+<section class="section" id="install">
+  <div class="section-inner">
+    <div class="section-header reveal">
+      <span class="section-tag">INSTALL</span>
+      <h2 class="section-title">三步<span class="accent">快速安装</span></h2>
+      <p class="section-desc">零文件依赖，装好即用，几分钟让 Bot 拥有社交呼吸</p>
+    </div>
+
+    <div class="install-steps">
+      <div class="install-step reveal">
+        <div class="install-step-num">1</div>
+        <h3 class="install-step-title">克隆仓库</h3>
+        <p class="install-step-desc">将插件克隆到 AstrBot 的 plugins 目录下</p>
+        <div class="install-code">cd plugins<br>git clone https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup.git</div>
+      </div>
+
+      <div class="install-step reveal reveal-delay-1">
+        <div class="install-step-num">2</div>
+        <h3 class="install-step-title">重启 AstrBot</h3>
+        <p class="install-step-desc">重启 AstrBot 服务，插件将自动加载并初始化</p>
+        <div class="install-code"># 重启你的 AstrBot 服务<br># 插件会自动注册并加载</div>
+      </div>
+
+      <div class="install-step reveal reveal-delay-2">
+        <div class="install-step-num">3</div>
+        <h3 class="install-step-title">配置启用</h3>
+        <p class="install-step-desc">在 AstrBot 管理面板中配置灵犀参数，按需开启功能</p>
+        <div class="install-code"># 访问 AstrBot 管理面板<br># → 插件管理 → 灵犀 → 配置</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 波浪分隔线 -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1200 80" preserveAspectRatio="none">
+    <path d="M0,40 C200,0 400,80 600,40 C800,0 1000,80 1200,40 L1200,80 L0,80 Z" fill="rgba(52, 211, 153, 0.04)"/>
+    <path d="M0,40 C200,0 400,80 600,40 C800,0 1000,80 1200,40" fill="none" stroke="rgba(52, 211, 153, 0.2)" stroke-width="1"/>
+  </svg>
+</div>
+
+<!-- ============ 支持平台 ============ -->
 <section class="section">
-  <div class="section-label teal">🖥️ 平台</div>
-  <h2 class="section-title">支持平台</h2>
-  <p class="section-desc">兼容主流聊天平台，一套配置双端运行——</p>
+  <div class="section-inner">
+    <div class="section-header reveal">
+      <span class="section-tag">PLATFORMS</span>
+      <h2 class="section-title">支持<span class="accent">平台</span></h2>
+      <p class="section-desc">灵犀已适配主流聊天平台，开箱即用</p>
+    </div>
 
-  <div class="platform-grid">
-    <div class="platform-card">
-      <div class="platform-icon">✈️</div>
-      <div class="platform-name">Telegram</div>
-      <div class="platform-desc">内置适配器，群 ID 为负数</div>
-    </div>
-    <div class="platform-card">
-      <div class="platform-icon">🐧</div>
-      <div class="platform-name">QQ (aiocqhttp)</div>
-      <div class="platform-desc">NapCat 协议端，群 ID 为正数</div>
-    </div>
-    <div class="platform-card">
-      <div class="platform-icon">🤖</div>
-      <div class="platform-name">AstrBot ≥ v4.5.0</div>
-      <div class="platform-desc">运行框架，需配置 LLM 服务商</div>
+    <div class="platforms">
+      <div class="platform-card reveal">
+        <div class="platform-icon">✈️</div>
+        <h3 class="platform-name">Telegram</h3>
+        <p class="platform-detail">原生支持</p>
+      </div>
+      <div class="platform-card reveal reveal-delay-1">
+        <div class="platform-icon">🐧</div>
+        <h3 class="platform-name">QQ</h3>
+        <p class="platform-detail">aiocqhttp 适配器</p>
+      </div>
+      <div class="platform-card reveal reveal-delay-2">
+        <div class="platform-icon">🤖</div>
+        <h3 class="platform-name">AstrBot</h3>
+        <p class="platform-detail">≥ v4.5.0</p>
+      </div>
     </div>
   </div>
 </section>
 
-<div class="divider"><div class="divider-line"></div></div>
+<!-- 波浪分隔线 -->
+<div class="wave-divider">
+  <svg viewBox="0 0 1200 80" preserveAspectRatio="none">
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40 L1200,80 L0,80 Z" fill="rgba(251, 146, 60, 0.03)"/>
+    <path d="M0,40 C300,80 600,0 900,40 C1050,60 1150,20 1200,40" fill="none" stroke="rgba(251, 146, 60, 0.2)" stroke-width="1"/>
+  </svg>
+</div>
 
-<!-- CONFIG -->
-<section class="section">
-  <div class="section-label cyan">⚙️ 配置</div>
-  <h2 class="section-title">11 个配置分组</h2>
-  <p class="section-desc">从基础到高级，精细控制每一个行为——</p>
+<!-- ============ 配置表 ============ -->
+<section class="section" id="config">
+  <div class="section-inner">
+    <div class="section-header reveal">
+      <span class="section-tag">CONFIG</span>
+      <h2 class="section-title">十一大<span class="accent">配置分组</span></h2>
+      <p class="section-desc">细粒度配置，按需开启，让灵犀适配你的每一个场景</p>
+    </div>
 
-  <table class="config-table">
-    <thead>
-      <tr>
-        <th>配置分组</th>
-        <th>说明</th>
-        <th>关键配置</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td>basic</td><td>基础设置</td><td>bot_name, keywords, probability_wakeup</td></tr>
-      <tr><td>energy</td><td>精力系统</td><td>energy_decay_rate, energy_recovery_rate</td></tr>
-      <tr><td>flow</td><td>心流状态机</td><td>旁观/关注/心流概率, 疲劳系数</td></tr>
-      <tr><td>rescue</td><td>冷场救场</td><td>rescue_idle_threshold, rescue_cooldown</td></tr>
-      <tr><td>debounce</td><td>消息防抖</td><td>名称/概率/救场等待时间</td></tr>
-      <tr><td>image_context</td><td>图片上下文</td><td>自定义模型图片识别</td></tr>
-      <tr><td>reply_suppression</td><td>回复抑制</td><td>keyword/judge/both 三模式</td></tr>
-      <tr><td>light_response</td><td>轻量回应</td><td>触发概率, 话语库</td></tr>
-      <tr><td>splitter</td><td>消息分段</td><td>分段开关, 标点剔除</td></tr>
-      <tr><td>advanced</td><td>高级设置</td><td>单群覆盖, 用户概率覆盖</td></tr>
-      <tr><td>group_filter</td><td>群组过滤</td><td>白名单/黑名单</td></tr>
-    </tbody>
-  </table>
+    <div class="config-grid">
+      <div class="config-item reveal">
+        <div class="config-num">01</div>
+        <div class="config-info">
+          <div class="config-name">基础配置</div>
+          <div class="config-desc">插件开关、全局参数、调试模式</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">02</div>
+        <div class="config-info">
+          <div class="config-name">唤醒配置</div>
+          <div class="config-desc">唤醒名称、唤醒阈值、唤醒冷却</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">03</div>
+        <div class="config-info">
+          <div class="config-name">精力系统</div>
+          <div class="config-desc">精力上限、消耗速率、恢复速度</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">04</div>
+        <div class="config-info">
+          <div class="config-name">心流状态机</div>
+          <div class="config-desc">状态切换阈值、停留时长、转移概率</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">05</div>
+        <div class="config-info">
+          <div class="config-name">冷场救场</div>
+          <div class="config-desc">冷场判定时长、救场概率、话题库</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">06</div>
+        <div class="config-info">
+          <div class="config-name">消息防抖</div>
+          <div class="config-desc">防抖窗口、最大等待、触发策略</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">07</div>
+        <div class="config-info">
+          <div class="config-name">上下文记忆</div>
+          <div class="config-desc">记忆窗口、用户画像、群组氛围</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">08</div>
+        <div class="config-info">
+          <div class="config-name">输出处理</div>
+          <div class="config-desc">分段长度、发送延迟、情感润色</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">09</div>
+        <div class="config-info">
+          <div class="config-name">群组过滤</div>
+          <div class="config-desc">白名单、黑名单、群组独立配置</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">10</div>
+        <div class="config-info">
+          <div class="config-name">图片理解</div>
+          <div class="config-desc">图片识别开关、识别模型、响应策略</div>
+        </div>
+      </div>
+      <div class="config-item reveal">
+        <div class="config-num">11</div>
+        <div class="config-info">
+          <div class="config-name">安全控制</div>
+          <div class="config-desc">频率限制、成本控制、敏感过滤</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- FOOTER -->
-<footer>
-  <div class="footer-logo"><span class="g">灵犀</span></div>
-  <div class="footer-desc">心有灵犀，不唤自来 — AstrBot 智能唤醒插件</div>
-  <div class="footer-links">
-    <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank">GitHub</a>
-    <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/blob/main/docs/usage_guide.md" target="_blank">使用指南</a>
-    <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/blob/main/docs/troubleshooting_guide.md" target="_blank">故障排除</a>
-    <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/blob/main/CHANGELOG.md" target="_blank">更新日志</a>
-    <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
+<!-- ============ Footer ============ -->
+<footer class="footer">
+  <div class="footer-wave">
+    <svg viewBox="0 0 1200 60" preserveAspectRatio="none" style="width:100%;height:100%;">
+      <path d="M0,30 C300,60 600,0 900,30 C1050,45 1150,15 1200,30 L1200,60 L0,60 Z" fill="var(--bg-secondary)"/>
+    </svg>
+  </div>
+
+  <div class="footer-inner">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="footer-logo">
+          <span class="nav-logo-icon">🔔</span>
+          <span class="footer-logo-text">灵犀</span>
+        </div>
+        <p class="footer-desc">
+          AstrBot 平台的名称自然唤醒插件，通过精力系统、心流状态机、冷场救场与消息防抖的协同，赋予 Bot 自然的社交呼吸节律。
+        </p>
+        <span class="footer-license">AGPL-3.0 License</span>
+      </div>
+
+      <div>
+        <h4 class="footer-col-title">文档</h4>
+        <ul class="footer-links">
+          <li><a href="docs/usage_guide.md">使用指南</a></li>
+          <li><a href="docs/troubleshooting_guide.md">故障排除</a></li>
+          <li><a href="CHANGELOG.md">更新日志</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="footer-col-title">资源</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener">GitHub 仓库</a></li>
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/issues" target="_blank" rel="noopener">问题反馈</a></li>
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/releases" target="_blank" rel="noopener">版本发布</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="footer-col-title">社区</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/AstrBotDevs/AstrBot" target="_blank" rel="noopener">AstrBot 官方</a></li>
+          <li><a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup#readme" target="_blank" rel="noopener">README 文档</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="footer-copy">
+        © 2026 灵犀 · MagicalYuYu · 基于 AGPL-3.0 协议开源
+      </div>
+      <div class="footer-social">
+        <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup" target="_blank" rel="noopener" title="GitHub">⌥</a>
+        <a href="docs/usage_guide.md" title="文档">📖</a>
+        <a href="https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup/issues" target="_blank" rel="noopener" title="问题反馈">✦</a>
+      </div>
+    </div>
   </div>
 </footer>
+
+<script>
+  // ============ 移动端导航 ============
+  const navToggle = document.getElementById('navToggle');
+  const navLinks = document.getElementById('navLinks');
+  navToggle.addEventListener('click', () => {
+    navLinks.classList.toggle('open');
+  });
+  navLinks.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      navLinks.classList.remove('open');
+    });
+  });
+
+  // ============ 导航栏滚动效果 ============
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 30) {
+      nav.style.padding = '12px 0';
+      nav.style.background = 'rgba(8, 17, 15, 0.88)';
+    } else {
+      nav.style.padding = '18px 0';
+      nav.style.background = 'rgba(8, 17, 15, 0.72)';
+    }
+  });
+
+  // ============ 滚动入场动画 ============
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, {
+    threshold: 0.12,
+    rootMargin: '0px 0px -60px 0px'
+  });
+
+  document.querySelectorAll('.reveal').forEach(el => {
+    observer.observe(el);
+  });
+
+  // ============ 数字滚动计数 ============
+  const counters = document.querySelectorAll('.stat-number');
+  const counterObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const el = entry.target;
+        const target = parseInt(el.dataset.target);
+        const suffix = el.dataset.suffix || '';
+        const duration = 1800;
+        const startTime = performance.now();
+
+        const animate = (now) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          // easeOutExpo
+          const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+          const current = Math.round(target * eased);
+          el.textContent = current + suffix;
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            el.textContent = target + suffix;
+          }
+        };
+        requestAnimationFrame(animate);
+        counterObserver.unobserve(el);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  counters.forEach(c => counterObserver.observe(c));
+
+  // ============ 心流状态机循环演示 ============
+  const fsmStates = document.querySelectorAll('.fsm-state');
+  const fsmDesc = document.getElementById('fsmDesc');
+  const fsmDescriptions = [
+    '休眠状态：精力不足，Bot 静默观察，等待唤醒信号',
+    '倾听状态：检测到潜在话题，Bot 开始关注对话走向',
+    '活跃状态：话题匹配兴趣，Bot 自然介入并参与讨论',
+    '兴奋状态：被点名或话题高度契合，Bot 全力响应',
+    '疲倦状态：精力接近耗尽，Bot 减少发言，准备休息'
+  ];
+  let fsmIndex = 0;
+
+  function updateFsm() {
+    fsmStates.forEach((s, i) => {
+      s.classList.toggle('active', i === fsmIndex);
+    });
+    fsmDesc.textContent = fsmDescriptions[fsmIndex];
+    fsmIndex = (fsmIndex + 1) % fsmStates.length;
+  }
+
+  // 初始激活第一个
+  updateFsm();
+  setInterval(updateFsm, 2800);
+
+  // ============ 平滑滚动 ============
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+      const href = this.getAttribute('href');
+      if (href === '#' || href.length < 2) return;
+      const target = document.querySelector(href);
+      if (target) {
+        e.preventDefault();
+        const offset = 80;
+        const top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+    });
+  });
+
+  // ============ Hero 波浪路径动画 ============
+  // 让波浪 path 缓慢变形
+  const wavePaths = document.querySelectorAll('.hero-wave path');
+  let waveTime = 0;
+
+  function animateWaves() {
+    waveTime += 0.005;
+    wavePaths.forEach((path, idx) => {
+      const offset = idx * 1.5;
+      const a = Math.sin(waveTime + offset) * 20;
+      const b = Math.cos(waveTime * 0.8 + offset) * 15;
+      const d = `M0,60 C${150 + a},${100 + b} ${350 + a},${20 - b} 600,60 C${850 + a},${100 + b} ${1050 + a},${20 - b} 1200,60 L2400,60 C${2250 + a},${100 + b} ${2050 + a},${20 - b} 1800,60 C${1550 + a},${100 + b} ${1350 + a},${20 - b} 1200,60 Z`;
+      // 仅对第一条 path 应用动态变形，避免性能问题
+      if (idx === 0) {
+        path.setAttribute('d', d);
+      }
+    });
+    requestAnimationFrame(animateWaves);
+  }
+  animateWaves();
+</script>
 
 </body>
 </html>

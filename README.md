@@ -11,7 +11,10 @@
 唤名即应，投缘便聊；群冷场了就来，聊久了也会累——<br/>
 由精力系统、心流状态、冷场救场与消息防抖默契配合而成的节律，<br/>让 BOT 拥有了自然的社交呼吸。
 
+[🌐 官网](https://magicalyuyu.github.io/astrbot_plugin_smart_wakeup/) · [📖 使用指南](docs/usage_guide.md) · [🚀 快速开始](#安装)
+
 [![Version](https://img.shields.io/badge/version-1.4.1-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Website](https://img.shields.io/badge/website-online-brightgreen?style=flat-square)](https://magicalyuyu.github.io/astrbot_plugin_smart_wakeup/)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4.5.0-purple?style=flat-square)](https://github.com/Soulter/AstrBot)
