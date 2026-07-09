@@ -1,5 +1,18 @@
 # 更新日志
 
+## [1.4.3] - 2026-07-09
+
+### 修复
+
+- **修复 `_llm_running_groups` 标志卡死导致群聊无法触发新唤醒（P0）**：当 LLM 请求被 `CancelledError` 中断管道时，`on_decorating_result` 和 `after_message_sent` 均不被调用，导致 LLM 执行中标志永久残留，该群长时间无法触发任何新的唤醒。新增 asyncio 主动超时定时器机制：
+  - 新增 `_start_llm_flag_timer` / `_cancel_llm_flag_timer` / `_auto_clear_llm_flag` 三个方法
+  - `_trigger_wake` 设置标志时同步启动 60 秒主动超时定时器（与 httpx timeout=60 对齐）
+  - 正常路径（`on_decorating_result` / `after_message_sent`）主动取消定时器
+  - 被动路径（概率唤醒 / 冷场救场）120 秒超时检查时同步取消定时器
+  - `terminate` 完整清理所有定时器，防止插件卸载时悬挂任务
+  - 三层防护防误清：sleep 可中断 + 二次存在性检查 + `elapsed >= timeout` 严格判断
+- **修复 `UnboundLocalError: 'Plain'` 导致 LLM 结果替换失败（P0）**：`on_decorating_result` 中使用小模型回复替换主模型输出时，函数内部有局部 `from astrbot.core.agent.message import Plain` 导入，使 Python 将 `Plain` 视为整个函数的局部变量，在导入语句之前访问即触发 `UnboundLocalError`。移除局部 import，统一使用文件顶部 L17 全局导入的 `Plain`
+
 ## [1.4.2] - 2026-06-22
 
 ### 修复

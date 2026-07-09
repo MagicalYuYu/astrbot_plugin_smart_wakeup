@@ -354,6 +354,8 @@ class LingxiPlugin(Star):
         # LLM 执行中标志：防止冷场救场并发触发重复输出
         # 存储 {group_id: 触发时间戳}，超时自动清除防止标志泄漏
         self._llm_running_groups: dict[str, float] = {}
+        # LLM 标志的主动超时定时器，防止 CancelledError 中断管道后标志卡死
+        self._llm_flag_timers: dict[str, "asyncio.Task"] = {}
 
         # 统计计数器
         self._stats = {
@@ -1163,6 +1165,9 @@ class LingxiPlugin(Star):
         group_id = event.message_obj.group_id
         if group_id:
             self._llm_running_groups[group_id] = time.time()
+            # 启动主动超时定时器（60秒后自动清除），防止 CancelledError
+            # 中断管道后 on_decorating_result/after_message_sent 均不被调用导致标志卡死
+            self._start_llm_flag_timer(group_id)
 
         event.is_at_or_wake_command = True
         if self.wake_command_prefix:
@@ -1178,6 +1183,44 @@ class LingxiPlugin(Star):
             group_id = event.message_obj.group_id
             if group_id:
                 self._record_user_message(group_id, event.message_str or "", event.get_sender_name() or "")
+
+    def _start_llm_flag_timer(self, group_id: str):
+        """启动 LLM 执行中标志的主动超时定时器
+
+        防止 CancelledError 中断管道后 on_decorating_result 和 after_message_sent
+        均不被调用，导致标志卡死、该群长时间无法触发任何新唤醒。
+        定时器在 60 秒后自动清除标志（与 httpx timeout=60 对齐）。
+        """
+        # 取消已有的定时器（防止重复启动）
+        self._cancel_llm_flag_timer(group_id)
+        # 启动新定时器
+        self._llm_flag_timers[group_id] = asyncio.create_task(
+            self._auto_clear_llm_flag(group_id, 60)
+        )
+
+    def _cancel_llm_flag_timer(self, group_id: str):
+        """取消指定群的 LLM 标志定时器（正常清除路径调用）"""
+        task = self._llm_flag_timers.pop(group_id, None)
+        if task and not task.done():
+            task.cancel()
+
+    async def _auto_clear_llm_flag(self, group_id: str, timeout: int):
+        """主动超时清除 LLM 执行中标志"""
+        try:
+            await asyncio.sleep(timeout)
+            if group_id in self._llm_running_groups:
+                elapsed = time.time() - self._llm_running_groups[group_id]
+                if elapsed >= timeout:
+                    logger.warning(
+                        f"LLM执行中标志主动超时清除 | 群={group_id} "
+                        f"已等待{elapsed:.0f}秒（可能因 CancelledError 中断管道）"
+                    )
+                    del self._llm_running_groups[group_id]
+            # 清理定时器引用
+            self._llm_flag_timers.pop(group_id, None)
+        except asyncio.CancelledError:
+            # 定时器被取消（正常路径已主动清除标志），无需处理
+            pass
 
     def _get_user_prob(self, sender_id: str) -> float:
         """获取用户概率乘数
@@ -1976,6 +2019,7 @@ class LingxiPlugin(Star):
             if elapsed > 120:
                 logger.warning(f"概率唤醒 | LLM执行中标志超时清除 群={group_id} 已等待{elapsed:.0f}秒")
                 del self._llm_running_groups[group_id]
+                self._cancel_llm_flag_timer(group_id)
             else:
                 self._debug(f"概率唤醒 | 群={group_id} LLM执行中({elapsed:.0f}秒)，跳过")
                 return
@@ -2125,13 +2169,14 @@ class LingxiPlugin(Star):
         self._recover_energy(group_id)
 
         # LLM 执行中检查：防止冷场救场并发触发重复输出
-        # 超时安全清除：如果标志存在超过5分钟，说明 after_message_sent 未被调用（LLM失败/结果为空），
+        # 超时安全清除：如果标志存在超过2分钟，说明 after_message_sent 未被调用（LLM失败/结果为空），
         # 自动清除标志防止冷场救场永久阻塞
         if group_id in self._llm_running_groups:
             elapsed = time.time() - self._llm_running_groups[group_id]
             if elapsed > 120:  # 2分钟超时（正常LLM调用应在60秒内完成）
                 logger.warning(f"LLM执行中标志超时清除 | 群={group_id} 已等待{elapsed:.0f}秒，自动清除")
                 del self._llm_running_groups[group_id]
+                self._cancel_llm_flag_timer(group_id)
             else:
                 self._debug(f"冷场救场 | 群={group_id} LLM执行中({elapsed:.0f}秒)，跳过")
                 return
@@ -2834,6 +2879,8 @@ class LingxiPlugin(Star):
 
         # 清除 LLM 执行中标志（双重保障：on_decorating_result 也会清除）
         self._llm_running_groups.pop(group_id, None)
+        # 取消主动超时定时器
+        self._cancel_llm_flag_timer(group_id)
 
         # 回复抑制时跳过记录（零宽空格消息不应写入缓冲区和对话历史）
         if event.get_extra("smart_wakeup_suppressed"):
@@ -3798,14 +3845,15 @@ class LingxiPlugin(Star):
         group_id = event.message_obj.group_id
         if group_id and group_id in self._llm_running_groups:
             del self._llm_running_groups[group_id]
+            # 取消主动超时定时器（正常路径已清除标志，无需等待超时）
+            self._cancel_llm_flag_timer(group_id)
 
         # 如果小模型路由已完成，用小模型的回复替换主模型的输出
         route_result = event.get_extra("smart_wakeup_route_result")
         if route_result:
             result = event.get_result()
             if result and result.chain:
-                # 替换主模型的输出为小模型的回复
-                from astrbot.core.agent.message import Plain
+                # 替换主模型的输出为小模型的回复（Plain 已在文件顶部全局导入）
                 result.chain = [Plain(route_result)]
                 logger.info(
                     f"[ModelRoute] 已用小模型回复替换主模型输出 "
@@ -5395,6 +5443,11 @@ class LingxiPlugin(Star):
         self._energy_states.clear()
         self._flow_states.clear()
         self._rescue_states.clear()
+        # 取消所有 LLM 标志定时器
+        for task in self._llm_flag_timers.values():
+            if not task.done():
+                task.cancel()
+        self._llm_flag_timers.clear()
         self._llm_running_groups.clear()
         self._conversation_history.clear()
         self._conversation_summaries.clear()
