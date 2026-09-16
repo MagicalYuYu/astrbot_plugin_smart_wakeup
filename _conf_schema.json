@@ -95,10 +95,10 @@
                 "hint": "路由目标小模型提供商 ID（如 Volcengine/doubao-seed-2-0-lite-260215），留空则不路由。填写完整的提供商 ID，不是模型名称。"
             },
             "cascade_upgrade_enabled": {
-                "description": "⬆️ 启用级联升级",
+                "description": "⬆️ 启用级联升级（已弃用）",
                 "type": "bool",
                 "default": false,
-                "hint": "小模型回复质量不足时自动升级到大模型重新生成（实验性功能）。"
+                "hint": "⚠️ 当前版本未实现：原级联升级逻辑已在 P1-10 修复中移除（功能未完成且统计虚高），保留此项仅为兼容已有配置结构。开启后无任何效果。"
             },
             "anomaly_detection_enabled": {
                 "description": "🚨 启用 Token 消耗异常检测",
@@ -325,6 +325,160 @@
                 "type": "int",
                 "default": 1800,
                 "hint": "两次冷场救场之间的最短间隔。默认 1800 秒（30 分钟），建议 900~3600 秒。"
+            }
+        }
+    },
+    "proactive_speak": {
+        "description": "🚀 主动发言",
+        "type": "object",
+        "hint": "Bot 定时主动发起话题，打破沉默、活跃群氛围。基于三要素模型（Anticipation-Initiation-Planning）设计，与被动回复共享同一套记忆系统。仅支持 aiocqhttp/Telegram/飞书平台。默认关闭。",
+        "items": {
+            "proactive_enabled": {
+                "description": "🚀 启用主动发言",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后 Bot 会定时检查是否适合主动发起话题。默认关闭。仅支持 aiocqhttp/Telegram/飞书平台。"
+            },
+            "proactive_check_interval": {
+                "description": "⏱️ 检查间隔（秒）",
+                "type": "int",
+                "default": 600,
+                "hint": "每隔多少秒检查一次是否适合主动发言。默认 600 秒（10 分钟），最小 300 秒。"
+            },
+            "proactive_model": {
+                "description": "🤖 主动发言模型 ID",
+                "type": "string",
+                "default": "",
+                "hint": "主动发言使用的模型提供商 ID，留空则使用当前默认 LLM。可配置为小模型以降低成本。"
+            },
+            "proactive_cooldown": {
+                "description": "⏳ 发言冷却（秒）",
+                "type": "int",
+                "default": 1800,
+                "hint": "两次主动发言之间的最短间隔。默认 1800 秒（30 分钟），最小 600 秒。拟人模式下半小时到一小时发几条属正常。"
+            },
+            "proactive_daily_limit": {
+                "description": "📊 每日上限",
+                "type": "int",
+                "default": 20,
+                "hint": "每个群每天最多主动发言次数。默认 20 次。拟人模式下正常社交频率。"
+            },
+            "proactive_probability": {
+                "description": "🎲 触发概率",
+                "type": "float",
+                "default": 0.6,
+                "hint": "即使所有条件满足，也只以此概率实际触发发言，避免可预测性。默认 0.6，0~1。"
+            },
+            "proactive_min_energy": {
+                "description": "🔋 精力下限",
+                "type": "float",
+                "default": 0.15,
+                "hint": "精力低于此值时不主动发言，优先保留给被动回复。默认 0.15，0~1。"
+            },
+            "proactive_time_window_start": {
+                "description": "🌅 允许发言起始时间",
+                "type": "string",
+                "default": "09:00",
+                "hint": "主动发言允许的最早时间（24小时制 HH:MM）。避免深夜打扰。"
+            },
+            "proactive_time_window_end": {
+                "description": "🌙 允许发言结束时间",
+                "type": "string",
+                "default": "23:00",
+                "hint": "主动发言允许的最晚时间（24小时制 HH:MM）。"
+            },
+            "proactive_quiet_hours": {
+                "description": "🔇 静默时段（v1.8.4 新增）",
+                "type": "string",
+                "default": "23:00-07:00",
+                "hint": "静默时段，此时段内禁止主动发言和冷场救场，避免深夜打扰。支持多段（逗号分隔），如 '23:00-07:00,13:00-14:00'。支持跨天（如 23:00-07:00 表示晚上 23 点到次日早上 7 点）。留空则不启用静默时段。与 time_window 是交集关系：两者都允许时才发言。"
+            },
+            "proactive_min_context_messages": {
+                "description": "📝 最少上下文消息数",
+                "type": "int",
+                "default": 1,
+                "hint": "群消息缓冲区至少需要多少条消息才考虑主动发言。默认 1（只要有消息即可），消息量少的群也能触发。调高可要求更充分上下文。"
+            },
+            "proactive_idle_threshold": {
+                "description": "💤 冷场判定阈值（秒）",
+                "type": "int",
+                "default": 600,
+                "hint": "群内无消息多久判定为冷场。默认 600 秒（10 分钟），最小 300 秒。"
+            },
+            "proactive_self_talk_ratio": {
+                "description": "🔇 自说自话占比阈值",
+                "type": "float",
+                "default": 0.8,
+                "hint": "时间窗口内 Bot 消息占比超过此值时跳过主动发言，避免自说自话。0~1，值越高越宽松（1.0=只有全是Bot消息才跳过），值越低越严格（0.5=Bot占一半就跳过）。默认 0.8。"
+            },
+            "proactive_self_talk_hours": {
+                "description": "🔇 自说自话检测时间窗口（小时）",
+                "type": "float",
+                "default": 2.0,
+                "hint": "检查过去多少小时内的消息计算 Bot 占比。时间越长越宽松（2小时内要全被Bot填满比1小时更难），越短越严格。设为0则不检查时间窗口（看全部缓冲区）。默认 2 小时。"
+            },
+            "proactive_topic_categories": {
+                "description": "📝 话题类别",
+                "type": "string",
+                "default": "分享想法|提问讨论|回忆过去|关注某人|活跃气氛|科技资讯|游戏八卦|沙雕新闻|热点事件",
+                "hint": "主动发言的话题方向类别，用 | 分隔。资讯类话题（科技资讯/游戏八卦/沙雕新闻/热点事件）需启用 Fetcher 模块，否则将自动降级为活跃气氛。"
+            },
+            "proactive_custom_topics": {
+                "description": "📝 自定义话题",
+                "type": "string",
+                "default": "",
+                "hint": "自定义话题列表，用 | 分隔。配置后 LLM 有概率直接使用这些话题而非自动生成。留空则完全由 LLM 自主生成。"
+            },
+            "proactive_target_groups": {
+                "description": "📋 主动发言目标群列表",
+                "type": "string",
+                "default": "",
+                "hint": "白名单模式：指定主动发言的目标群号列表，逗号分隔。如：123456789,-987654321。配置后只在这些群内主动发言，其他群不会被调度。留空则遍历所有有活跃记录的群（旧行为）。"
+            },
+            "proactive_retreat_active_surge_secs": {
+                "description": "🔥 活跃激增退却时长（秒）",
+                "type": "int",
+                "default": 3600,
+                "min": 60,
+                "max": 86400,
+                "advanced": true,
+                "hint": "v1.9.7 新增：检测到群内活跃讨论激增时触发的退却时长。默认 3600 秒（1 小时）。"
+            },
+            "proactive_retreat_consecutive_skip_secs": {
+                "description": "⏭️ 连续SKIP退却时长（秒）",
+                "type": "int",
+                "default": 3600,
+                "min": 60,
+                "max": 86400,
+                "advanced": true,
+                "hint": "v1.9.7 新增：LLM 连续 3 次输出 [SKIP] 时触发的退却时长。默认 3600 秒（1 小时）。"
+            },
+            "proactive_retreat_no_response_base_secs": {
+                "description": "😶 连续无回应退却基础时长（秒）",
+                "type": "int",
+                "default": 3600,
+                "min": 300,
+                "max": 86400,
+                "advanced": true,
+                "hint": "v1.9.7 新增：连续无回应退却的基础时长，实际退却 = base × 连续次数（受最大值限制）。默认 3600 秒（1 小时）。"
+            },
+            "proactive_retreat_no_response_max_secs": {
+                "description": "🔇 连续无回应退却最大时长（秒）",
+                "type": "int",
+                "default": 86400,
+                "min": 3600,
+                "max": 604800,
+                "advanced": true,
+                "hint": "v1.9.7 新增：连续无回应退却的最大时长上限。默认 86400 秒（24 小时）。"
+            },
+            "proactive_retreat_annoyed_secs": {
+                "description": "😡 厌烦关键词退却时长（秒）",
+                "type": "int",
+                "default": 86400,
+                "min": 3600,
+                "max": 604800,
+                "advanced": true,
+                "hint": "v1.9.7 新增：检测到厌烦关键词（如闭嘴、烦）时触发的退却时长。默认 86400 秒（24 小时）。"
             }
         }
     },
@@ -635,6 +789,42 @@
                                 "type": "float",
                                 "default": null,
                                 "hint": "覆盖疲劳最大倍率上限，留空使用全局值。"
+                            },
+                            "proactive_enabled": {
+                                "description": "🚀 启用主动发言",
+                                "type": "bool",
+                                "default": null,
+                                "hint": "覆盖此群的主动发言开关，留空使用全局值。可单独关闭某群的主动发言。"
+                            },
+                            "proactive_cooldown": {
+                                "description": "⏳ 发言冷却（秒）",
+                                "type": "int",
+                                "default": null,
+                                "hint": "覆盖此群的主动发言冷却时间，留空使用全局值。"
+                            },
+                            "proactive_daily_limit": {
+                                "description": "📊 每日上限",
+                                "type": "int",
+                                "default": null,
+                                "hint": "覆盖此群的每日主动发言上限，留空使用全局值。"
+                            },
+                            "proactive_probability": {
+                                "description": "🎲 触发概率",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖此群的触发概率，留空使用全局值。"
+                            },
+                            "proactive_min_energy": {
+                                "description": "🔋 最少精力值",
+                                "type": "float",
+                                "default": null,
+                                "hint": "覆盖此群的最少精力值，留空使用全局值。"
+                            },
+                            "proactive_quiet_hours": {
+                                "description": "🔇 静默时段（v1.8.4 新增）",
+                                "type": "string",
+                                "default": null,
+                                "hint": "覆盖此群的静默时段（如海外群时区不同），留空使用全局值。格式同全局配置：'23:00-07:00' 或多段 '23:00-07:00,13:00-14:00'。设为 'none' 字符串可禁用此群的静默时段。"
                             }
                         }
                     }
@@ -718,6 +908,74 @@
                         "default": 1.5
                     }
                 }
+            }
+        }
+    },
+    "fetcher": {
+        "description": "📡 外部资讯模块",
+        "type": "object",
+        "hint": "从 RSS 和新闻 API 抓取实时资讯，作为主动发言的内容来源。使 Bot 从'信息索求者'转变为'有趣信息的分享者与锐评人'。需在「主动发言」中启用相关资讯类话题。",
+        "items": {
+            "fetcher_enabled": {
+                "description": "📡 启用资讯模块",
+                "type": "bool",
+                "default": false,
+                "hint": "开启后主动发言可使用外部资讯作为话题来源。默认关闭。启用后需在「主动发言-话题类别」中添加资讯类话题（科技资讯/游戏八卦/沙雕新闻/热点事件）。"
+            },
+            "fetcher_rss_enabled": {
+                "description": "📰 启用 RSS 数据源",
+                "type": "bool",
+                "default": true,
+                "hint": "开启后使用 RSS feeds 作为主数据源（免费、稳定）。默认开启。若仅想使用新闻 API 数据源可关闭此项。"
+            },
+            "fetcher_rss_feeds": {
+                "description": "📰 自定义 RSS 源",
+                "type": "string",
+                "default": "",
+                "hint": "自定义 RSS 源列表，覆盖内置默认源。格式（v1.8.0 更新）：\n1. 分类格式（推荐）：类别|URL1,URL2;类别|URL1,URL2\n2. 分类格式（兼容冒号）：类别:URL1,URL2;类别:URL1,URL2\n3. 简化格式：每行一个 URL（统一归入「通用」类别）\n示例：科技资讯|https://www.theverge.com/rss/index.xml,https://techcrunch.com/feed/;游戏八卦|https://kotaku.com/rss\n留空则使用内置默认源（The Verge/TechCrunch/Kotaku/BBC Oddly Enough 等）。"
+            },
+            "fetcher_api_provider": {
+                "description": "🔑 API 提供商",
+                "type": "string",
+                "default": "",
+                "options": ["", "apitube", "newsdata"],
+                "hint": "新闻 API 提供商。留空则仅使用 RSS。可选：apitube、newsdata。APITube 免费 1000 请求/天。"
+            },
+            "fetcher_api_key": {
+                "description": "🔑 API Key",
+                "type": "string",
+                "default": "",
+                "hint": "新闻 API 的 Key。直接填入此处，插件运行时从此读取。留空则不启用 API 数据源。凭据存储在插件内部，部署到服务器时无需访问外部文件。"
+            },
+            "fetcher_api_key_env": {
+                "description": "🔑 API Key 环境变量名（可选）",
+                "type": "string",
+                "default": "",
+                "hint": "API Key 存储在环境变量中，此处填写环境变量名（如 APITUBE_API_KEY）。留空则从上面的 API Key 字段直接读取。优先级：环境变量 > 直接配置。"
+            },
+            "fetcher_cache_ttl": {
+                "description": "⏳ 缓存 TTL（秒）",
+                "type": "int",
+                "default": 21600,
+                "hint": "资讯池子有效期。默认 21600 秒（6 小时）。池子内不重复调用 API/RSS，跨群共享资讯池子以节省请求次数。建议 6-24 小时，过短会导致频繁拉取，过长资讯时效性差。"
+            },
+            "fetcher_max_items_per_fetch": {
+                "description": "📊 单次获取上限",
+                "type": "int",
+                "default": 3,
+                "hint": "每次主动发言从池子中取出的资讯条数上限。建议 2-5。条数越多 LLM 可选素材越多，但 token 消耗越高。"
+            },
+            "fetcher_pool_size": {
+                "description": "🌊 资讯池子大小",
+                "type": "int",
+                "default": 15,
+                "hint": "每次拉取 RSS/API 填充池子的资讯条数。默认 15 条。池子跨群复用，每个群从中取「单次获取上限」条该群未发送过的。池子越大可服务更多群/更多次发言，但 token 消耗越高。建议 10-30。"
+            },
+            "fetcher_proxy": {
+                "description": "🌐 HTTP 代理地址",
+                "type": "string",
+                "default": "",
+                "hint": "v1.8.3 新增：RSS 拉取使用的 HTTP 代理地址。当 AstrBot 作为 NSSM 服务运行在 SYSTEM 账户时，无法读取用户配置的 Windows 系统代理（winreg/urllib.getproxies 均失效），必须在此显式配置。格式：http://127.0.0.1:7897（Clash 默认端口）。留空则尝试自动探测系统代理（独立进程有效，NSSM 服务无效）。"
             }
         }
     }

@@ -49,7 +49,7 @@
   }
 }
 </script>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>">
+<link rel="icon" type="image/png" href="logo.png">
 <!-- 性能优化：预加载关键资源 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -213,13 +213,10 @@
   .nav-logo-icon {
     width: 38px;
     height: 38px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, rgba(52, 211, 153, 0.65) 0%, rgba(251, 191, 36, 0.65) 50%, rgba(251, 146, 60, 0.65) 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    box-shadow: var(--glow-amber);
+    object-fit: contain;
+    /* v1.9.7 LOGO 替换：🔔 emoji → logo.png（透明底），
+       渐变衬底与盒子阴影不再需要；drop-shadow 跟随实际形状 */
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.45));
     animation: bellRing 4s ease-in-out infinite;
   }
 
@@ -1734,7 +1731,7 @@
 <nav class="nav" id="nav">
   <div class="nav-inner">
     <a href="#" class="nav-logo">
-      <span class="nav-logo-icon">🔔</span>
+      <img class="nav-logo-icon" src="logo.png" alt="灵犀 Logo" />
       <span class="nav-logo-text" data-i18n="nav_logo">灵犀</span>
     </a>
     <div class="nav-links" id="navLinks">
@@ -2428,7 +2425,7 @@
     <div class="footer-grid">
       <div class="footer-brand">
         <div class="footer-logo">
-          <span class="nav-logo-icon">🔔</span>
+          <img class="nav-logo-icon" src="logo.png" alt="灵犀 Logo" />
           <span class="footer-logo-text" data-i18n="nav_logo">灵犀</span>
         </div>
         <p class="footer-desc" data-i18n="footer_desc">

@@ -1,0 +1,3 @@
+# Fetcher 模块依赖
+feedparser>=6.0.0
+aiohttp>=3.8.0

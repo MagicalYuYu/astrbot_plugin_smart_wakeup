@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能唤醒配置面板 · astrbot_plugin_smart_wakeup</title>
+    <!-- Vue 3 CDN（生产版，禁止改为 npm 依赖，因为本插件无构建工具链） -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- 样式文件（AstrBot 会自动重写为带 asset_token 的绝对路径） -->
+    <link rel="stylesheet" href="styles.css?v=1.9.3">
+</head>
+<body>
+    <!-- Vue 应用根节点：使用 mount 元素 innerHTML 作为模板，避免引入 .vue 单文件组件 -->
+    <div id="app">
+        <!-- ====================== 顶部工具栏 ====================== -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="brand">
+                    <img class="brand-logo" src="logo.png" alt="灵犀 Logo" />
+                    <div class="brand-text">
+                        <div class="brand-title">智能唤醒配置面板</div>
+                        <div class="brand-subtitle" v-if="!loading.schema">
+                            v{{ schemaVersion }} · {{ totalItems }} 项配置 · {{ totalCategories }} 个分类
+                        </div>
+                        <div class="brand-subtitle" v-else>正在加载配置 schema...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="topbar-center">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input
+                        type="text"
+                        v-model="searchQuery"
+                        placeholder="搜索配置项（按名称、说明、提示）..."
+                        class="search-input"
+                        @input="onSearchInput"
+                    >
+                    <button v-if="searchQuery" class="search-clear" @click="clearSearch" title="清除搜索">✕</button>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <!-- 简单/高级模式切换 -->
+                <div class="mode-toggle" :class="{ active: advancedMode }" @click="toggleAdvancedMode" :title="advancedMode ? '当前：高级模式（显示全部）' : '当前：简单模式（隐藏高级项）'">
+                    <span class="mode-toggle-label">{{ advancedMode ? '高级' : '简单' }}</span>
+                    <span class="mode-toggle-switch">
+                        <span class="mode-toggle-knob"></span>
+                    </span>
+                </div>
+                <!-- 预设管理下拉 -->
+                <div class="dropdown" :class="{ open: dropdowns.presets }">
+                    <button class="btn btn-secondary" @click="toggleDropdown('presets')" :disabled="loading.presets">
+                        <span>📚</span> 预设
+                        <span class="caret"></span>
+                    </button>
+                    <div class="dropdown-menu" v-if="dropdowns.presets">
+                        <div class="dropdown-header">应用预设配置</div>
+                        <button
+                            v-for="preset in presets"
+                            :key="preset.id || preset.name"
+                            class="dropdown-item"
+                            @click="applyPreset(preset.id || preset.name)"
+                        >
+                            <div class="preset-item">
+                                <div class="preset-name">{{ preset.name || preset.label }}</div>
+                                <div class="preset-desc" v-if="preset.description">{{ preset.description }}</div>
+                            </div>
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-empty" v-if="!presets.length">暂无预设</div>
+                    </div>
+                </div>
+                <!-- 导入 -->
+                <button class="btn btn-secondary" @click="triggerImport" title="从 JSON 文件导入配置">
+                    <span>📥</span> 导入
+                </button>
+                <input type="file" ref="importInput" accept=".json" style="display:none" @change="onImportFile">
+                <!-- 导出 -->
+                <button class="btn btn-secondary" @click="exportConfig" title="导出当前配置为 JSON 文件">
+                    <span>📤</span> 导出
+                </button>
+                <!-- 重置 -->
+                <button class="btn btn-secondary" @click="resetConfig" :disabled="!hasUnsavedChanges || loading.config" title="放弃当前修改，恢复到上次保存的值">
+                    <span>↺</span> 重置
+                </button>
+                <!-- 保存 -->
+                <button class="btn btn-primary" @click="saveConfig" :disabled="!hasUnsavedChanges || loading.config" :class="{ saving: loading.config }">
+                    <span v-if="loading.config">⏳</span>
+                    <span v-else>💾</span>
+                    {{ loading.config ? '保存中...' : '保存' }}
+                    <span class="badge badge-warn" v-if="hasUnsavedChanges">未保存</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ====================== 顶部消息条（错误/成功提示） ====================== -->
+        <transition name="fade">
+            <div v-if="message.text" class="message-bar" :class="`message-${message.type}`">
+                <span class="message-icon">{{ message.type === 'error' ? '❌' : message.type === 'success' ? '✅' : message.type === 'warning' ? '⚠️' : 'ℹ️' }}</span>
+                <span class="message-text">{{ message.text }}</span>
+                <button class="message-close" @click="clearMessage">✕</button>
+            </div>
+        </transition>
+
+        <!-- ====================== 加载遮罩（首次加载 schema/config） ====================== -->
+        <div v-if="loading.init" class="loading-overlay">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">{{ loadingText || '正在加载配置面板...' }}</div>
+        </div>
+
+        <!-- ====================== 主体内容（侧边栏 + 主内容） ====================== -->
+        <main class="main-layout" v-else>
+            <!-- 左侧边栏：7 大类导航 -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <span class="sidebar-title">配置分类</span>
+                </div>
+                <nav class="sidebar-nav">
+                    <button
+                        v-for="group in sidebarGroups"
+                        :key="group.id"
+                        class="sidebar-item"
+                        :class="{ active: activeGroup === group.id }"
+                        @click="selectGroup(group.id)"
+                    >
+                        <span class="sidebar-icon">{{ group.icon }}</span>
+                        <span class="sidebar-label">{{ group.label }}</span>
+                        <span class="sidebar-count">{{ group.itemCount }}</span>
+                    </button>
+                </nav>
+                <div class="sidebar-footer">
+                    <button class="sidebar-link" @click="openStatusPanel" :class="{ active: panels.status }">
+                        <span>📊</span> 实时状态
+                    </button>
+                    <button class="sidebar-link" @click="openDebugConsole" :class="{ active: panels.debug }">
+                        <span>🛠️</span> 调试控制台
+                    </button>
+                </div>
+            </aside>
+
+            <!-- 右侧主内容区：当前分类的配置项列表 -->
+            <section class="content-area">
+                <!-- 当前分类标题 -->
+                <div class="content-header">
+                    <div class="content-title-group">
+                        <h1 class="content-title">
+                            <span class="content-icon">{{ currentGroupIcon }}</span>
+                            {{ currentGroupLabel }}
+                        </h1>
+                        <p class="content-subtitle" v-if="currentGroupHint">{{ currentGroupHint }}</p>
+                    </div>
+                    <div class="content-meta">
+                        <span class="meta-tag meta-tag-info">
+                            {{ currentGroupItemCount }} 项
+                        </span>
+                        <span class="meta-tag meta-tag-muted" v-if="currentGroupAdvancedCount > 0">
+                            {{ currentGroupAdvancedCount }} 高级
+                        </span>
+                        <span class="meta-tag meta-tag-success" v-if="currentGroupModifiedCount > 0">
+                            {{ currentGroupModifiedCount }} 已修改
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 搜索结果提示 -->
+                <div class="search-result-banner" v-if="committedSearchQuery">
+                    <span>🔍 搜索 "<strong>{{ committedSearchQuery }}</strong>" 找到 {{ filteredItems.length }} 项</span>
+                    <button class="btn-link" @click="clearSearch">清除搜索</button>
+                </div>
+
+                <!-- 配置项分组渲染（按 schema 中的子分类渲染） -->
+                <div class="config-sections" v-if="filteredItems.length > 0">
+                    <div
+                        v-for="section in groupedFilteredItems"
+                        :key="section.category"
+                        class="config-section"
+                        :class="{ collapsed: isSectionCollapsed(section.category) && !committedSearchQuery }"
+                    >
+                        <div class="config-section-header" @click="toggleSection(section.category)">
+                            <h2 class="config-section-title">
+                                <span class="section-collapse-icon">{{ isSectionCollapsed(section.category) ? '▶' : '▼' }}</span>
+                                <span class="section-icon">{{ section.icon }}</span>
+                                {{ section.description }}
+                            </h2>
+                            <span class="config-section-hint" v-if="section.hint">{{ section.hint }}</span>
+                        </div>
+                        <div class="config-section-items" v-show="!isSectionCollapsed(section.category) || committedSearchQuery">
+                            <div
+                                v-for="item in section.items"
+                                :key="item.fullKey"
+                                class="config-item"
+                                :class="{
+                                    'config-item-advanced': item.advanced && !item._isDefaultAdvanced,
+                                    'config-item-modified': isItemModified(item),
+                                    'config-item-full': isComplexType(item)
+                                }"
+                            >
+                                <div class="config-item-main">
+                                    <div class="config-item-label">
+                                        <label class="config-label" :for="'cfg-' + item.fullKey">
+                                            {{ item.description }}
+                                            <span class="config-key" :title="item.fullKey">{{ item.fullKey }}</span>
+                                        </label>
+                                        <div class="config-item-tags">
+                                            <span class="tag tag-type" :class="`tag-${item.type}`">{{ item.type }}</span>
+                                            <span class="tag tag-advanced" v-if="item.advanced">高级</span>
+                                        </div>
+                                    </div>
+                                    <p class="config-hint" v-if="item.hint">{{ item.hint }}</p>
+                                </div>
+                                <div class="config-item-control">
+                                    <!-- bool 类型：开关 -->
+                                    <div v-if="item.type === 'bool'" class="control-bool">
+                                        <label class="switch">
+                                            <input
+                                                type="checkbox"
+                                                :id="'cfg-' + item.fullKey"
+                                                v-model="config[item.category][item.key]"
+                                                @change="markModified(item)"
+                                            >
+                                            <span class="switch-slider"></span>
+                                        </label>
+                                        <span class="control-bool-label">{{ config[item.category][item.key] ? '已开启' : '已关闭' }}</span>
+                                    </div>
+                                    <!-- string 类型：单行输入或下拉或文本域 -->
+                                    <div v-else-if="item.type === 'string'" class="control-string">
+                                        <select
+                                            v-if="item.options && item.options.length"
+                                            :id="'cfg-' + item.fullKey"
+                                            v-model="config[item.category][item.key]"
+                                            @change="markModified(item)"
+                                            class="input-select"
+                                        >
+                                            <option v-for="opt in item.options" :key="opt" :value="opt">{{ opt || '(空)' }}</option>
+                                        </select>
+                                        <textarea
+                                            v-else-if="isMultilineString(item)"
+                                            :id="'cfg-' + item.fullKey"
+                                            v-model="config[item.category][item.key]"
+                                            @input="markModified(item)"
+                                            class="input-textarea"
+                                            rows="3"
+                                            :placeholder="item.default || ''"
+                                        ></textarea>
+                                        <input
+                                            v-else
+                                            type="text"
+                                            :id="'cfg-' + item.fullKey"
+                                            v-model="config[item.category][item.key]"
+                                            @input="markModified(item)"
+                                            class="input-text"
+                                            :placeholder="item.default || ''"
+                                        >
+                                    </div>
+                                    <!-- int 类型：数字输入 + 范围提示 -->
+                                    <div v-else-if="item.type === 'int'" class="control-number">
+                                        <input
+                                            type="number"
+                                            step="1"
+                                            :id="'cfg-' + item.fullKey"
+                                            v-model.number="config[item.category][item.key]"
+                                            @input="markModified(item)"
+                                            class="input-number"
+                                        >
+                                        <span class="control-hint" v-if="item.hint">{{ extractRangeHint(item.hint) }}</span>
+                                    </div>
+                                    <!-- float 类型：数字输入 + 范围提示 -->
+                                    <div v-else-if="item.type === 'float'" class="control-number">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            :id="'cfg-' + item.fullKey"
+                                            v-model.number="config[item.category][item.key]"
+                                            @input="markModified(item)"
+                                            class="input-number"
+                                        >
+                                        <span class="control-hint" v-if="item.hint">{{ extractRangeHint(item.hint) }}</span>
+                                    </div>
+                                    <!-- list 类型：文本域（每行一个） -->
+                                    <div v-else-if="item.type === 'list'" class="control-list">
+                                        <textarea
+                                            :id="'cfg-' + item.fullKey"
+                                            :value="listToText(config[item.category][item.key])"
+                                            @input="onListInput($event, item)"
+                                            class="input-textarea"
+                                            rows="3"
+                                            placeholder="每行一个值"
+                                        ></textarea>
+                                        <span class="control-hint">{{ (config[item.category][item.key] || []).length }} 项</span>
+                                    </div>
+                                    <!-- template_list 类型：可编辑对象列表 -->
+                                    <div v-else-if="item.type === 'template_list'" class="control-template-list">
+                                        <div class="template-list-header">
+                                            <span class="template-list-count">{{ (config[item.category][item.key] || []).length }} 条记录</span>
+                                            <button class="btn btn-mini btn-primary" @click="addTemplateItem(item)">+ 添加</button>
+                                        </div>
+                                        <div
+                                            v-for="(entry, idx) in (config[item.category][item.key] || [])"
+                                            :key="entry._uid || idx"
+                                            class="template-list-entry"
+                                        >
+                                            <div class="template-list-entry-header">
+                                                <span class="template-list-entry-title">#{{ idx + 1 }}</span>
+                                                <button class="btn btn-mini btn-danger" @click="removeTemplateItem(item, idx)">删除</button>
+                                            </div>
+                                            <div class="template-list-entry-fields">
+                                                <div
+                                                    v-for="(fieldSchema, fieldKey) in item.templates[item.templateKey].items"
+                                                    :key="fieldKey"
+                                                    class="template-field"
+                                                >
+                                                    <label class="template-field-label">
+                                                        {{ fieldSchema.description }}
+                                                        <span :class="['tag', 'tag-type', 'tag-' + fieldSchema.type]">{{ fieldSchema.type }}</span>
+                                                    </label>
+                                                    <p class="template-field-hint" v-if="fieldSchema.hint">{{ fieldSchema.hint }}</p>
+                                                    <input
+                                                        v-if="fieldSchema.type === 'string'"
+                                                        type="text"
+                                                        v-model="entry[fieldKey]"
+                                                        @input="markModified(item)"
+                                                        class="input-text"
+                                                        :placeholder="fieldSchema.default || ''"
+                                                    >
+                                                    <input
+                                                        v-else-if="fieldSchema.type === 'int'"
+                                                        type="number"
+                                                        step="1"
+                                                        v-model.number="entry[fieldKey]"
+                                                        @input="markModified(item)"
+                                                        class="input-number"
+                                                    >
+                                                    <input
+                                                        v-else-if="fieldSchema.type === 'float'"
+                                                        type="number"
+                                                        step="0.01"
+                                                        v-model.number="entry[fieldKey]"
+                                                        @input="markModified(item)"
+                                                        class="input-number"
+                                                    >
+                                                    <label v-else-if="fieldSchema.type === 'bool'" class="switch">
+                                                        <input
+                                                            type="checkbox"
+                                                            v-model="entry[fieldKey]"
+                                                            @change="markModified(item)"
+                                                        >
+                                                        <span class="switch-slider"></span>
+                                                    </label>
+                                                    <input
+                                                        v-else
+                                                        type="text"
+                                                        :value="JSON.stringify(entry[fieldKey])"
+                                                        @input="onJsonFieldInput($event, entry, fieldKey, item)"
+                                                        class="input-text"
+                                                    >
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="template-list-empty" v-if="!(config[item.category][item.key] || []).length">
+                                            暂无记录，点击"+ 添加"创建
+                                        </div>
+                                    </div>
+                                    <!-- object 类型：嵌套字段渲染 -->
+                                    <div v-else-if="item.type === 'object'" class="control-object">
+                                        <div
+                                            v-for="(subSchema, subKey) in item.items"
+                                            :key="subKey"
+                                            class="object-field"
+                                        >
+                                            <label class="object-field-label">
+                                                {{ subSchema.description }}
+                                                <span :class="['tag', 'tag-type', 'tag-' + subSchema.type]">{{ subSchema.type }}</span>
+                                            </label>
+                                            <p class="object-field-hint" v-if="subSchema.hint">{{ subSchema.hint }}</p>
+                                            <input
+                                                v-if="subSchema.type === 'string'"
+                                                type="text"
+                                                v-model="config[item.category][item.key][subKey]"
+                                                @input="markModified(item)"
+                                                class="input-text"
+                                                :placeholder="subSchema.default !== undefined ? String(subSchema.default) : ''"
+                                            >
+                                            <input
+                                                v-else-if="subSchema.type === 'int'"
+                                                type="number"
+                                                step="1"
+                                                v-model.number="config[item.category][item.key][subKey]"
+                                                @input="markModified(item)"
+                                                class="input-number"
+                                            >
+                                            <input
+                                                v-else-if="subSchema.type === 'float'"
+                                                type="number"
+                                                step="0.01"
+                                                v-model.number="config[item.category][item.key][subKey]"
+                                                @input="markModified(item)"
+                                                class="input-number"
+                                            >
+                                            <label v-else-if="subSchema.type === 'bool'" class="switch">
+                                                <input
+                                                    type="checkbox"
+                                                    v-model="config[item.category][item.key][subKey]"
+                                                    @change="markModified(item)"
+                                                >
+                                                <span class="switch-slider"></span>
+                                            </label>
+                                            <input
+                                                v-else
+                                                type="text"
+                                                :value="JSON.stringify(config[item.category][item.key][subKey])"
+                                                @input="onJsonFieldInput($event, config[item.category][item.key], subKey, item)"
+                                                class="input-text"
+                                            >
+                                        </div>
+                                    </div>
+                                    <!-- 默认值回退按钮 -->
+                                    <button
+                                        class="reset-item-btn"
+                                        v-if="isItemModified(item)"
+                                        @click="resetItemToDefault(item)"
+                                        title="恢复默认值"
+                                    >↺</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 空状态 -->
+                <div class="empty-state" v-else-if="!loading.init">
+                    <div class="empty-icon">{{ committedSearchQuery ? '🔍' : '📭' }}</div>
+                    <div class="empty-text">{{ committedSearchQuery ? '没有找到匹配的配置项' : '此分类下暂无配置项' }}</div>
+                    <button v-if="committedSearchQuery" class="btn btn-secondary" @click="clearSearch">清除搜索</button>
+                </div>
+            </section>
+
+            <!-- 右侧浮动状态面板（可折叠） -->
+            <aside class="status-panel" :class="{ open: panels.status }">
+                <div class="status-panel-header">
+                    <h3 class="status-panel-title">
+                        <span>📊</span> 实时状态
+                        <span class="status-live-dot" :class="{ active: !loading.status }"></span>
+                    </h3>
+                    <button class="status-panel-close" @click="closePanel('status')">✕</button>
+                </div>
+                <div class="status-panel-body">
+                    <div class="status-summary">
+                        <div class="status-summary-item">
+                            <div class="status-summary-label">运行时长</div>
+                            <div class="status-summary-value">{{ formatUptime(status.plugin_uptime) }}</div>
+                        </div>
+                        <div class="status-summary-item">
+                            <div class="status-summary-label">版本</div>
+                            <div class="status-summary-value">{{ status.version || schemaVersion }}</div>
+                        </div>
+                        <div class="status-summary-item">
+                            <div class="status-summary-label">活跃群数</div>
+                            <div class="status-summary-value">{{ Object.keys(status.groups || {}).length }}</div>
+                        </div>
+                    </div>
+                    <div class="status-group-list" v-if="Object.keys(status.groups || {}).length > 0">
+                        <div
+                            v-for="(groupState, groupId) in status.groups"
+                            :key="groupId"
+                            class="status-group-card"
+                        >
+                            <div class="status-group-header">
+                                <span class="status-group-id" :title="groupId">{{ formatGroupId(groupId) }}</span>
+                                <span class="status-group-tag" :class="`state-${groupState.flow_state || 'idle'}`">
+                                    {{ flowStateLabel(groupState.flow_state) }}
+                                </span>
+                            </div>
+                            <div class="status-group-metrics">
+                                <div class="status-metric">
+                                    <span class="metric-label">🔋 精力</span>
+                                    <div class="metric-bar">
+                                        <div class="metric-bar-fill" :style="{ width: ((groupState.energy || 0) * 100) + '%' }"></div>
+                                    </div>
+                                    <span class="metric-value">{{ formatPercent(groupState.energy) }}</span>
+                                </div>
+                                <div class="status-metric">
+                                    <span class="metric-label">🎯 参与度</span>
+                                    <span class="metric-value">{{ formatPercent(groupState.engagement) }}</span>
+                                </div>
+                                <div class="status-metric">
+                                    <span class="metric-label">📊 缓冲</span>
+                                    <span class="metric-value">{{ groupState.buffer_count || 0 }} 条</span>
+                                </div>
+                                <div class="status-metric">
+                                    <span class="metric-label">🕐 上次发言</span>
+                                    <span class="metric-value">{{ formatTimeAgo(groupState.last_speak) }}</span>
+                                </div>
+                                <div class="status-metric">
+                                    <span class="metric-label">😶 连续无响应</span>
+                                    <span class="metric-value">{{ groupState.consecutive_no_response || 0 }} 次</span>
+                                </div>
+                                <div class="status-metric">
+                                    <span class="metric-label">⏱️ 冷却倍率</span>
+                                    <span class="metric-value">{{ formatMultiplier(groupState.cooldown_multiplier) }}</span>
+                                </div>
+                                <div class="status-metric">
+                                    <span class="metric-label">📅 今日发言</span>
+                                    <span class="metric-value">{{ groupState.today_speak_count || 0 }} 次</span>
+                                </div>
+                                <div class="status-metric" v-if="groupState.aif_state">
+                                    <span class="metric-label">🧠 AIF 状态</span>
+                                    <span class="metric-value">{{ groupState.aif_state }}</span>
+                                </div>
+                                <div class="status-metric" v-if="groupState.retreat_until">
+                                    <span class="metric-label">🚪 退让至</span>
+                                    <span class="metric-value">{{ formatTimeAgo(groupState.retreat_until) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="status-empty" v-else>
+                        <div class="status-empty-icon">💤</div>
+                        <div class="status-empty-text">暂无活跃群组状态</div>
+                        <div class="status-empty-hint">等待群组产生消息后状态会自动出现</div>
+                    </div>
+                </div>
+                <div class="status-panel-footer">
+                    <button class="btn btn-mini btn-secondary" @click="loadStatus" :disabled="loading.status">
+                        {{ loading.status ? '刷新中...' : '🔄 立即刷新' }}
+                    </button>
+                    <label class="status-autorefresh">
+                        <input type="checkbox" v-model="autoRefreshStatus">
+                        <span>每 5s 自动刷新</span>
+                    </label>
+                </div>
+            </aside>
+        </main>
+
+        <!-- ====================== 底部调试控制台（可折叠） ====================== -->
+        <section class="debug-console" :class="{ open: panels.debug }">
+            <div class="debug-console-header" @click="togglePanel('debug')">
+                <div class="debug-console-title">
+                    <span>🛠️</span> 调试控制台
+                    <span class="debug-badge" v-if="logs.length">{{ logs.length }}</span>
+                </div>
+                <div class="debug-console-actions">
+                    <button class="btn btn-mini btn-secondary" @click.stop="loadLogs" :disabled="loading.logs">
+                        {{ loading.logs ? '加载中...' : '🔄 刷新日志' }}
+                    </button>
+                    <button class="btn btn-mini btn-secondary" @click.stop="openTestSpeakDialog">📤 测试发言</button>
+                    <button class="btn btn-mini btn-secondary" @click.stop="openResetStateDialog">♻️ 重置状态</button>
+                    <button class="debug-chevron" :class="{ open: panels.debug }">▼</button>
+                </div>
+            </div>
+            <div class="debug-console-body" v-show="panels.debug">
+                <div class="debug-tabs">
+                    <button class="debug-tab" :class="{ active: debugTab === 'logs' }" @click="debugTab = 'logs'">日志</button>
+                    <button class="debug-tab" :class="{ active: debugTab === 'testspeak' }" @click="debugTab = 'testspeak'">测试发言</button>
+                    <button class="debug-tab" :class="{ active: debugTab === 'reset' }" @click="debugTab = 'reset'">状态重置</button>
+                </div>
+                <!-- 日志视图 -->
+                <div class="debug-pane" v-show="debugTab === 'logs'">
+                    <div class="debug-toolbar">
+                        <input
+                            type="text"
+                            v-model="logFilter"
+                            placeholder="过滤日志..."
+                            class="input-text debug-filter"
+                        >
+                        <select v-model="logLimit" @change="loadLogs" class="input-select debug-limit">
+                            <option :value="50">最近 50 条</option>
+                            <option :value="100">最近 100 条</option>
+                            <option :value="200">最近 200 条</option>
+                            <option :value="500">最近 500 条</option>
+                        </select>
+                    </div>
+                    <div class="debug-log-list">
+                        <div
+                            v-for="(log, idx) in filteredLogs"
+                            :key="idx"
+                            class="debug-log-entry"
+                            :class="`log-${log.level || 'info'}`"
+                        >
+                            <span class="log-time">{{ formatLogTime(log.time || log.timestamp) }}</span>
+                            <span class="log-level">{{ log.level || 'INFO' }}</span>
+                            <span class="log-message">{{ log.message || log.msg }}</span>
+                        </div>
+                        <div class="debug-log-empty" v-if="!filteredLogs.length">
+                            暂无日志记录
+                        </div>
+                    </div>
+                </div>
+                <!-- 测试发言视图 -->
+                <div class="debug-pane" v-show="debugTab === 'testspeak'">
+                    <div class="debug-form">
+                        <div class="debug-form-row">
+                            <label class="debug-form-label">群组 ID</label>
+                            <select v-model="testSpeakForm.group_id" class="input-select">
+                                <option value="">— 选择群组 —</option>
+                                <option v-for="groupId in groupIds" :key="groupId" :value="groupId">{{ groupId }}</option>
+                            </select>
+                        </div>
+                        <div class="debug-form-row">
+                            <label class="debug-form-label">话题</label>
+                            <input type="text" v-model="testSpeakForm.topic" class="input-text" placeholder="指定话题（可选）">
+                        </div>
+                        <div class="debug-form-actions">
+                            <button
+                                class="btn btn-primary"
+                                @click="executeTestSpeak"
+                                :disabled="loading.testSpeak || !testSpeakForm.group_id"
+                            >
+                                {{ loading.testSpeak ? '执行中...' : '🚀 触发发言' }}
+                            </button>
+                            <span class="debug-form-result" v-if="testSpeakResult">
+                                结果：{{ testSpeakResult }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <!-- 状态重置视图 -->
+                <div class="debug-pane" v-show="debugTab === 'reset'">
+                    <div class="debug-form">
+                        <div class="debug-form-row">
+                            <label class="debug-form-label">群组 ID</label>
+                            <select v-model="resetStateForm.group_id" class="input-select">
+                                <option value="">— 选择群组 —</option>
+                                <option v-for="groupId in groupIds" :key="groupId" :value="groupId">{{ groupId }}</option>
+                            </select>
+                        </div>
+                        <div class="debug-form-row">
+                            <label class="debug-form-label">重置类型</label>
+                            <div class="debug-checkbox-group">
+                                <label class="debug-checkbox">
+                                    <input type="checkbox" value="energy" v-model="resetStateForm.reset_types">
+                                    <span>精力</span>
+                                </label>
+                                <label class="debug-checkbox">
+                                    <input type="checkbox" value="flow" v-model="resetStateForm.reset_types">
+                                    <span>心流</span>
+                                </label>
+                                <label class="debug-checkbox">
+                                    <input type="checkbox" value="buffer" v-model="resetStateForm.reset_types">
+                                    <span>缓冲区</span>
+                                </label>
+                                <label class="debug-checkbox">
+                                    <input type="checkbox" value="proactive" v-model="resetStateForm.reset_types">
+                                    <span>主动发言状态</span>
+                                </label>
+                                <label class="debug-checkbox">
+                                    <input type="checkbox" value="all" v-model="resetStateForm.reset_types">
+                                    <span>全部</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="debug-form-actions">
+                            <button
+                                class="btn btn-danger"
+                                @click="executeResetState"
+                                :disabled="loading.resetState || !resetStateForm.group_id || !resetStateForm.reset_types.length"
+                            >
+                                {{ loading.resetState ? '执行中...' : '♻️ 重置状态' }}
+                            </button>
+                            <span class="debug-form-result" v-if="resetStateResult">
+                                结果：{{ resetStateResult }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====================== 全局遮罩点击关闭下拉菜单 ====================== -->
+        <div class="backdrop" v-if="anyDropdownOpen" @click="closeAllDropdowns"></div>
+    </div>
+
+    <!-- 主应用脚本（AstrBot 会自动重写为带 asset_token 的绝对路径，v= 版本号查询参数用于强制浏览器重新加载） -->
+    <script src="app.js?v=1.9.7"></script>
+</body>
+</html>

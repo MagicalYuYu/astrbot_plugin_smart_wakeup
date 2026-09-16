@@ -1,5 +1,88 @@
 # 更新日志
 
+## [1.4.4] - 2026-09-16
+
+本次发布合并 v1.4.3（2026-07-15）之后的全部演进（内部开发序列 v1.8.4 与 v1.9.0 ~ v1.9.8 均未对外发布过），跨越主动发言模块首发、退让信号系统、Fetcher 外部资讯抓取模块、可配置化重构、P0 根因修复、静默时段与递进退让、Web 自定义配置面板、对抗评估修复、[SKIP] 混合体泄露修复等关键节点。下文按功能分类分组，不再按内部版本切分。
+
+### 新增
+
+- **Web 自定义配置面板（v1.9.0 ~ v1.9.3）**：基于 AstrBot 插件自定义 Web 页面机制新增可视化配置面板，替代原 `_conf_schema.json` 生成的冗长表单。后端新增 `modules/web_api.py`（配置读写、schema 下发、运行时状态查看，路由前缀 `/api/plug/astrbot_plugin_smart_wakeup/`），前端新增 `pages/config/`（index.html / app.js / styles.css）。历经三轮迭代：白名单语义修正与配置同步、长文本全宽（v1.9.1）、全宽项输入框弹性布局（v1.9.2）、粘性标题穿入修复（v1.9.3）
+- **退却时长可配置（v1.9.7）**：主动发言退却时长硬编码改为可配置，新增 5 个配置项（main.py + `_conf_schema.json`）
+
+- **主动发言模块（AIF 三要素模型）**：基于 Anticipation-Initiation-Forecasting 三要素模型设计的 Bot 主动发起话题能力，使 Bot 从纯被动回复转变为可定时主动发声。Bot 定时主动发起话题，与被动回复共享同一套记忆系统（`_msg_buffer` / `_conversation_history` / `_conversation_summaries`），避免主动发言与被动回复记忆割裂。仅支持 aiocqhttp / Telegram / 飞书平台。AIF 状态机初始版本仅 `PASSIVE_MONITORING` / `AGENT_DOMINANT` 两态。新增配置组 `proactive_speak`，覆盖启用开关、检查间隔、模型 ID、冷却、每日上限、触发概率、精力下限、时间窗口、最少上下文消息数、冷场判定阈值、自说自话占比阈值、话题方向类别、自定义话题、目标群列表等 14 个参数
+- **退让信号系统**：在主动发言模块中引入三路退让信号，避免 Bot 在群内活跃激增、用户表达厌烦时仍强行发声：
+  - 信号①：活跃激增检测，5 分钟内消息数超过阈值 `active_surge_threshold=20` 视为活跃激增，触发退让
+  - 信号②：连续 `[SKIP]` 计数触发退让
+  - 信号③：检测到厌烦关键词触发退让
+- **Fetcher 外部资讯抓取模块**：为主动发言提供外部实时资讯，使 Bot 从"信息索求者"转变为"分享者与锐评人"。部署到服务器时凭据在插件内部管理，不依赖外部文件。新增 `modules/fetcher/` 目录（`base.py` / `cache.py` / `filter.py` / `rss_fetcher.py` / `api_fetcher.py` / `__init__.py`）。新增 `requirements.txt`：`feedparser>=6.0.0`、`aiohttp>=3.8.0`。默认 RSS 源覆盖科技资讯（The Verge / TechCrunch / Ars Technica / Hacker News）、游戏八卦（PC Gamer / Rock Paper Shotgun / Eurogamer / IGN）、沙雕新闻（The Onion / Weekly World News / Reddit r/nottheonion）、热点事件（NYT World / BBC World）四类。允许通过 `fetcher_rss_enabled` 关闭 RSS 数据源（适用于只想用 API 数据源的场景）
+- **显式代理配置项**：新增 `fetcher_proxy` 配置项，解决 NSSM 服务 Session 0 无法读取用户代理的问题。优先级：`fetcher_proxy` 配置项 > `_get_windows_proxy()` 探测。实测：AstrBot 作为 NSSM 服务运行在 SYSTEM 账户时，`winreg.HKEY_CURRENT_USER` 指向 SYSTEM 而非当前用户，导致 `winreg` / `urllib.getproxies` 均返回空
+- **静默时段配置**：新增 `proactive_quiet_hours` 单字段配置，支持多段（如 `"23:00-07:00,13:00-14:00"`，支持跨天），与 `proactive_time_window` 是交集关系：两者都允许时才发言。空字符串则不启用静默时段
+- **开头去重机制与开头模式池**：新增 `_proactive_recent_openers`（每群 maxlen=5 的 deque）记录最近 5 次发言开头，prompt 显式排除已用过的开头。新增 6 种开头模式池（直接事实型 / 引用型 / 反问型 / 场景化型 / 对比型 / 数字震撼型），每次发言前随机选 1 种注入 prompt，避免 LLM 反复套用相同模板
+- **递进退让机制**：`consecutive_no_response_count` 持久化到 `proactive_state.json`；冷却计算直接读 `consecutive_no_response_count` 查表（2 次→2h、3 次→6h、4 次→24h）；引入软退让分层（连续 2 次概率 ×0.3 保留探测，连续 3 次硬退让）；封顶 24h，与 `_proactive_skip_streak` 协同设计避免叠加
+- **有效用户回复检测**：`on_group_message` 中新增有效用户回复检测逻辑，当群内有用户实质发言时（非纯表情、非纯 @、字符数 ≥3）重置该群的连续无回应计数，使递进退让机制只对真正的"无人回应"场景生效（深夜/凌晨），避免用户白天讨论后夜间发言被误判为"无人回应"
+
+### 重构
+
+- **可配置化与 fallback 统一**：统一代码 fallback 与 schema default，避免新安装时行为偏差。自说自话检测参数可配置化（`proactive_self_talk_ratio`、`proactive_self_talk_hours`），替代原硬编码 `0.5` 阈值
+- **持久化时间戳改为实例属性**：将持久化延迟保存的时间戳从类属性改为实例属性，避免类属性误导多实例场景
+- **NewsPool 跨群共享池子重构**：引入 `NewsPool` 替代原 `sent_titles` 全局集合 + `NewsCache` 缓存组合。`fetch` 增加 `group_id` 参数支持 per-group 去重；`mark_sent` 增加 `group_id` 参数且不再清除缓存（池子要跨群复用）。fetch 时先检查池子，池子命中则 per-group 过滤返回未发送过的；池子未命中或过期时从 RSSFetcher 拉取 `pool_size` 条填充池子。池子 TTL 默认 6 小时（21600 秒），默认池子大小 15 条。区分"池子未命中"与"池子命中但该群已用尽"两种场景，后者不覆盖池子，保护其他群未发送的资讯。注释与代码行为一致：非空结果写入池子，空结果不写入
+- **RSS 抓取机制改用 aiohttp 异步拉取**：弃用 `feedparser.parse(url)` 的内置 HTTP 请求（在 AstrBot 进程内通过 `run_in_executor` 调用会卡死 15s 超时，所有源全部失败，但独立进程中同样代码 1-2s 成功，根因是 AstrBot 进程内的环境因素干扰了 feedparser 内部的 urllib HTTP 请求），改用 `aiohttp` 异步拉取 RSS 内容（字符串）再传给 `feedparser.parse(content)` 解析。完全控制超时（total=15、connect=8、sock_read=10）、UA、不依赖线程池，避免 AstrBot 事件循环干扰。aiohttp 不可用时回退到旧的 `feedparser.parse(url)` 方式
+- **资讯类话题 prompt 模板化**：第一段定位改为"原文关键片段引用"而非"摘要转述"，对齐用户原话"以第一条原新闻消息的形式发出来"。保留"必须提及来源"硬约束，但删除具体示例（"刚刷到"/"据 BBC 报道"等）。引入 Few-Shot Examples（2 个正面示例 + 1 个反面示例）替代纯指令。硬约束 1/2 降级为软约束（"自然融入"而非"必须包含"）
+- **状态持久化字段扩展**：`_save_proactive_state` 新增 `response_tracker` / `last_speak` / `daily_count` / `retreat` / `skip_streak` 字段；`_load_proactive_state` 对应恢复逻辑，过滤 `speak_time` 超过 24h 的过期条目；重载后立即调用 `_check_no_response_all_groups()` 处理过期 tracker
+
+### 修复
+
+- **修复 P0 根因：LLM 编造新闻**：通过 NewsPool per-group 去重 + `_filter_command_lines_from_context` 过滤 context 中的命令文本行（用户发送 `/wakeup_proactive 科技资讯` 后命令文本被 `_record_message` 写入 `_msg_buffer`，因 `_record_message` 在指令前缀检查之前调用）+ 强硬化资讯类硬约束防止 LLM 扭曲真实资讯事实，三层修复 LLM 编造新闻问题
+- **修复 P1-2 双重触发**：`_trigger_wake` 双重触发时保留首次标志，避免覆盖时间戳和取消已运行的定时器。概率唤醒 + 名称触发在 10 秒内对同一群两次调用 `_trigger_wake` 时，第二次不取消第一个定时器
+- **修复退让死循环**：v1.7.0 修复退让状态机死循环问题，避免 Bot 陷入退让→恢复→立即触发→再次退让的循环
+- **修复 RSS 抓取在 AstrBot 进程内卡死**：见"重构"段"RSS 抓取机制改用 aiohttp 异步拉取"。aiohttp 默认不读 Windows 代理，直连被劫持的 Facebook IP 必然失败，需要 `_get_windows_proxy()` 函数获取代理供 aiohttp 使用
+- **修复代理探测失效**：服务器配置了 Clash 代理（`127.0.0.1:7897`），DNS 被劫持到 Facebook IP，`urllib` / `feedparser` 自动读 Windows 代理能正常工作，但 `aiohttp` 默认不读 Windows 代理。在 AstrBot 进程内直接读 `winreg` 返回 `None`（原因未明，可能权限/用户模拟），新增 `urllib.request.getproxies()` 作为优先获取方式（`urllib` 在 AstrBot 进程内能正常获取代理）
+- **修复递进退让误判**：`consecutive_no_response_count` 此前未持久化，重载后丢失导致递进退让失效。改为持久化到 `proactive_state.json`，冷却计算直接读计数查表（2 次→2h、3 次→6h、4 次→24h）
+- **修复静默时段跨天 bug**：现有 `proactive_time_window` 的 L6111 字符串字典序跨天失效（如 `"23:00" < "07:00"` 在字符串字典序下不成立）；同时 `proactive_time_window_start/end` 默认配置从 `"00:00"` / `"23:59"`（24h 全开，是凌晨发言的根因之一）改为 `"09:00"` / `"23:00"`
+- **修复冷场救场绕过深夜静默**：在 `_check_dead_chat_rescue` 中新增静默时段检查，避免冷场救场绕过深夜静默规则；新增渐进式恢复（静默结束后 1h 内概率从 0.3 线性恢复到 1.0）
+- **修复 @ 前缀过滤误判（M3）**：`not _stripped.startswith("@")` 会把 `@bot 你好啊` 误判为无效回复，导致 `consecutive_no_response_count` 错误累加。改为 `re.sub(r'^@\S+\s*', '', _stripped).strip()` 剥离 @ 前缀再判定
+- **修复重载后 buffer 丢失导致 false positive（M4）**：tracker 持久化但 `_msg_buffer` 未持久化，重载后 buffer 为空导致 `_check_no_response_all_groups` 误判为"无用户回复"。修复：`_load_proactive_state` 重载时若 `checked=False` 且 buffer 为空，将 `checked` 标记为 `True` 跳过本次检查
+- **修复 metadata 版本号与代码不一致**：metadata.yaml 与 `@register` 版本号同步至本次发布版本（此前 metadata 与代码版本不一致）
+- **修复 [SKIP] 混合体思考泄露（v1.9.8）**：GLM-5.2 等推理模型偶发把 "[SKIP] 标签 + 决策理由 + 偶发回复" 全部写进 content 正文（reasoning_content 反而正常分离），原三道防线（think 标签过滤 / 精确匹配 / 前缀 + 无实质内容判定）全部漏过，导致 2026-09-16 22:32 思考内容泄露事故。修复：回复抑制规则 3 改为前缀命中即整体拦截（协议要求输出 [SKIP] 时不得输出任何其他内容，违反协议的混合输出不可信；概率唤醒场景沉默无害、泄露有害，安全优先）；主动发言路径与语义去重路径同步加固为前缀匹配
+- **修复退却机制系列问题（v1.9.4 + v1.9.7）**：用户回复清除退却状态；consecutive_skip 冷却 1h；退却时长与 cooldown 协调（retreat = cooldown 查表值，避免两套时长互相矛盾）；`_proactive_speak` 调用前检查退却状态（防手动触发绕过退却）
+- **修复对抗评估 Critical 3 项（v1.9.6）**：C1 退却清除逻辑区分类别（不同退却信号独立清除，避免用户正常发言误清其他信号的退却）；C2 `_check_annoyed_keywords` 添加白名单检查（白名单用户不触发厌烦退让）；C3 `POST /config` 配置深度合并（避免嵌套配置被整体覆盖导致丢项）
+- **修复对抗评估 Major 5 项（v1.9.6）**：`_is_meaningful` emoji 检测完善；沙雕新闻类别备份源；默认国内源不使用代理（国内源直连，海外源走代理）；HTTP 429/403/404 重试策略优化；面板前端 isComplexType 关键词补全
+- **修复 aiohttp.ClientSession 泄漏（v1.9.7）**：RSS 抓取复用会话（原每次请求新建 session，TCP 握手开销大），插件 terminate 时统一关闭
+- **修复配置验证缺失（v1.9.7）**：Web 面板保存配置时新增 `_validate_config_against_schema` 校验，拒绝不符合 schema 的配置写入
+- **修复面板前端两处缺陷（v1.9.7）**：formatLogTime Invalid Date（改为正则匹配 HH:MM:SS）；关闭页面前未保存提示（beforeunload + hasUnsavedChanges 检测）
+
+以下为原计划 2026-07-15 发布的内部批次修复（P0/P1 级，同样从未对外发布，一并并入本次）：
+
+- **修复 `tool.handler` 共享引用导致跨群并发污染（P0-1）**：`on_using_llm_tool` 中临时替换 `tool.handler` 为空操作函数，但 `tool` 对象来自框架 `tools_map` 的全局共享引用。0.5s 恢复窗口内若 B 群事件触发 `send_message_to_user`，会拿到 A 群替换后的 handler 导致 B 群消息被静默吞掉。移除防线2（handler 替换+恢复），仅保留防线1（tool_args 清空），后续由 `on_decorating_result` 的 4 策略检测 tool_call 并清空 result.chain 保证不重复输出
+- **修复 `_filter_duplicate_response` 误切合法代码块（P0-2）**：原逻辑用 `re.split(r'\n```[ \t]*\n', text)` 切分多版本回复，但此模式同时匹配无语言标识的合法代码块。LLM 输出 `"解释\n```\ncode\n```\n结论"` 会被切为 `["解释", "code", "结论"]`，取最后一段导致前面的解释和代码全部丢失。新逻辑：仅当段数≥3（至少 2 个 ``` 分隔符，即草稿模式）且最后一段不像代码时才切分
+- **修复同一回复被记录两次导致标签污染记忆（P0-3）**：`on_decorating_result` 中调用 `_record_assistant_message(response_text)` 记录过滤前的 LLM 原始输出（可能含思考标签、上下文标签），`after_message_sent` 再次调用记录过滤后的文本。同一条 BOT 回复被记录两次且内容不一致。删除 `on_decorating_result` 中的记录调用，仅在 `after_message_sent` 中记录（此时已过滤且确认发送）
+- **修复 `_conversation_summaries` 无限增长导致 prompt 膨胀（P0-4）**：每次摘要都追加到 `existing` 后面，无长度上限、无滚动淘汰。长期运行后 `_conversation_summaries[group_id]` 无限增长，消耗大量 token。新增 `MAX_SUMMARIES = 5` 滚动淘汰机制，最多保留最近 5 条摘要
+- **修复 14 个按群状态字典无清理机制（P1-5）**：`_cleanup_expired_buffers` 仅清理 `_msg_buffer`，其余 14 个按群字典永不清理，临时群/不活跃群状态永久驻留。在清理循环中同步清理所有 16 个按群状态字典（含防抖定时器取消、LLM 标志定时器取消）
+- **修复空/伪 sender ID 污染概率判定（P1-6）**：sender 为 None 时 `str(None)` 产生 `"None"`，`_get_user_prob("None")` 返回默认 1.0，导致被设为概率 0 的用户可因 sender 解析失败被 `max()` 取 1.0 绕过。在 `_get_user_prob` 源头过滤空/伪 ID 返回 0.0，覆盖全部 7 个调用点
+- **修复 LLM 标志超时阈值不一致（P1-7）**：主动定时器 60s，被动检查 120s，60-120s 窗口期内标志已清除但 LLM 仍在执行可能重复触发。定义 `_LLM_FLAG_TIMEOUT = 60` 常量，三处统一引用
+- **修复分段器 CancelledError 丢失中间段（P1-8）**：取消后 `remaining = segments[sent_count:]` 只取 `last_seg = remaining[-1]`（最后一段），中间未发送段全部丢失。改为合并所有未发送段到 `result.chain`
+- **修复摘要任务并发无去重（P1-9）**：`_maybe_summarize_history` 无并发锁，多条 assistant 消息触发多个摘要任务并发修改 `_conversation_history`（popleft）和 `_conversation_summaries`（追加）导致竞态。新增 `_summary_in_progress: set[str]` 标记集 + finally 清理
+- **修复 `on_using_llm_tool` 去重检查恒 False 死代码（P1-11）**：hook 执行顺序导致 `_sent_content_cache` 为空时检查，整个去重分支是死代码。原逻辑若生效会清空 tool_args 导致 tool_loop 不发送、用户无输出，与 v1.3.2 设计冲突。移除死代码去重分支，保留 tool_args 不清空让 tool_loop 成为唯一发送通道
+- **修复 tool_call 零宽空格污染记忆（P1-12）**：设置 `result.chain = [Plain("\u200b")]` 但未设置 `smart_wakeup_suppressed` 标记，零宽空格被记录到 `_msg_buffer` 和 `_conversation_history`。tool_call 分支中设置 suppressed 标记
+- **修复重复输出命中后去重缓存状态不一致（P1-13）**：`chain.clear()` 后未更新 `_last_bot_reply_text`，下次语义去重比较的是更早的回复可能误判或漏判。命中时更新 `_last_bot_reply_text` + 设置 suppressed 标记
+- **修复去重缓存记录未实际发送的内容（P1-14）**：`_record_sent_content` 在确认发送前就记录，后续 tool_call/抑制/重新生成导致实际发送内容不同。改为只在实际确认发送后（通过所有拦截分支后）才记录
+- **移除未实现的级联升级功能（P1-10）**：`on_llm_response` 中设置 `smart_wakeup_cascade_upgrade` 标记但 `on_decorating_result` 从未检查，功能未实现且统计虚高。移除级联升级逻辑和统计展示行，保留配置项避免破坏用户配置结构
+
+### 优化
+
+- **LLM 诊断功能增强**：新增 LLM 请求开始时间记录（`on_llm_request` hook）、LLM 响应到达时间记录（`on_llm_response` hook），统一清理诊断数据防止跨请求残留
+- **Fetcher 日志可见性修复**：fetcher 模块原使用 Python 标准 `logging`，但 AstrBot 的 `loguru` 日志系统不捕获标准 `logging` 的输出，导致 `FetcherManager` 内部所有诊断日志（fetch 开始 / 调用 fetcher / 过滤完成等）完全不显示在服务器日志中，无法排查 fetch 返回空的根因。改为优先使用 AstrBot 的 `loguru` logger，回退到标准 `logging`（测试脚本场景）
+- **替换失效 RSS 源**：移除 Kotaku（403）、Polygon（证书过期）、IGN（404）、BBC Oddly Enough（404）、Guardian Oddly Enough（404）等失效源
+- **替换沙雕新闻 RSS 源**：原 BBC UK News / Guardian World 太正经（严肃新闻），不包含荒诞内容。新源（2026-07-17 验证通过，通过 Clash 代理可访问）：The Onion（美国讽刺假新闻）、Weekly World News（荒诞新闻）、Reddit r/nottheonion（真实发生的荒诞事情）
+- **APIFetcher 复用 aiohttp.ClientSession**：避免每次请求新建 session（连接池无法复用，TCP 握手开销大），lazy create 在 event loop 内首次调用 `_get_session` 时才真正创建。异常日志脱敏 API Key，避免通过 URL 泄露
+- **RSS 单源抓取数与外层 max_items 解耦**：取 `max_items*2` 适度冗余，避免过度抓取
+- **浏览器 User-Agent**：使用 `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36` 避免被站点限流
+- **默认配置调整**：`proactive_time_window_start/end` 默认值从 `"00:00"` / `"23:59"` 改为 `"09:00"` / `"23:00"`，`proactive_quiet_hours` 默认 `"23:00-07:00"`，避免凌晨发言
+- **默认 RSS 源替换为国内源（v1.9.5）**：14 个源、4 个类别，解决海外源依赖代理且抓取成功率低的问题
+- **schema 下发 version 字段（v1.9.7）**：`get_schema` 注入 CONFIG_VERSION，供面板前端判断配置结构版本
+- **LOGO 全线更新**：新 LOGO 部署至插件根目录（AstrBot v4.5.0+ 面板图标读取本地 logo.png）、文档站（docs/）、配置面板（pages/config/）、GitHub 仓库；README 展示宽度 120 → 280
+- **清理过时注释和死代码（2026-07-15 批次）**：`_suppress_reply` 中"on_decorating_result 中已提前记录了 _record_assistant_message"注释已过时（P0-3 修复后不再成立），`history.pop()` 逻辑条件永不满足，一并清理
+
 ## [1.4.3] - 2026-07-09
 
 ### 修复
@@ -18,8 +101,8 @@
 ### 修复
 
 - **修复思考标签泄漏（ToolCall 场景）**：LLM 在 `send_message_to_user` 的 tool_args 中混入 `<arg_key>` 思考标签时，原有过滤仅覆盖 `on_decorating_result` 路径，ToolCall 场景下标签直接泄漏到用户消息。新增 `_filter_tool_args_text` 方法，在 `on_using_llm_tool` 中对 tool_args 文本统一过滤思考标签、上下文标签和重复回复
-- **修复重复输出根因**：对话记忆中 BOT 的回复被原样注入 LLM，LLM 看到自己说过的原文措辞后倾向于延续相同表达，导致重复输出（如连续两次说"小玉都看不下去了"）。新增 `_summarize_bot_reply_for_memory` 方法，对 BOT 回复做要点化处理，只保留话题要点而非原文措辞，从根源上切断 LLM 复制自身表达的倾向
-- **修复上下文发言人识别错误**：小模型压缩群聊上下文时使用"自己"等代词，导致 GLM-4 将代词指代错误归因（如"吃到撑拿自己垫背"被理解为"小柒吃到撑拿BOT垫背"）。优化压缩 prompt，禁止使用代词指代他人行为，必须用具体昵称明确行为主体；转述他人对 BOT 的行为时必须标注 BOT 为承受方
+- **修复重复输出根因**：对话记忆中 BOT 的回复被原样注入 LLM，LLM 看到自己说过的原文措辞后倾向于延续相同表达，导致重复输出（如连续两次说"<BOT_NAME>都看不下去了"）。新增 `_summarize_bot_reply_for_memory` 方法，对 BOT 回复做要点化处理，只保留话题要点而非原文措辞，从根源上切断 LLM 复制自身表达的倾向
+- **修复上下文发言人识别错误**：小模型压缩群聊上下文时使用"自己"等代词，导致 GLM-4 将代词指代错误归因（如"吃到撑拿自己垫背"被理解为"<BOT_NAME>吃到撑拿BOT垫背"）。优化压缩 prompt，禁止使用代词指代他人行为，必须用具体昵称明确行为主体；转述他人对 BOT 的行为时必须标注 BOT 为承受方
 - **增加调试标记引导**：在 `<conversation_guidance>` 中增加对【调试定位】等方括号标记的引导，LLM 识别到调试标记后会意识到此前对话可能存在发言者识别错误，在后续回复中仔细核对发言者身份
 - **LLM 执行超时标志清除优化**：将超时时间从 300 秒（5分钟）缩短为 120 秒（2分钟），正常 LLM 调用应在 60 秒内完成
 
