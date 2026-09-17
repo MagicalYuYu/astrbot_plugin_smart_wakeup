@@ -1,5 +1,5 @@
 /* ============================================================================
- * 智能唤醒配置面板 · app.js
+ * 灵犀配置面板 · app.js
  * ----------------------------------------------------------------------------
  * 框架：Vue 3 Composition API（不使用 Options API）
  * 通信：桥接 SDK（window.AstrBotPluginPage，由 AstrBot 自动注入，无需手动引入）
@@ -8,7 +8,7 @@
  * 主要职责：
  * 1. 调用 AstrBotPluginPage.ready() 等待桥接 SDK 就绪
  * 2. 拉取 schema（/config/schema）和当前配置（/config）
- * 3. 渲染 14 分类共 105 项配置（按 7 大类侧边栏分组）
+ * 3. 渲染 14 分类共 143 项配置（按 7 大类侧边栏分组）
  * 4. 搜索过滤、简单/高级模式切换
  * 5. 保存（/config POST）、重置、导入、导出
  * 6. 预设管理（/config/presets + /config/preset/<name>）
@@ -123,8 +123,8 @@ createApp({
         // Computed 计算属性
         // ====================================================================
 
-        // Schema 版本（兜底 1.9.0）
-        const schemaVersion = computed(() => schema.value.version || '1.9.0');
+        // Schema 版本（兜底 2.0.0）
+        const schemaVersion = computed(() => schema.value.version || '2.0.0');
 
         // 总配置项数
         const totalItems = computed(() => {

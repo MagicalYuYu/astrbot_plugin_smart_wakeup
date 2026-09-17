@@ -23,6 +23,8 @@ docs/*
 !docs/usage_guide.md
 !docs/troubleshooting_guide.md
 !docs/index.html
+!docs/manifest.json
+!docs/logo.png
 
 # 环境与密钥
 .env

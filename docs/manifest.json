@@ -1,7 +1,7 @@
 {
-  "name": "灵犀 — AstrBot 智能唤醒插件",
+  "name": "灵犀 — 群友型 Bot 节律引擎（AstrBot 插件）",
   "short_name": "灵犀",
-  "description": "通过精力系统、心流状态机、冷场救场与消息防抖的协同，赋予 Bot 自然的社交呼吸节律",
+  "description": "会主动、知进退、有作息的群友型 Bot 节律引擎——精力节律 × 心流状态 × 主动发言 × 五路退却 × 可视化面板，兼容 QQ 与 Telegram",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#08110f",

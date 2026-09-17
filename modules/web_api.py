@@ -1,4 +1,4 @@
-"""Web API 模块 — v1.9.0 配置面板后端
+"""Web API 模块 — 灵犀 v2.0.0 配置面板后端
 
 为插件自定义 Web 配置页面（pages/config/）提供 REST API 支持。
 
@@ -43,7 +43,7 @@ logger = logging.getLogger("astrbot")
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
 
 # 配置文件版本
-CONFIG_VERSION = "1.9.7"
+CONFIG_VERSION = "2.0.0"
 
 
 # ============================================================================
