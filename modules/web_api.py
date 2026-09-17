@@ -1,4 +1,4 @@
-"""Web API 模块 — 灵犀 v2.0.0 配置面板后端
+"""Web API 模块 — 灵犀 v2.0.1 配置面板后端
 
 为插件自定义 Web 配置页面（pages/config/）提供 REST API 支持。
 
@@ -29,7 +29,6 @@
 import os
 import json
 import time
-import logging
 import traceback
 import inspect
 from collections import deque
@@ -37,13 +36,14 @@ from typing import Any, Optional
 
 from quart import jsonify, request
 
-logger = logging.getLogger("astrbot")
+from astrbot.api import logger
+from astrbot.api.star import StarTools
 
 # 插件名（与 metadata.yaml name 字段一致，用于路由前缀）
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
 
 # 配置文件版本
-CONFIG_VERSION = "2.0.0"
+CONFIG_VERSION = "2.0.1"
 
 
 # ============================================================================
@@ -55,9 +55,14 @@ def _get_schema_path(plugin_root: str) -> str:
     return os.path.join(plugin_root, "_conf_schema.json")
 
 
-def _get_user_presets_path(plugin_root: str) -> str:
-    """获取用户自定义预设文件路径"""
-    return os.path.join(plugin_root, "data", "presets.json")
+def _get_user_presets_path() -> str:
+    """获取用户自定义预设文件路径
+
+    v2.0.1：迁移到 AstrBot 标准插件数据目录 data/plugin_data/<plugin_name>
+    （插件市场合规要求；插件目录在市场更新时会被整体覆盖，用户数据不能放其中）。
+    旧位置（插件目录 data/presets.json）由 _load_all_presets 做一次性只读回退。
+    """
+    return str(StarTools.get_data_dir(PLUGIN_NAME) / "presets.json")
 
 
 def _extract_defaults_from_schema(plugin_root: str) -> dict:
@@ -163,7 +168,12 @@ def _load_all_presets(plugin_root: str) -> dict:
         预设字典 {preset_id: {name, description, config}, ...}
     """
     presets = dict(BUILTIN_PRESETS)
-    user_presets_path = _get_user_presets_path(plugin_root)
+    user_presets_path = _get_user_presets_path()
+    if not os.path.exists(user_presets_path):
+        # v2.0.1 迁移：旧位置（插件目录 data/presets.json）一次性只读回退
+        legacy_path = os.path.join(plugin_root, "data", "presets.json")
+        if os.path.exists(legacy_path):
+            user_presets_path = legacy_path
     if os.path.exists(user_presets_path):
         try:
             with open(user_presets_path, "r", encoding="utf-8") as f:

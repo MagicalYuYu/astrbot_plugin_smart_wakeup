@@ -13,7 +13,7 @@ from datetime import datetime
 from enum import Enum
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star, register, StarTools
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse, ProviderRequest
 from astrbot.api.message_components import Plain, BaseMessageComponent, Reply, Record
@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——会主动、知进退、有作息的群友型 Bot 节律引擎，兼容 QQ 与 Telegram",
-    "2.0.0",
+    "2.0.1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -7196,11 +7196,17 @@ class LingxiPlugin(Star):
     # 解决插件重载后状态清空导致的问题：
     #   1. 沉默群 UMO 未填充 → 调度器不遍历 → 永远无法触发主动发言
     #   2. 防重复数据清空 → 重载后短时间内可能重复发言
-    # 持久化文件：data/proactive_state.json（插件目录下）
+    # 持久化文件：data/plugin_data/astrbot_plugin_smart_wakeup/proactive_state.json
+    # （v2.0.1 起迁至 AstrBot 标准插件数据目录，旧位置仅作一次性迁移读取）
 
     def _get_proactive_state_path(self) -> str:
-        """获取主动发言持久化状态文件路径"""
-        return os.path.join(os.path.dirname(__file__), "data", "proactive_state.json")
+        """获取主动发言持久化状态文件路径
+
+        v2.0.1：迁移到 AstrBot 标准插件数据目录 data/plugin_data/<plugin_name>
+        （插件市场合规要求：禁止将运行时状态保存到插件目录自身）。
+        显式传插件名，避免 StarTools 栈检测在子模块调用时解析失败。
+        """
+        return str(StarTools.get_data_dir("astrbot_plugin_smart_wakeup") / "proactive_state.json")
 
     def _get_proactive_target_groups(self) -> set:
         """返回主动发言调度器应遍历的群列表
@@ -7236,10 +7242,22 @@ class LingxiPlugin(Star):
 
         每段独立 try/except，单段损坏不影响其他段恢复。
         """
-        state_path = self._get_proactive_state_path()
-        if not os.path.exists(state_path):
-            logger.debug("[主动发言] 无持久化状态文件，跳过加载")
+        try:
+            state_path = self._get_proactive_state_path()
+        except Exception as e:
+            # get_data_dir 目录创建失败（如 data 目录不可写）时不阻断插件加载
+            logger.warning(f"[主动发言] 解析持久化路径失败，跳过加载: {e}")
             return
+        if not os.path.exists(state_path):
+            # v2.0.1 迁移：新位置无文件时从旧位置（插件目录 data/）读取一次，
+            # 下次保存即写入新位置；旧文件保留不删（运行时数据红线）
+            legacy_path = os.path.join(os.path.dirname(__file__), "data", "proactive_state.json")
+            if os.path.exists(legacy_path):
+                logger.info("[主动发言] 从旧位置加载持久化状态（将迁移至 plugin_data 目录）")
+                state_path = legacy_path
+            else:
+                logger.debug("[主动发言] 无持久化状态文件，跳过加载")
+                return
         try:
             with open(state_path, "r", encoding="utf-8") as f:
                 state = json.load(f)
@@ -7379,10 +7397,12 @@ class LingxiPlugin(Star):
 
         使用 tempfile + os.replace() 实现原子写入，避免崩溃导致状态文件损坏。
         """
-        state_path = self._get_proactive_state_path()
-        data_dir = os.path.dirname(state_path)
-        os.makedirs(data_dir, exist_ok=True)
         try:
+            # 路径解析（含 get_data_dir 目录创建）放在 try 内，
+            # 防止 data 目录不可写时异常炸穿 terminate/initialize 调用方
+            state_path = self._get_proactive_state_path()
+            data_dir = os.path.dirname(state_path)
+            os.makedirs(data_dir, exist_ok=True)
             now = time.time()
             # 序列化 UMO 缓存（只保存未过期条目，避免文件无限增长）
             umo_cache = {}

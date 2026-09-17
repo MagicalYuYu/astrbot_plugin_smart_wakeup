@@ -123,8 +123,8 @@ createApp({
         // Computed 计算属性
         // ====================================================================
 
-        // Schema 版本（兜底 2.0.0）
-        const schemaVersion = computed(() => schema.value.version || '2.0.0');
+        // Schema 版本（兜底 2.0.1）
+        const schemaVersion = computed(() => schema.value.version || '2.0.1');
 
         // 总配置项数
         const totalItems = computed(() => {

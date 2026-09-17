@@ -12,13 +12,8 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List
 
-# v1.8.0 修复（日志可见性）：优先使用 AstrBot loguru logger，
-# 回退到标准 logging（测试脚本场景）。详见 __init__.py 注释。
-try:
-    from astrbot.api import logger
-except ImportError:
-    import logging
-    logger = logging.getLogger(__name__)
+# 日志必须且只能从 astrbot.api 导入（插件市场合规要求，v2.0.1 移除标准 logging 回退）
+from astrbot.api import logger
 
 try:
     import feedparser

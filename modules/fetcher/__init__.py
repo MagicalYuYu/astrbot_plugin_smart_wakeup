@@ -10,16 +10,8 @@ v1.8.1 重构（P0 LLM 编造新闻问题修复）：
 - 池子未命中或过期时从 RSSFetcher 拉取 pool_size 条填充池子
 """
 
-# v1.8.0 修复（日志可见性）：fetcher 模块原使用 Python 标准 logging，
-# 但 AstrBot 的 loguru 日志系统不捕获标准 logging 的输出，
-# 导致 FetcherManager 内部所有诊断日志（fetch 开始/调用 fetcher/过滤完成等）
-# 完全不显示在服务器日志中，无法排查 fetch 返回空的根因。
-# 修复：优先使用 AstrBot 的 loguru logger，回退到标准 logging（测试脚本场景）。
-try:
-    from astrbot.api import logger
-except ImportError:
-    import logging
-    logger = logging.getLogger(__name__)
+# 日志必须且只能从 astrbot.api 导入（插件市场合规要求，v2.0.1 移除标准 logging 回退）
+from astrbot.api import logger
 
 from typing import List
 

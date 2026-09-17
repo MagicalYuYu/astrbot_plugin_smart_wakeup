@@ -1,5 +1,18 @@
 # 更新日志
 
+## [2.0.1] - 2026-09-17
+
+插件市场上架合规修复版本。应 AstrBot 插件市场 LLM Guard 自动安全检查意见整改，不含功能行为变更。
+
+### 合规修复
+
+- **日志记录器统一**：`modules/web_api.py` 移除 `import logging` + `logging.getLogger("astrbot")`，`modules/fetcher/` 5 个文件移除 `except ImportError` 标准 logging 回退分支；全插件日志统一且仅从 `astrbot.api` 导入 logger（副作用：fetcher 模块不再支持脱离 AstrBot 环境的独立测试脚本直接导入）
+- **数据持久化位置迁移**：主动发言状态 `proactive_state.json` 与用户自定义预设 `presets.json` 从插件目录自身迁至 AstrBot 标准插件数据目录 `data/plugin_data/astrbot_plugin_smart_wakeup/`（经 `StarTools.get_data_dir()`，显式传插件名避免子模块栈检测失败）。旧位置文件均保留不删：`proactive_state.json` 在新位置无文件时从旧位置只读加载一次，下次保存即写入新位置，运行状态零丢失；`presets.json` 为纯用户手工维护的只读文件（插件从不写入），旧位置文件将始终作为只读回退生效，建议用户手动将其移至新位置
+
+### 版本同步
+
+- `metadata.yaml`、`main.py` `@register`、`modules/web_api.py` `CONFIG_VERSION`、README 双版本 badge、文档站 hero badge、配置面板静态资源缓存版本号同步至 2.0.1；`docs/usage_guide.md` / `docs/troubleshooting_guide.md` 持久化路径说明同步更新
+
 ## [2.0.0] - 2026-09-17
 
 版本规范化与品牌重构版本。v1.4.4 实际合并了内部开发序列 v1.8.4 与 v1.9.0 ~ v1.9.8 共 10 个大版本的演进（主动发言引擎、Fetcher 资讯模块、五路退却、静默作息、Web 配置面板等），以补丁号发布不符合语义化版本规范。本版本不含功能代码变更，将对外版本号正名为 2.0.0，并完成全部对外文本的定位重构：从"被动唤醒插件"升级为"会主动、知进退、有作息的群友型 Bot 节律引擎"。
