@@ -4,8 +4,8 @@
   "description": "会主动、知进退、有作息的群友型 Bot 节律引擎——精力节律 × 心流状态 × 主动发言 × 五路退却 × 可视化面板，兼容 QQ 与 Telegram",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#08110f",
-  "theme_color": "#08110f",
+  "background_color": "#EAF4FC",
+  "theme_color": "#3D6FB5",
   "lang": "zh-CN",
   "icons": [
     {
