@@ -16,7 +16,7 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star, register, StarTools
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse, ProviderRequest
-from astrbot.api.message_components import Plain, BaseMessageComponent, Reply, Record
+from astrbot.api.message_components import Plain, BaseMessageComponent, Reply, Record, Image
 
 # 回复抑制：内置默认合规判别提示词
 _DEFAULT_JUDGE_PROMPT = """请判断BOT的回复是否适宜在群聊中发出。
@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——会主动、知进退、有作息的群友型 Bot 节律引擎，兼容 QQ 与 Telegram",
-    "2.0.2",
+    "2.0.3",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -121,7 +121,8 @@ class LingxiPlugin(Star):
 
         # 机器人名称配置，支持 | 分隔的多个别名
         basic = self.config.get("basic", {})
-        bot_name_str = basic.get("bot_name", "")
+        # v2.0.3：fallback 与 schema default 对齐（原空串会导致缺键时名称唤醒静默失效）
+        bot_name_str = basic.get("bot_name", "Bot")
         self.bot_names = [
             name.strip() for name in bot_name_str.split("|") if name.strip()
         ]
@@ -295,6 +296,8 @@ class LingxiPlugin(Star):
                     # 主动发言单群覆盖参数（v1.5.0 新增）
                     "proactive_enabled", "proactive_cooldown", "proactive_daily_limit",
                     "proactive_probability", "proactive_min_energy",
+                    # 静默时段单群覆盖（v2.0.3：修复面板可配但收集白名单漏收导致永不生效）
+                    "proactive_quiet_hours",
                 ]
                 for key in param_keys:
                     val = item.get(key)
@@ -520,7 +523,12 @@ class LingxiPlugin(Star):
         # UMO 有效期（24 小时）
         self.UMO_VALIDITY_PERIOD = 86400
         # 话题类别
-        categories_str = proactive_cfg.get("proactive_topic_categories", "分享想法|提问讨论|回忆过去|关注某人|活跃气氛")
+        categories_str = proactive_cfg.get(
+            "proactive_topic_categories",
+            # v2.0.3：fallback 与 schema default 对齐（补齐 v1.8.0 的 4 个资讯类，
+            # 修复旧配置缺键时静默丢失资讯话题）
+            "分享想法|提问讨论|回忆过去|关注某人|活跃气氛|科技资讯|游戏八卦|沙雕新闻|热点事件",
+        )
         self._proactive_topic_categories = [c.strip() for c in categories_str.split("|") if c.strip()]
         # 自定义话题
         custom_topics_str = proactive_cfg.get("proactive_custom_topics", "")
@@ -539,6 +547,20 @@ class LingxiPlugin(Star):
             except Exception as e:
                 logger.warning(f"[Fetcher] 模块初始化失败，将使用原有逻辑: {e}")
                 self._fetcher = None
+
+        # ─── v2.0.3：资讯发送记录持久化（防跨天重复推送）───
+        # 根因：NewsPool._sent_per_group 纯内存，插件重载即清零；而知乎热榜类
+        # RSS 条目存活数天，池子 TTL 后重拉同条 → 重载后跨天重复推送。
+        # 方案：标题 + 时间戳持久化到 plugin_data/sent_news.json，TTL 14 天，
+        # 启动时种子回 NewsPool。
+        self._sent_news_persist: dict[str, dict[str, float]] = {}  # {gid: {title: ts}}
+        self._SENT_NEWS_TTL = 14 * 86400
+        self._SENT_NEWS_CAP = 300  # 每群保留上限
+        self._last_save_sent_news_ts: float = 0.0
+        # v2.0.3：资讯推送附带首图（四级 RSS 提取，默认关闭）
+        self._fetcher_send_first_image = fetcher_cfg.get("fetcher_send_first_image", False)
+        if self._fetcher:
+            self._load_sent_news()
 
         # 主动发言专用状态（按群维度）
         # 缓存每群的 unified_msg_origin + 缓存时间（v2.0 改进：增加有效期检查）
@@ -585,7 +607,7 @@ class LingxiPlugin(Star):
         self._retreat_annoyed_secs = max(3600, proactive_cfg.get("proactive_retreat_annoyed_secs", 86400))
 
         # 话题去重：记录每群近期发起的话题摘要（避免短期内重复）
-        # 数据结构：{group_id: deque([(timestamp, topic_summary), ...])}， maxlen=10
+        # 数据结构：{group_id: deque([(timestamp, topic_summary), ...])}， maxlen=20（v2.0.3 由 10 扩容）
         self._proactive_topic_history: dict[str, deque] = {}
 
         # v1.8.4 新增：开头去重机制（避免资讯类发言每次都以相同模式开头）
@@ -3674,7 +3696,11 @@ class LingxiPlugin(Star):
                         req.contexts = []
                         req.system_prompt = "Reply with only: OK"
                         req.prompt = "OK"
-                        req.extra_user_content_parts = []
+                        # v2.0.3：只移除本插件注入的 parts，不再整体覆写——
+                        # 整体覆写会把其他插件（如社区记忆插件 LivingMemory）
+                        # 注入到 extra_user_content_parts 的内容一并清掉。
+                        # 本插件注入发生在末尾 extend(parts)，路由分支 return 早于
+                        # 注入，故此处本插件尚无注入，无需移除任何内容。
                         event.set_extra("smart_wakeup_route_completed", True)
                         return
                     else:
@@ -6716,6 +6742,14 @@ class LingxiPlugin(Star):
                 if self.strip_trailing_punct_enabled:
                     self._strip_segment_trailing_punct(seg)
 
+            # v2.0.3：资讯首图（先图后文，失败静默降级纯文本）
+            if (
+                self._fetcher_send_first_image
+                and news_items_used
+                and getattr(news_items_used[0], "image_url", "")
+            ):
+                await self._send_news_first_image(umo_str, news_items_used[0].image_url)
+
             sent_count = 0
             try:
                 if len(segments) <= 1:
@@ -6757,6 +6791,7 @@ class LingxiPlugin(Star):
                 if sent_count > 0 and news_items_used and self._fetcher:
                     for item in news_items_used:
                         self._fetcher.mark_sent(group_id, item.title, category)
+                        self._record_sent_news(group_id, item.title)
                     logger.debug(
                         f"[主动发言] 群={group_id} 部分发送取消，仍标记 {len(news_items_used)} 条资讯为已发送"
                     )
@@ -6790,6 +6825,7 @@ class LingxiPlugin(Star):
             if news_items_used and self._fetcher:
                 for item in news_items_used:
                     self._fetcher.mark_sent(group_id, item.title, category)
+                    self._record_sent_news(group_id, item.title)
                 logger.debug(
                     f"[主动发言] 群={group_id} 标记 {len(news_items_used)} 条资讯为已发送 (类别={category})"
                 )
@@ -6834,7 +6870,7 @@ class LingxiPlugin(Star):
 
             # === 16. 记录话题历史（Phase 2 话题去重）===
             if group_id not in self._proactive_topic_history:
-                self._proactive_topic_history[group_id] = deque(maxlen=10)
+                self._proactive_topic_history[group_id] = deque(maxlen=20)
             self._proactive_topic_history[group_id].append((time.time(), text[:80]))
 
             # v1.8.4 新增：记录开头到去重队列（用于资讯类 prompt 避免重复开头模式）
@@ -7208,6 +7244,127 @@ class LingxiPlugin(Star):
         """
         return str(StarTools.get_data_dir("astrbot_plugin_smart_wakeup") / "proactive_state.json")
 
+    # ─── v2.0.3：资讯发送记录持久化 ──────────────────────────
+
+    def _get_sent_news_path(self) -> str:
+        """获取资讯发送记录文件路径（与 proactive_state 同目录）"""
+        return str(StarTools.get_data_dir("astrbot_plugin_smart_wakeup") / "sent_news.json")
+
+    def _load_sent_news(self):
+        """加载持久化发送记录，过期裁剪后种子回 NewsPool
+
+        文件格式：{group_id: {title: ts}}，TTL 14 天，每群上限 300 条。
+        旧位置（插件目录 data/sent_news.json）不存在此文件，无迁移需求。
+        """
+        path = self._get_sent_news_path()
+        if not os.path.exists(path):
+            logger.debug("[Fetcher] 无持久化发送记录，跳过")
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            now = time.time()
+            changed = False
+            for gid, items in raw.items():
+                if not isinstance(items, dict):
+                    continue
+                # TTL 过滤 + 上限裁剪（保留最新的）
+                alive = {t: ts for t, ts in items.items()
+                         if isinstance(ts, (int, float)) and (now - ts) < self._SENT_NEWS_TTL}
+                if len(alive) > self._SENT_NEWS_CAP:
+                    kept = sorted(alive.items(), key=lambda x: -x[1])[:self._SENT_NEWS_CAP]
+                    alive = dict(kept)
+                if len(alive) != len(items):
+                    changed = True
+                if alive:
+                    self._sent_news_persist[gid] = alive
+                    self._fetcher.seed_sent(gid, set(alive.keys()))
+            total = sum(len(v) for v in self._sent_news_persist.values())
+            logger.info(f"[Fetcher] 已加载持久化发送记录: {len(self._sent_news_persist)} 群 / {total} 条")
+            if changed:
+                self._save_sent_news()
+        except Exception as e:
+            logger.warning(f"[Fetcher] 加载持久化发送记录失败（忽略，从头记录）: {e}")
+
+    def _record_sent_news(self, group_id: str, title: str):
+        """记录一条已发送资讯并标记延迟落盘"""
+        if not group_id or not title:
+            return
+        gid_map = self._sent_news_persist.setdefault(group_id, {})
+        gid_map[title] = time.time()
+        # 超限裁剪（保最新）
+        if len(gid_map) > self._SENT_NEWS_CAP:
+            kept = sorted(gid_map.items(), key=lambda x: -x[1])[:self._SENT_NEWS_CAP]
+            self._sent_news_persist[group_id] = dict(kept)
+        self._maybe_save_sent_news()
+
+    async def _send_news_first_image(self, umo_str: str, image_url: str) -> bool:
+        """v2.0.3：发送资讯首图（带防盗链下载兜底）
+
+        优先带浏览器 Referer/UA 下载到临时文件再发（绕过知乎等图床的基础防盗链），
+        下载失败降级直链 URL。返回是否成功发送。
+
+        Args:
+            umo_str: 目标会话
+            image_url: 首图 URL
+        """
+        if not image_url:
+            return False
+        img_b64 = None
+        try:
+            import aiohttp
+            import base64 as _b64
+            referer = image_url.split("/", 3)
+            referer = referer[0] + "//" + referer[2] if len(referer) >= 3 else image_url
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                "Referer": referer,
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.get(image_url, headers=headers,
+                                       timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        if data and len(data) > 2048:  # 过滤占位小图
+                            img_b64 = _b64.b64encode(data).decode()
+        except Exception as e:
+            logger.debug(f"[首图] 下载失败（降级直链）: {e}")
+
+        try:
+            mc = MessageChain()
+            # 红队优化：优先 fromBase64 内存直传（免临时文件与竞态）；下载失败降级直链 URL
+            if img_b64:
+                mc.chain = [Image.fromBase64(img_b64)]
+                await self.context.send_message(umo_str, mc)
+            else:
+                mc.chain = [Image.fromURL(image_url)]
+                await self.context.send_message(umo_str, mc)
+            return True
+        except Exception as e:
+            logger.warning(f"[首图] 发送失败（跳过图片，纯文本继续）: {e}")
+            return False
+
+    def _maybe_save_sent_news(self):
+        """延迟落盘：距上次成功保存超过 60 秒才写盘（与 proactive_state 同策略）"""
+        now = time.time()
+        if now - self._last_save_sent_news_ts > 60:
+            self._save_sent_news()
+
+    def _save_sent_news(self):
+        """原子写盘发送记录"""
+        try:
+            path = self._get_sent_news_path()
+            data_dir = os.path.dirname(path)
+            os.makedirs(data_dir, exist_ok=True)
+            import tempfile
+            fd, tmp_path = tempfile.mkstemp(dir=data_dir, suffix=".tmp", prefix="sent_news_")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(self._sent_news_persist, f, ensure_ascii=False)
+            os.replace(tmp_path, path)
+            self._last_save_sent_news_ts = time.time()
+        except Exception as e:
+            logger.warning(f"[Fetcher] 保存发送记录失败: {e}")
+
     def _get_proactive_target_groups(self) -> set:
         """返回主动发言调度器应遍历的群列表
 
@@ -7306,12 +7463,12 @@ class LingxiPlugin(Star):
                         self._last_bot_reply_time[gid] = ts
         except Exception as e:
             logger.warning(f"[主动发言] 恢复语义去重基准失败: {e}")
-        # 4. 恢复话题历史（过滤超过 24h 的旧话题）
+        # 4. 恢复话题历史（过滤超过 72h 的旧话题；v2.0.3 由 24h 扩容防跨天重复）
         try:
             topic_history = state.get("topic_history", {})
-            topic_max_age = 86400  # 24h
+            topic_max_age = 3 * 86400  # 72h
             for gid, items in topic_history.items():
-                history = deque(maxlen=10)
+                history = deque(maxlen=20)
                 for item in items:
                     # JSON 列表格式 [ts, topic] → 运行时元组 (ts, topic)
                     if isinstance(item, list) and len(item) == 2:
@@ -7828,6 +7985,10 @@ class LingxiPlugin(Star):
 
         # v1.7.1：在清理状态前保存持久化数据（UMO + 防重复），避免重载后丢失
         self._save_proactive_state()
+        # v2.0.3：保存资讯发送记录（防跨天重复推送）
+        # 红队加固：仅在确有数据时写盘——防"fetcher 关闭期重载 → 空 dict 覆写 → 历史归零"
+        if self._sent_news_persist:
+            self._save_sent_news()
 
         buffer_count = sum(len(buf) for buf in self._msg_buffer.values())
         group_count = len(self._msg_buffer)

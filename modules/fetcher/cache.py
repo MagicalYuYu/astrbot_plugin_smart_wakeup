@@ -172,6 +172,23 @@ class NewsPool:
             )
         return unsent[:max_items]
 
+    def seed_sent(self, group_id: str, titles: Set[str]) -> None:
+        """将持久化的已发送标题种子进内存 sent 集合（v2.0.3 新增）
+
+        解决 _sent_per_group 纯内存导致插件重载后发送历史清零、
+        长存活 RSS 条目（如知乎热榜）跨天重复推送的问题。
+        由插件在启动时从 plugin_data 的 sent_news.json 加载后调用。
+
+        Args:
+            group_id: 目标群 ID
+            titles: 已发送标题集合
+        """
+        if not group_id or not titles:
+            return
+        sent_set = self._sent_per_group.setdefault(group_id, set())
+        sent_set.update(titles)
+        logger.info(f"[NewsPool] 群={group_id} 种子化 {len(titles)} 条持久化已发送记录")
+
     def mark_sent(self, group_id: str, title: str, category: str = "") -> None:
         """标记一条资讯为某群已发送
 

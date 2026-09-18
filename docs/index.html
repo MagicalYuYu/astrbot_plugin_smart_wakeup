@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>灵犀 — 心有灵犀，不唤自来 | AstrBot 群友型 Bot 节律引擎</title>
-<meta name="description" content="灵犀是 AstrBot 平台的群友型 Bot 节律引擎：会主动找话题、知趣懂闭嘴、有作息节律。143 项参数 × 专属可视化面板，兼容 QQ 与 Telegram。">
+<meta name="description" content="灵犀是 AstrBot 平台的群友型 Bot 节律引擎：会主动找话题、知趣懂闭嘴、有作息节律。147 项参数 × 专属可视化面板，兼容 QQ 与 Telegram。">
 <meta name="keywords" content="灵犀, AstrBot, 节律引擎, 主动发言, 精力系统, 心流状态机, 冷场救场, 消息防抖, Bot 插件, Telegram, QQ">
 <meta name="author" content="MagicalYuYu">
 <meta name="robots" content="index, follow">
@@ -916,7 +916,7 @@ a { color: var(--blue); text-decoration: none; }
 
     <div class="hero-stats">
       <div class="stat-card">
-        <div class="stat-number" data-target="143">0</div>
+        <div class="stat-number" data-target="147">0</div>
         <div class="stat-label" data-i18n="stat_params">可调参数</div>
       </div>
       <div class="stat-card">
@@ -994,12 +994,12 @@ a { color: var(--blue); text-decoration: none; }
         </ul>
       </div>
 
-      <div class="pillar-card p3 reveal reveal-delay-2" data-tooltip="精调体系：143 项参数 14 组 + 21 项单群覆盖 + 用户概率乘数；面板入口：AstrBot WebUI → 插件管理 → 灵犀 → 配置面板。" data-i18n-tooltip="pillar3_tooltip">
+      <div class="pillar-card p3 reveal reveal-delay-2" data-tooltip="精调体系：147 项参数 14 组 + 21 项单群覆盖 + 用户概率乘数；面板入口：AstrBot WebUI → 插件管理 → 灵犀 → 配置面板。" data-i18n-tooltip="pillar3_tooltip">
         <div class="pillar-bar"></div>
         <div class="pillar-icon">🎛️</div>
         <h3 class="pillar-title" data-i18n="pillar3_title">可调校</h3>
         <div class="pillar-sub" data-i18n="pillar3_sub">Tunable</div>
-        <p class="pillar-desc" data-i18n="pillar3_desc">143 项参数 × 专属可视化面板——同一只 Bot，在每个群都可以有不同的性格</p>
+        <p class="pillar-desc" data-i18n="pillar3_desc">147 项参数 × 专属可视化面板——同一只 Bot，在每个群都可以有不同的性格</p>
         <ul class="pillar-list">
           <li data-i18n="pillar3_f1">专属 Web 配置面板，非 schema 冗长表单</li>
           <li data-i18n="pillar3_f2">21 项参数按群覆盖 + 用户概率乘数</li>
@@ -1368,7 +1368,7 @@ a { color: var(--blue); text-decoration: none; }
       </div>
       <div class="tune-card reveal reveal-delay-1">
         <div class="tune-icon">🔧</div>
-        <h3 class="tune-title" data-i18n="tune2_title">143 项可调参数</h3>
+        <h3 class="tune-title" data-i18n="tune2_title">147 项可调参数</h3>
         <p class="tune-desc" data-i18n="tune2_desc">14 个配置分组，从精力恢复速率到话题权重全部可调，均有合理默认值开箱即用</p>
       </div>
       <div class="tune-card reveal reveal-delay-2">
@@ -1405,7 +1405,7 @@ a { color: var(--blue); text-decoration: none; }
     <div class="section-header reveal">
       <span class="section-tag">CONFIG</span>
       <h2 class="section-title" data-i18n="config_title">十四个<span class="accent">配置分组</span></h2>
-      <p class="section-desc" data-i18n="config_desc">143 项参数按 14 个分组组织，悬停查看关键默认值</p>
+      <p class="section-desc" data-i18n="config_desc">147 项参数按 14 个分组组织，悬停查看关键默认值</p>
     </div>
 
     <div class="config-grid">
@@ -1525,7 +1525,7 @@ a { color: var(--blue); text-decoration: none; }
     <div class="section-header reveal">
       <span class="section-tag">INSTALL</span>
       <h2 class="section-title" data-i18n="install_title">几分钟<span class="accent">装好即用</span></h2>
-      <p class="section-desc" data-i18n="install_desc">仅 2 个轻量 pip 依赖（feedparser + aiohttp），143 项参数均有合理默认值</p>
+      <p class="section-desc" data-i18n="install_desc">仅 2 个轻量 pip 依赖（feedparser + aiohttp），147 项参数均有合理默认值</p>
     </div>
 
     <div class="install-grid">
@@ -1707,12 +1707,12 @@ const i18n = {
     pillar2_f4: '多段跨天静默时段，有作息表',
     pillar2_tooltip: '退却机制：活跃激增/连续SKIP/厌烦关键词/自说自话/连续无人回应，五路任一触发即收声；连续 2/3/4 次无人回应递进退让 2h/6h/24h。',
     pillar3_title: '可调校', pillar3_sub: 'Tunable',
-    pillar3_desc: '143 项参数 × 专属可视化面板——同一只 Bot，在每个群都可以有不同的性格',
+    pillar3_desc: '147 项参数 × 专属可视化面板——同一只 Bot，在每个群都可以有不同的性格',
     pillar3_f1: '专属 Web 配置面板，非 schema 冗长表单',
     pillar3_f2: '21 项参数按群覆盖 + 用户概率乘数',
     pillar3_f3: 'Token 四维统计 + σ 异常告警',
     pillar3_f4: '预设一键切换整体性格',
-    pillar3_tooltip: '精调体系：143 项参数 14 组 + 21 项单群覆盖 + 用户概率乘数；面板入口：AstrBot WebUI → 插件管理 → 灵犀 → 配置面板。',
+    pillar3_tooltip: '精调体系：147 项参数 14 组 + 21 项单群覆盖 + 用户概率乘数；面板入口：AstrBot WebUI → 插件管理 → 灵犀 → 配置面板。',
     features_title: '让 Bot 更像<span class="accent">真实群友</span>的细节',
     features_desc: '从主动发起到知趣闭嘴，从社交呼吸到成本精算',
     f1_title: '主动找话题', f1_desc: 'AIF 引擎定时感知群内氛围，该开口时才开口，不等被叫',
@@ -1793,7 +1793,7 @@ const i18n = {
     tuning_desc: '专属可视化配置面板 + 精细到单群单人的调校体系',
     tune1_title: '专属 Web 配置面板',
     tune1_desc: '不是 schema 自动生成的冗长表单：分组标签、实时状态 5 秒轮询、预设一键切换、测试发言、日志控制台、未保存提醒',
-    tune2_title: '143 项可调参数',
+    tune2_title: '147 项可调参数',
     tune2_desc: '14 个配置分组，从精力恢复速率到话题权重全部可调，均有合理默认值开箱即用',
     tune3_title: '单群单人精调',
     tune3_desc: '21 项参数按群覆盖（<code>group_overrides</code>）+ 用户级回复概率乘数（<code>user_prob_overrides</code>，0 = 永不回复某人）',
@@ -1805,7 +1805,7 @@ const i18n = {
     tune6_desc: '框架图片描述直取为主（零成本）+ 自定义多模态模型降级识别兜底（<code>image_context_custom_model</code>）',
     panel_entry: '面板入口：<strong>AstrBot WebUI → 插件管理 → 灵犀 → 配置面板</strong>；所有参数也可在插件配置中直接修改',
     config_title: '十四个<span class="accent">配置分组</span>',
-    config_desc: '143 项参数按 14 个分组组织，悬停查看关键默认值',
+    config_desc: '147 项参数按 14 个分组组织，悬停查看关键默认值',
     config1_name: '🧩 基础设置', config1_desc: '名称关键词、上下文工程、对话记忆、模型路由',
     config1_tooltip: "34 项：bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · bypass_core_context=true · 上下文压缩/分层记忆/异常检测等",
     config2_name: '🔒 群组过滤', config2_desc: '白名单、黑名单、生效群控制',
@@ -1835,7 +1835,7 @@ const i18n = {
     config14_name: '📡 外部资讯模块', config14_desc: '内置 15 源、RSS+API 双通道、跨群去重',
     config14_tooltip: '10 项：enabled=false · rss_enabled=true · cache_ttl=21600s · pool_size=15 · 支持自定义 RSS 源与 HTTP 代理（NSSM 服务场景）',
     install_title: '几分钟<span class="accent">装好即用</span>',
-    install_desc: '仅 2 个轻量 pip 依赖（feedparser + aiohttp），143 项参数均有合理默认值',
+    install_desc: '仅 2 个轻量 pip 依赖（feedparser + aiohttp），147 项参数均有合理默认值',
     install_badge: '推荐 · 上架审核中',
     install_market_title: '插件市场安装',
     install_market_desc: '在 AstrBot 插件市场搜索「灵犀」或 astrbot_plugin_smart_wakeup，点击安装，依赖自动处理',
@@ -1893,12 +1893,12 @@ const i18n = {
     pillar2_f4: 'Multi-segment quiet hours across midnight',
     pillar2_tooltip: 'Retreat: active surge / consecutive SKIP / annoyance keywords / self-talk ratio / no response — any triggers silence; 2/3/4 consecutive no-responses escalate to 2h/6h/24h.',
     pillar3_title: 'Tunable', pillar3_sub: 'Dial It In',
-    pillar3_desc: '143 params × a dedicated visual panel — the same bot can have a different personality in every group',
+    pillar3_desc: '147 params × a dedicated visual panel — the same bot can have a different personality in every group',
     pillar3_f1: 'Dedicated web panel, not a schema form',
     pillar3_f2: '21 per-group overrides + per-user probability',
     pillar3_f3: '4-dimension token stats + σ anomaly alerts',
     pillar3_f4: 'One-click preset switching',
-    pillar3_tooltip: 'Tuning: 143 params in 14 groups + 21 per-group overrides + user probability multipliers; panel: AstrBot WebUI → Plugins → Lingxi → Config Panel.',
+    pillar3_tooltip: 'Tuning: 147 params in 14 groups + 21 per-group overrides + user probability multipliers; panel: AstrBot WebUI → Plugins → Lingxi → Config Panel.',
     features_title: 'Details That Make a Bot a <span class="accent">Real Group Member</span>',
     features_desc: 'From speaking first to backing off, from social rhythm to token budgeting',
     f1_title: 'Starts Topics', f1_desc: 'The AIF engine senses group atmosphere on schedule and speaks when it should',
@@ -1979,7 +1979,7 @@ const i18n = {
     tuning_desc: 'A dedicated config panel plus per-group, per-user tuning',
     tune1_title: 'Dedicated Web Panel',
     tune1_desc: 'Not a generated schema form: grouped tabs, 5s live status, one-click presets, test speech, log console, unsaved-changes guard',
-    tune2_title: '143 Tunable Params',
+    tune2_title: '147 Tunable Params',
     tune2_desc: '14 config groups — from energy recovery to topic weights, all with sensible defaults',
     tune3_title: 'Per-Group / Per-User',
     tune3_desc: '21 per-group overrides (<code>group_overrides</code>) + per-user reply multipliers (<code>user_prob_overrides</code>, 0 = never reply)',
@@ -1991,7 +1991,7 @@ const i18n = {
     tune6_desc: 'Framework image captions first (zero cost) + custom multimodal model fallback (<code>image_context_custom_model</code>)',
     panel_entry: 'Panel: <strong>AstrBot WebUI → Plugins → Lingxi → Config Panel</strong>; every param is also editable in plugin config',
     config_title: '14 <span class="accent">Config Groups</span>',
-    config_desc: '143 params in 14 groups — hover for key defaults',
+    config_desc: '147 params in 14 groups — hover for key defaults',
     config1_name: '🧩 Basics', config1_desc: 'Names & keywords, context engineering, memory, model routing',
     config1_tooltip: "34 items: bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · bypass_core_context=true · compression/memory/anomaly detection",
     config2_name: '🔒 Group Filter', config2_desc: 'Whitelist, blacklist, scope control',
@@ -2021,7 +2021,7 @@ const i18n = {
     config14_name: '📡 Fetcher', config14_desc: '15 built-in feeds, RSS+API, cross-group dedup',
     config14_tooltip: '10 items: enabled=false · rss_enabled=true · cache_ttl=21600s · pool_size=15 · custom feeds & HTTP proxy',
     install_title: 'Ready in <span class="accent">Minutes</span>',
-    install_desc: 'Only 2 lightweight pip deps (feedparser + aiohttp); all 143 params have sensible defaults',
+    install_desc: 'Only 2 lightweight pip deps (feedparser + aiohttp); all 147 params have sensible defaults',
     install_badge: 'Recommended · Review Pending',
     install_market_title: 'From Plugin Market',
     install_market_desc: 'Search "Lingxi" or astrbot_plugin_smart_wakeup in the AstrBot plugin market; deps handled automatically',

@@ -24,6 +24,7 @@ class NewsItem:
     published_at: datetime  # 发布时间
     category: str  # 类别（科技资讯/游戏八卦/沙雕新闻/热点事件）
     fetched_at: datetime = field(default_factory=datetime.now)  # 抓取时间
+    image_url: str = ""  # 首图 URL（v2.0.3：四级解析提取，空表示无图）
 
     def __str__(self) -> str:
         return f"[{self.source}] {self.title}"

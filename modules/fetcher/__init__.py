@@ -259,6 +259,13 @@ class FetcherManager:
         """
         self.pool.mark_sent(group_id, title, category)
 
+    def seed_sent(self, group_id: str, titles: set) -> None:
+        """将持久化的已发送标题种子进池子（v2.0.3，防跨天重复推送）
+
+        委托给 NewsPool.seed_sent；由插件启动时调用。
+        """
+        self.pool.seed_sent(group_id, titles)
+
     def clear_cache(self) -> None:
         """清空所有缓存（v1.8.1：同时清空 NewsCache 和 NewsPool）"""
         self.cache.clear()

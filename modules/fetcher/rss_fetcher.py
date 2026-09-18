@@ -9,6 +9,7 @@ v1.8.2 改进（基于实测反馈）：
 """
 
 import asyncio
+import re
 from datetime import datetime
 from typing import Dict, List
 
@@ -20,6 +21,42 @@ try:
 except ImportError:
     feedparser = None
     logger.warning("[RSSFetcher] feedparser 未安装，RSS 数据源不可用")
+
+# v2.0.3：首图提取——description 内嵌 <img> 的匹配
+_IMG_TAG_RE = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
+
+
+def _extract_first_image(entry) -> str:
+    """从 RSS 条目四级提取首图 URL（v2.0.3 新增）
+
+    优先级：media:content → media:thumbnail → image/* enclosure → 摘要内嵌 <img>。
+    无图返回空串（调用方自动降级纯文本）。
+
+    Args:
+        entry: feedparser 解析出的条目对象
+    """
+    try:
+        for mc in getattr(entry, "media_content", None) or []:
+            url = mc.get("url", "") if isinstance(mc, dict) else ""
+            if url:
+                return url
+        for mt in getattr(entry, "media_thumbnail", None) or []:
+            url = mt.get("url", "") if isinstance(mt, dict) else ""
+            if url:
+                return url
+        for enc in getattr(entry, "enclosures", None) or []:
+            if isinstance(enc, dict) and str(enc.get("type", "")).startswith("image/"):
+                url = enc.get("href", "") or enc.get("url", "")
+                if url:
+                    return url
+        for attr in ("summary", "description"):
+            text = getattr(entry, attr, "") or ""
+            m = _IMG_TAG_RE.search(text)
+            if m:
+                return m.group(1)
+    except Exception as e:
+        logger.debug(f"[RSSFetcher] 首图提取异常: {e}")
+    return ""
 
 # v1.8.2：使用 aiohttp 异步拉取（插件已依赖 aiohttp）
 try:
@@ -478,6 +515,7 @@ class RSSFetcher(BaseFetcher):
                                 published_at=published_at,
                                 category=category,
                                 fetched_at=datetime.now(),
+                                image_url=_extract_first_image(entry),
                             )
                         )
 
@@ -618,6 +656,7 @@ class RSSFetcher(BaseFetcher):
                         published_at=published_at,
                         category=category,
                         fetched_at=datetime.now(),
+                        image_url=_extract_first_image(entry),
                     )
                 )
 

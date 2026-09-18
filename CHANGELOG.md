@@ -1,5 +1,26 @@
 # 更新日志
 
+## [2.0.3] - 2026-09-18
+
+全面审计整改 + 资讯体验增强版本。依据三路独立审计（参数语义活性 / 功能冲突矩阵 / 默认值一致性）与用户实测反馈。
+
+### 修复（审计整改）
+
+- **P1 单群覆盖三方对齐**：收集白名单补 `proactive_quiet_hours`（修复面板可配但被静默丢弃、海外群专属静默时段永不生效）；schema 模板补 `light_response_prob/cooldown/max_per_hour` 三字段（修复生效但面板无处可配）
+- **资讯跨天重复推送**：`NewsPool._sent_per_group` 纯内存导致重载即清零（知乎热榜条目存活数天 → 重载后重推）。新增 `sent_news.json` 持久化（plugin_data 目录，TTL 14 天/每群 300 条，启动种子回池）；话题去重窗口 24h→72h、maxlen 10→20
+- **默认值对齐**：`proactive_topic_categories` fallback 补齐 9 类（旧配置缺键静默丢 4 个资讯话题）；`bot_name` fallback 空串→'Bot'
+- **5 个 proactive 参数补 schema min**（300/600/300/1/1，与代码 floor 对齐，面板校验免费生效）
+- **路由阻断不再覆写 `extra_user_content_parts`**：只清空本插件注入，不再误删其他插件（如社区记忆插件 LivingMemory）注入的内容——为记忆生态共存铺路
+- `cascade_upgrade_enabled` 显式标注"已弃用·无效参数"（审计确认零行为，仅为兼容保留）
+
+### 新增
+
+- **资讯推送附带首图**（`fetcher_send_first_image`，默认关）：RSS 四级提取（media:content → media:thumbnail → enclosure → 摘要内嵌 img）；带浏览器 Referer/UA 下载兜底防盗链，失败降级直链或纯文本
+
+### 参数规模
+
+143 → **147**（+3 单群轻量回应覆盖字段，+1 首图开关），全触点文案同步
+
 ## [2.0.2] - 2026-09-18
 
 配置面板生效性修复版本。用户报告：Web 配置面板修改参数后不生效、仅有 AstrBot 原生面板生效，且两套面板存在"同步异常"体感。
