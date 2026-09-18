@@ -1,6 +1,6 @@
 # 灵犀 - 完整使用指南
 
-> 版本: v2.0.1 | 平台: Telegram / QQ (aiocqhttp)
+> 版本: v2.0.2 | 平台: Telegram / QQ (aiocqhttp)
 
 ---
 

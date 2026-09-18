@@ -1,4 +1,4 @@
-"""Web API 模块 — 灵犀 v2.0.1 配置面板后端
+"""Web API 模块 — 灵犀 v2.0.2 配置面板后端
 
 为插件自定义 Web 配置页面（pages/config/）提供 REST API 支持。
 
@@ -43,7 +43,7 @@ from astrbot.api.star import StarTools
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
 
 # 配置文件版本
-CONFIG_VERSION = "2.0.1"
+CONFIG_VERSION = "2.0.2"
 
 
 # ============================================================================
@@ -353,7 +353,9 @@ def register_web_apis(plugin, context):
 
             plugin.config.save_config(current_config)
             logger.info(f"[smart_wakeup] 配置已通过 Web API 保存到框架配置文件")
-            return jsonify({"ok": True, "message": "配置已保存到框架配置文件"})
+            # v2.0.2：保存成功后由后端统一触发热重载，确保 __init__ 缓存刷新
+            reloaded, reload_error = await _trigger_reload()
+            return _reload_response("配置已保存", reloaded, reload_error)
         except Exception as e:
             logger.error(f"[smart_wakeup] POST /config 失败: {e}\n{traceback.format_exc()}")
             return jsonify({"ok": False, "error": str(e)}), 500
@@ -390,11 +392,57 @@ def register_web_apis(plugin, context):
             logger.error(f"[smart_wakeup] GET /config/status 失败: {e}\n{traceback.format_exc()}")
             return jsonify({"ok": False, "error": str(e)}), 500
 
+    async def _trigger_reload():
+        """v2.0.2：保存配置后由后端统一触发框架级热重载
+
+        背景：插件在 __init__ 中将全部配置缓存为实例属性，仅写配置文件/内存
+        不会刷新缓存——必须重载插件才真正生效（AstrBot 原生面板保存后即
+        reload）。旧版面板依赖前端追加调 /config/reload，失败仅 console.warn，
+        造成"显示保存成功但行为未变"；预设链路更是完全不重载。
+        现统一由 post_config / post_preset 保存成功后自行调用本函数。
+
+        Returns:
+            (reloaded, reload_error)：是否重载成功 / 失败原因
+        """
+        reloaded, reload_error = False, None
+        try:
+            star_manager = getattr(context, "_star_manager", None)
+            if star_manager and hasattr(star_manager, "reload"):
+                success, err_msg = await star_manager.reload(PLUGIN_NAME)
+                reloaded = bool(success)
+                if not success and err_msg:
+                    reload_error = err_msg
+                    logger.warning(f"[smart_wakeup] 框架热重载返回失败: {err_msg}")
+                else:
+                    logger.info("[smart_wakeup] 框架热重载成功")
+            else:
+                reload_error = "框架未暴露 _star_manager，无法自动重载"
+                logger.warning(f"[smart_wakeup] {reload_error}")
+        except Exception as e:
+            reload_error = str(e)
+            logger.warning(f"[smart_wakeup] 框架热重载异常: {e}")
+        return reloaded, reload_error
+
+    def _reload_response(base_message: str, reloaded: bool, reload_error):
+        """v2.0.2：构造带重载状态的保存响应"""
+        if reloaded:
+            msg = base_message + "，已热重载生效"
+        else:
+            err = f"（{reload_error}）" if reload_error else ""
+            msg = base_message + f"，但热重载失败{err}——请在 AstrBot 原生面板手动重载插件"
+        return jsonify({
+            "ok": True,
+            "message": msg,
+            "reloaded": reloaded,
+            "reload_error": reload_error,
+        })
+
     async def post_reload():
         """POST /config/reload - 保存状态并触发框架级热重载
 
         v1.9.0 修复：通过 context._star_manager.reload() 触发框架级热重载，
         确保配置变更立即生效（包括 __init__ 中缓存的配置）。
+        v2.0.2 起常规保存流程已内置重载，本端点保留用于手动触发。
         """
         try:
             # 1. 调用插件的 _save_proactive_state 保存持久化状态
@@ -402,22 +450,8 @@ def register_web_apis(plugin, context):
                 plugin._save_proactive_state()
                 logger.info("[smart_wakeup] 状态已通过 Web API 保存")
 
-            # 2. v1.9.0 修复：触发框架级热重载，让配置变更立即生效
-            reloaded = False
-            reload_error = None
-            try:
-                star_manager = getattr(context, "_star_manager", None)
-                if star_manager and hasattr(star_manager, "reload"):
-                    success, err_msg = await star_manager.reload(PLUGIN_NAME)
-                    reloaded = success
-                    if not success and err_msg:
-                        reload_error = err_msg
-                        logger.warning(f"[smart_wakeup] 框架热重载返回失败: {err_msg}")
-                    else:
-                        logger.info(f"[smart_wakeup] 框架热重载成功")
-            except Exception as e:
-                reload_error = str(e)
-                logger.warning(f"[smart_wakeup] 框架热重载异常: {e}")
+            # 2. 触发框架级热重载
+            reloaded, reload_error = await _trigger_reload()
 
             return jsonify({
                 "ok": True,
@@ -467,7 +501,9 @@ def register_web_apis(plugin, context):
                 default_config = _extract_defaults_from_schema(plugin_root)
                 plugin.config.save_config(default_config)
                 logger.info(f"[smart_wakeup] 已应用预设 '{name}'（恢复默认值）")
-                return jsonify({"ok": True, "message": f"已应用预设 '{name}'（恢复默认值）"})
+                # v2.0.2：应用预设同样触发热重载（此前预设链路完全不重载，永不生效）
+                reloaded, reload_error = await _trigger_reload()
+                return _reload_response(f"已应用预设 '{name}'（恢复默认值）", reloaded, reload_error)
 
             # 应用预设配置（深度合并到当前配置）
             # v1.9.0 修复：从 plugin.config 读取当前配置，而非 full_config.json
@@ -486,7 +522,9 @@ def register_web_apis(plugin, context):
             # v1.9.0 修复：保存到框架配置文件，而非 full_config.json
             plugin.config.save_config(current_config)
             logger.info(f"[smart_wakeup] 已应用预设 '{name}'")
-            return jsonify({"ok": True, "message": f"已应用预设 '{name}'"})
+            # v2.0.2：应用预设同样触发热重载（此前预设链路完全不重载，永不生效）
+            reloaded, reload_error = await _trigger_reload()
+            return _reload_response(f"已应用预设 '{name}'", reloaded, reload_error)
         except Exception as e:
             logger.error(f"[smart_wakeup] POST /config/preset/<name> 失败: {e}\n{traceback.format_exc()}")
             return jsonify({"ok": False, "error": str(e)}), 500

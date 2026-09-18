@@ -123,8 +123,8 @@ createApp({
         // Computed 计算属性
         // ====================================================================
 
-        // Schema 版本（兜底 2.0.1）
-        const schemaVersion = computed(() => schema.value.version || '2.0.1');
+        // Schema 版本（兜底 2.0.2）
+        const schemaVersion = computed(() => schema.value.version || '2.0.2');
 
         // 总配置项数
         const totalItems = computed(() => {
@@ -477,19 +477,19 @@ createApp({
                     configToSave[cat] = JSON.parse(JSON.stringify(config[cat]));
                 });
 
-                // 3. 调用后端保存
-                await callApi('POST', 'config', configToSave);
+                // 3. 调用后端保存（v2.0.2：后端保存成功后会自行触发热重载）
+                const saveResult = await callApi('POST', 'config', configToSave);
 
                 // 4. 更新快照
                 savedConfig.value = JSON.parse(JSON.stringify(config));
 
-                showMessage('配置已保存', 'success');
-
-                // 5. 触发重载提示（POST /config/reload），失败仅警告不报错
-                try {
-                    await callApi('POST', 'config/reload', {});
-                } catch (e) {
-                    console.warn('重载提示失败:', e);
+                // 5. 根据后端重载状态提示（重载失败必须让用户看见，不能只 console.warn）
+                const reloaded = saveResult?.reloaded !== false;
+                const backendMsg = saveResult?.message;
+                if (reloaded) {
+                    showMessage(backendMsg || '配置已保存并热生效', 'success');
+                } else {
+                    showMessage(backendMsg || '配置已保存，但热重载失败——请在 AstrBot 原生面板手动重载插件', 'warning');
                 }
             } catch (err) {
                 showMessage(`保存配置失败: ${err.message}`, 'error');
@@ -601,11 +601,17 @@ createApp({
 
             try {
                 loading.config = true;
-                await callApi('POST', `config/preset/${name}`, {});
-                showMessage(`正在应用预设 "${name}"...`, 'info');
+                // v2.0.2：后端应用预设后会自行触发热重载，据实提示
+                const presetResult = await callApi('POST', `config/preset/${name}`, {});
                 // 重新加载配置以反映预设效果
                 await loadConfig();
-                showMessage(`预设 "${name}" 已应用`, 'success');
+                const reloaded = presetResult?.reloaded !== false;
+                const backendMsg = presetResult?.message;
+                if (reloaded) {
+                    showMessage(backendMsg || `预设 "${name}" 已应用并热生效`, 'success');
+                } else {
+                    showMessage(backendMsg || `预设 "${name}" 已保存，但热重载失败——请在 AstrBot 原生面板手动重载插件`, 'warning');
+                }
             } catch (err) {
                 showMessage(`应用预设失败: ${err.message}`, 'error');
             } finally {
