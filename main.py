@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "灵犀——会主动、知进退、有作息的群友型 Bot 节律引擎，兼容 QQ 与 Telegram",
-    "2.0.1",
+    "2.0.2",
 )
 class LingxiPlugin(Star):
     """灵犀插件

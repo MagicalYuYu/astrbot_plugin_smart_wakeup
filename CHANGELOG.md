@@ -1,5 +1,24 @@
 # 更新日志
 
+## [2.0.2] - 2026-09-18
+
+配置面板生效性修复版本。用户报告：Web 配置面板修改参数后不生效、仅有 AstrBot 原生面板生效，且两套面板存在"同步异常"体感。
+
+### 根因（核查确认）
+
+- 插件在 `__init__` 中将全部配置缓存为实例属性，仅写配置文件/内存不会刷新缓存，必须重载插件才真正生效；AstrBot 原生面板保存后由框架自动热重载（`config_service.py` save→reload），而灵犀面板依赖前端追加调 `/config/reload`，失败仅 console.warn，界面仍显示"配置已保存"——静默失败造成"保存了却不生效"
+- **应用预设链路（post_preset）前后端均不触发重载**，预设应用后永不生效（v1.4.4 起一直存在）
+
+### 修复
+
+- `post_config` / `post_preset`（含恢复默认值分支）保存成功后由**后端统一触发热重载**（抽出 `_trigger_reload` 复用 `context._star_manager.reload()`），响应体返回 `reloaded` / `reload_error` 状态
+- 前端 `saveConfig` 移除冗余的前端 reload 调用，按后端真实状态提示；`applyPreset` 同样展示重载结果——**重载失败从静默 console.warn 升级为用户可见的 warning 提示**
+- `/config/reload` 端点保留用于手动触发
+
+### 版本同步
+
+`metadata.yaml` / `@register` / `CONFIG_VERSION` / README badge / 面板缓存号 / 文档版本标识同步至 2.0.2
+
 ## [2.0.1] - 2026-09-17
 
 插件市场上架合规修复版本。应 AstrBot 插件市场 LLM Guard 自动安全检查意见整改，不含功能行为变更。
