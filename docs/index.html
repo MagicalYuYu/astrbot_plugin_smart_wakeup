@@ -297,7 +297,7 @@ a { color: var(--blue); text-decoration: none; }
 }
 
 /* Logo 徽章主体 */
-.hero-logo-wrap { position: relative; width: 208px; height: 208px; margin-bottom: 66px; }
+.hero-logo-wrap { position: relative; width: 208px; height: 208px; margin-bottom: 86px; }
 .hero-logo-ring {
   position: absolute; inset: -26px; border-radius: 50%;
   background: conic-gradient(from 40deg, rgba(152,200,248,.0), rgba(152,200,248,.55), rgba(255,224,102,.5), rgba(255,182,193,.4), rgba(152,200,248,.0));
@@ -340,7 +340,7 @@ a { color: var(--blue); text-decoration: none; }
   display: inline-flex; align-items: center; gap: 10px;
   background: #fff; border: 1px solid var(--line-strong);
   padding: 8px 20px; border-radius: var(--radius-full);
-  font-size: 14px; font-weight: 600; color: var(--ink-2);
+  font-size: 14px; font-weight: 700; color: var(--blue-deep);
   box-shadow: var(--shadow-soft); margin-bottom: 26px;
   animation: badge-float 6s ease-in-out infinite;
 }
@@ -440,13 +440,16 @@ a { color: var(--blue); text-decoration: none; }
   transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.7s ease;
 }
 .pillar-card:hover { transform: translateY(-8px); box-shadow: var(--shadow-card-hover); }
-.pillar-card::before {
-  content: ''; position: absolute; top: 0; left: 30px;
+/* 顶部彩条用真实元素而非 ::before——卡片带 data-tooltip，
+   [data-tooltip]::before 的 opacity:0 会按属性级联劫持同名伪元素导致彩条永不绘制 */
+.pillar-bar {
+  position: absolute; top: 0; left: 30px;
   width: calc(100% - 60px); height: 4px;
   border-radius: 0 0 6px 6px; background: var(--grad-blue);
+  pointer-events: none;
 }
-.pillar-card.p2::before { background: linear-gradient(135deg, #98C8F8, #FFB6C1); }
-.pillar-card.p3::before { background: linear-gradient(135deg, #FFB347, #FFE066); }
+.pillar-card.p2 .pillar-bar { background: linear-gradient(135deg, #98C8F8, #FFB6C1); }
+.pillar-card.p3 .pillar-bar { background: linear-gradient(135deg, #FFB347, #FFE066); }
 .pillar-icon {
   width: 62px; height: 62px; border-radius: 20px;
   display: flex; align-items: center; justify-content: center;
@@ -885,11 +888,11 @@ a { color: var(--blue); text-decoration: none; }
   <div class="sparkle sparkle-yellow" style="bottom:31%; right:18%; width:15px; animation-delay:.8s"><svg><use href="#star4"/></svg></div>
   <div class="sparkle sparkle-blue" style="top:14%; left:46%; width:14px; animation-delay:1.6s"><svg><use href="#star4"/></svg></div>
 
-  <div class="hero-bubble" style="top:24%; left:6%;">
+  <div class="hero-bubble" style="top:24%; left:11%;">
     <span class="dot"></span><span class="dot"></span><span class="dot"></span>
     <span data-i18n="hero_bubble_listening">正在观察群聊…</span>
   </div>
-  <div class="hero-bubble b2" style="top:38%; right:5%;">
+  <div class="hero-bubble b2" style="top:38%; right:10%;">
     <span data-i18n="hero_bubble_reply">这个话题有意思，我来说两句</span>
   </div>
 
@@ -964,6 +967,7 @@ a { color: var(--blue); text-decoration: none; }
 
     <div class="pillars-grid">
       <div class="pillar-card p1 reveal" data-tooltip="核心配置：proactive_speak 组 22 项参数——开关、检查间隔、触发概率、每日上限、时间窗、静默时段、五路退却时长。" data-i18n-tooltip="pillar1_tooltip">
+        <div class="pillar-bar"></div>
         <div class="pillar-icon">🗣️</div>
         <h3 class="pillar-title" data-i18n="pillar1_title">会主动</h3>
         <div class="pillar-sub" data-i18n="pillar1_sub">Proactive</div>
@@ -977,6 +981,7 @@ a { color: var(--blue); text-decoration: none; }
       </div>
 
       <div class="pillar-card p2 reveal reveal-delay-1" data-tooltip="退却机制：活跃激增/连续SKIP/厌烦关键词/自说自话/连续无人回应，五路任一触发即收声；连续 2/3/4 次无人回应递进退让 2h/6h/24h。" data-i18n-tooltip="pillar2_tooltip">
+        <div class="pillar-bar"></div>
         <div class="pillar-icon">🧭</div>
         <h3 class="pillar-title" data-i18n="pillar2_title">知进退</h3>
         <div class="pillar-sub" data-i18n="pillar2_sub">Tactful</div>
@@ -990,6 +995,7 @@ a { color: var(--blue); text-decoration: none; }
       </div>
 
       <div class="pillar-card p3 reveal reveal-delay-2" data-tooltip="精调体系：143 项参数 14 组 + 21 项单群覆盖 + 用户概率乘数；面板入口：AstrBot WebUI → 插件管理 → 灵犀 → 配置面板。" data-i18n-tooltip="pillar3_tooltip">
+        <div class="pillar-bar"></div>
         <div class="pillar-icon">🎛️</div>
         <h3 class="pillar-title" data-i18n="pillar3_title">可调校</h3>
         <div class="pillar-sub" data-i18n="pillar3_sub">Tunable</div>
