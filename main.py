@@ -82,8 +82,8 @@ class DebounceState:
 @register(
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
-    "灵犀——会主动、知进退、有作息的群友型 Bot 节律引擎，兼容 QQ 与 Telegram",
-    "2.0.3",
+    "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
+    "2.0.4",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -6742,13 +6742,25 @@ class LingxiPlugin(Star):
                 if self.strip_trailing_punct_enabled:
                     self._strip_segment_trailing_punct(seg)
 
-            # v2.0.3：资讯首图（先图后文，失败静默降级纯文本）
-            if (
-                self._fetcher_send_first_image
-                and news_items_used
-                and getattr(news_items_used[0], "image_url", "")
-            ):
-                await self._send_news_first_image(umo_str, news_items_used[0].image_url)
+            # v2.0.3 新增：资讯首图（先图后文，失败静默降级纯文本）
+            # v2.0.4 修正：图片取"LLM 实际写的那条资讯"，不再无条件取第 1 条
+            # 根因：LLM 一次拿 3 条任选/融合，第 1 条与其正文常无关 → 图文错配。
+            # 方案：bigram Jaccard 比对正文与每条标题+摘要，取最高分者；
+            # 无条目过阈值则跳过图片（错误配图比无图更糟）。
+            if self._fetcher_send_first_image and news_items_used:
+                best_item, best_score = None, 0.0
+                for item in news_items_used:
+                    if not getattr(item, "image_url", ""):
+                        continue
+                    score = self._calc_text_similarity(text, f"{item.title} {item.summary}")
+                    if score > best_score:
+                        best_item, best_score = item, score
+                if best_item and best_score >= 0.12:
+                    await self._send_news_first_image(umo_str, best_item.image_url)
+                elif best_item:
+                    logger.debug(
+                        f"[首图] 图文相似度不足（最高 {best_score:.3f}），跳过图片防错配"
+                    )
 
             sent_count = 0
             try:

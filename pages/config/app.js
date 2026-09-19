@@ -123,8 +123,8 @@ createApp({
         // Computed 计算属性
         // ====================================================================
 
-        // Schema 版本（兜底 2.0.3）
-        const schemaVersion = computed(() => schema.value.version || '2.0.3');
+        // Schema 版本（兜底 2.0.4）
+        const schemaVersion = computed(() => schema.value.version || '2.0.4');
 
         // 总配置项数
         const totalItems = computed(() => {
@@ -477,7 +477,7 @@ createApp({
                     configToSave[cat] = JSON.parse(JSON.stringify(config[cat]));
                 });
 
-                // 3. 调用后端保存（v2.0.3：后端保存成功后会自行触发热重载）
+                // 3. 调用后端保存（v2.0.4：后端保存成功后会自行触发热重载）
                 const saveResult = await callApi('POST', 'config', configToSave);
 
                 // 4. 更新快照
@@ -601,7 +601,7 @@ createApp({
 
             try {
                 loading.config = true;
-                // v2.0.3：后端应用预设后会自行触发热重载，据实提示
+                // v2.0.4：后端应用预设后会自行触发热重载，据实提示
                 const presetResult = await callApi('POST', `config/preset/${name}`, {});
                 // 重新加载配置以反映预设效果
                 await loadConfig();
