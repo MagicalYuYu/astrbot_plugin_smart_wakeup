@@ -13,7 +13,7 @@ Compatible with Telegram and QQ (aiocqhttp)
 
 [🌐 Website](https://lx.magicalyu.online/) · [📖 Usage Guide](docs/usage_guide.md) · [🚀 Quick Start](#installation)
 
-[![Version](https://img.shields.io/badge/version-2.0.4-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Website](https://img.shields.io/badge/website-online-brightgreen?style=flat-square)](https://lx.magicalyu.online/)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
@@ -23,7 +23,7 @@ Compatible with Telegram and QQ (aiocqhttp)
 
 ---
 
-Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 147 Tunable Parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
+Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 151 Tunable Parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
 
 ## Why Lingxi
 
@@ -53,7 +53,7 @@ Group bots usually fail in one of two ways: they're dead — silent forever unle
 **🎛️ Tunable**
 
 - 🖥️ **Dedicated Web Config Panel** — Not an auto-generated schema form: grouped tabs, live status polling every 5 seconds, one-click presets, test-speak, a log console, and unsaved-changes warnings
-- 🔧 **147 Tunable Parameters** — 14 config groups, from energy recovery to topic weights
+- 🔧 **151 Tunable Parameters** — 14 config groups, from energy recovery to topic weights
 - 🎚️ **Per-Group, Per-User Fine-Tuning** — 21 per-group override parameters + per-user reply-probability multipliers (0 = never reply to someone)
 - 💰 **Token Accountant** — Small-model context compression + incremental injection + four-dimension token statistics (model/group/hour/wakeup type) + σ anomaly alerts
 - 🧠 **Remembers What Everyone Said** — Layered conversation memory (recent turns verbatim + older turns summarized) + sender attribution + active-user annotations — no mistaking who said what
@@ -118,7 +118,7 @@ The core leap of v2.0: Lingxi no longer waits to be @-mentioned.
 
 Lingxi ships with a dedicated visual config panel — not an auto-generated schema form:
 
-- **Grouped Tabs** — 147 parameters organized into 14 config groups, no more endless scrolling
+- **Grouped Tabs** — 151 parameters organized into 14 config groups, no more endless scrolling
 - **Live Status** — 5-second polling shows each group's energy / flow / retreat / message counters
 - **One-Click Presets** — Built-in presets to switch the overall personality instantly
 - **Test-Speak** — Trigger a test message right from the panel and see tuning take effect immediately
@@ -144,7 +144,7 @@ The dedicated **Web Config Panel** is recommended (see above), or configure via 
 | `proactive_speak.enabled` | Enable proactive speech — the bot periodically senses the atmosphere and starts topics | No |
 | `splitter.enabled` | Enable message splitting — long replies are sent in natural segments | No |
 
-All 147 parameters have sensible defaults and work out of the box. For detailed configuration, see the [Usage Guide](docs/usage_guide.md) (Chinese).
+All 151 parameters have sensible defaults and work out of the box. For detailed configuration, see the [Usage Guide](docs/usage_guide.md) (Chinese).
 
 ## Debug Commands
 

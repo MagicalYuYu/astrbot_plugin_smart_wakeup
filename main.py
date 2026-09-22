@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.0.4",
+    "2.1.0",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -461,6 +461,15 @@ class LingxiPlugin(Star):
         self.random_min = splitter_adv.get("random_min", splitter_config.get("random_min", 1.0))
         self.random_max = splitter_adv.get("random_max", splitter_config.get("random_max", 3.0))
         self.fixed_delay = splitter_adv.get("fixed_delay", splitter_config.get("fixed_delay", 1.5))
+
+        # ─── TTS 分段适配（v2.1.0 新增）───
+        # 背景：框架 TTS 在 result_decorate 阶段只处理 result.chain 里剩余的内容，
+        # 而分段发送把前 N-1 段直接发走、只留末段 → 只有末段能触发语音。
+        # 本模块让手动发送的分段也能独立判定 TTS；概率自管（不读官方 trigger_probability）。
+        self.tts_mode = splitter_config.get("tts_mode", "last")  # last=仅末段(现状) / per_segment=逐段判定 / one_per_reply=每次回复至多一段
+        self.tts_probability = splitter_config.get("tts_probability", 0.3)  # 灵犀自管概率
+        self.tts_max_per_reply = splitter_config.get("tts_max_per_reply", 0)  # 0=不限（per_segment 模式用）
+        self.tts_min_chars = splitter_config.get("tts_min_chars", 4)  # 过短段不配音
 
         # 成对字符映射（智能分段时避免在内部切断）
         self._pair_map = {
@@ -4774,6 +4783,112 @@ class LingxiPlugin(Star):
             return self.linear_base + (len(text) * self.linear_factor)
         return self.fixed_delay
 
+    # ─── TTS 分段适配（v2.1.0）──────────────────────────────
+    # 三模式：last=仅末段（框架原生现状）/ per_segment=每段独立判定 /
+    # one_per_reply=每次回复整体判定一次、命中则选一段配音（有且只有一段）
+    # 概率自管（splitter.tts_probability），不读官方 trigger_probability；
+    # 官方 enable 与会话开关仍作总闸门（管理开关而非概率）。
+
+    async def _get_tts_provider_if_allowed(self, umo_str: str):
+        """TTS 总闸门：官方 enable + 会话开关 + provider 可用性。返回 provider 或 None"""
+        try:
+            from astrbot.core import astrbot_config
+            tts_settings = astrbot_config.get("provider_tts_settings", {})
+            if not tts_settings.get("enable"):
+                return None
+            from astrbot.core.star.session_llm_manager import SessionServiceManager
+            if not await SessionServiceManager.is_tts_enabled_for_session(umo_str):
+                return None
+            return await self.context.get_using_tts_provider_async(umo_str)
+        except Exception as e:
+            logger.debug(f"[TTS分段] 闸门检查异常: {e}")
+            return None
+
+    def _tts_roll(self) -> bool:
+        """灵犀自管概率判定（v2.1.0：不读官方 trigger_probability）"""
+        return random.random() < self.tts_probability
+
+    def _tts_dual_output(self) -> bool:
+        """读取官方 dual_output 设置：True=语音+文字双发，False=语音替换文字"""
+        try:
+            from astrbot.core import astrbot_config
+            return bool(astrbot_config.get("provider_tts_settings", {}).get("dual_output", True))
+        except Exception:
+            return True
+
+    async def _send_segment_voice(self, umo_str: str, text: str, tts_provider=None) -> bool:
+        """生成并发送分段语音（含 file_service 远程平台适配）
+
+        Args:
+            umo_str: 目标会话
+            text: 分段纯文本
+            tts_provider: 已获取的 provider（None 则自行获取）
+
+        Returns:
+            是否实际发送了语音
+        """
+        text = (text or "").strip()
+        if len(text) < self.tts_min_chars:
+            return False
+        try:
+            if tts_provider is None:
+                tts_provider = await self._get_tts_provider_if_allowed(umo_str)
+            if not tts_provider:
+                return False
+            audio_path = await tts_provider.get_audio(text)
+            if not audio_path:
+                logger.warning(f"[TTS分段] 语音生成失败（无音频文件）: {text[:30]}")
+                return False
+            # 红队加固：远程平台（Telegram 等）读不到服务器本地文件，
+            # 官方 use_file_service 开启时经 file_token_service 注册出 HTTP URL 再发
+            # （与官方 stage.py 同款逻辑）
+            file_ref = audio_path
+            try:
+                from astrbot.core import astrbot_config as _ac
+                if _ac.get("provider_tts_settings", {}).get("use_file_service") and _ac.get("callback_api_base"):
+                    from astrbot.core import file_token_service
+                    token = await file_token_service.register_file(audio_path)
+                    file_ref = f"{_ac['callback_api_base']}/api/file/{token}"
+            except Exception as e:
+                logger.debug(f"[TTS分段] file_service 注册失败，回退本地路径: {e}")
+            mc = MessageChain()
+            mc.chain = [Record(file=file_ref, url=file_ref)]
+            await self.context.send_message(umo_str, mc)
+            logger.info(f"[TTS分段] 语音已发送: {text[:30]}")
+            return True
+        except Exception as e:
+            logger.warning(f"[TTS分段] 语音发送失败（不影响文本）: {e}")
+            return False
+
+    async def _maybe_send_segment_tts(self, umo_str: str, text: str) -> bool:
+        """per_segment 模式：单段判定（概率自管）+ 发送。one_per_reply 不走这里。"""
+        if self.tts_mode != "per_segment":
+            return False
+        if not self._tts_roll():
+            return False
+        return await self._send_segment_voice(umo_str, text)
+
+    def _pick_tts_segment_index(self, segments: list) -> int:
+        """one_per_reply 模式：从合格段（>=tts_min_chars）中随机选一段；无合格段返回 -1"""
+        eligible = []
+        for i, seg in enumerate(segments):
+            seg_text = "".join(c.text for c in seg if isinstance(c, Plain))
+            if len(seg_text.strip()) >= self.tts_min_chars:
+                eligible.append(i)
+        return random.choice(eligible) if eligible else -1
+
+    def _suppress_framework_tts(self, result):
+        """one_per_reply 模式接管概率后，抑制框架对末段的原生 TTS 判定
+
+        机制：框架 TTS 闸门之一是 result.is_llm_result()（stage.py），
+        将内容类型标记为 GENERAL_RESULT 即可让框架跳过 TTS（其余处理不受影响）。
+        """
+        try:
+            from astrbot.core.message.message_event_result import ResultContentType
+            result.set_result_content_type(ResultContentType.GENERAL_RESULT)
+        except Exception as e:
+            logger.debug(f"[TTS分段] 抑制框架 TTS 标记失败: {e}")
+
     def _trim_segment_blank_lines(self, segment: list) -> None:
         """清理段落首尾空行"""
         f_p = next((c for c in segment if isinstance(c, Plain)), None)
@@ -5063,17 +5178,60 @@ class LingxiPlugin(Star):
         # 只有一段，无需分段发送
         if len(segments) <= 1:
             final = segments[0] if segments else []
+            # v2.1.0 one_per_reply：单段回复也参与"每次回复至多一段语音"判定
+            if self.tts_mode == "one_per_reply":
+                self._suppress_framework_tts(result)  # 概率灵犀自管，框架末段判定接管
+                single_text = "".join(c.text for c in final if isinstance(c, Plain))
+                if single_text.strip() and self._tts_roll():
+                    tts_provider = await self._get_tts_provider_if_allowed(event.unified_msg_origin)
+                    if tts_provider:
+                        voiced = await self._send_segment_voice(event.unified_msg_origin, single_text, tts_provider)
+                        # 红队加固：段内含非文本组件（图片等）时不替换，避免丢图
+                        if voiced and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in final):
+                            # 语音替换文字：chain 留零宽占位（框架发送不可见内容，防空结果副作用）
+                            result.chain.clear()
+                            result.chain.extend([Plain("\u200b")])
+                            return
             result.chain.clear()
             result.chain.extend(final)
             return
 
+        # v2.1.0 one_per_reply：每次回复先整体掷一次，命中则选一段配音（有且只有一段）
+        tts_picked_idx = -1
+        if self.tts_mode == "one_per_reply":
+            self._suppress_framework_tts(result)  # 接管框架对末段的概率判定
+            if self._tts_roll():
+                tts_picked_idx = self._pick_tts_segment_index(segments)
+
         # 多段发送：前 N-1 段主动发送，最后一段交给正常流程
         sent_count = 0
+        tts_sent = 0  # v2.1.0：本次回复已配音段数（tts_max_per_reply 上限约束）
         try:
             for i in range(len(segments) - 1):
                 seg_chain = segments[i]
                 text_content = "".join([c.text for c in seg_chain if isinstance(c, Plain)])
                 if not text_content.strip(" \t\r\n\u200b") and not any(not isinstance(c, Plain) for c in seg_chain):
+                    continue
+
+                # v2.1.0：逐段 TTS 判定（在文本发送前判定，dual_output=false 时语音替换文字）
+                # per_segment：每段独立判定；one_per_reply：仅命中预选段
+                # 最后一段不走这里——它留在 result.chain 由框架自己判定，每段恰好一次判定
+                tts_hit = False
+                if self.tts_mode == "per_segment" and (self.tts_max_per_reply <= 0 or tts_sent < self.tts_max_per_reply):
+                    tts_hit = await self._maybe_send_segment_tts(event.unified_msg_origin, text_content)
+                    if tts_hit:
+                        tts_sent += 1
+                elif self.tts_mode == "one_per_reply" and i == tts_picked_idx:
+                    tts_provider = await self._get_tts_provider_if_allowed(event.unified_msg_origin)
+                    if tts_provider:
+                        tts_hit = await self._send_segment_voice(event.unified_msg_origin, text_content, tts_provider)
+                        if tts_hit:
+                            tts_sent += 1
+
+                if tts_hit and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in seg_chain):
+                    # 语音替换文字：跳过文本段（段内含图片等非文本组件时不替换，防丢图）
+                    sent_count += 1  # 计入已处理，避免取消时重复合并
+                    await asyncio.sleep(self._calculate_segment_delay(text_content))
                     continue
 
                 try:
@@ -5099,6 +5257,19 @@ class LingxiPlugin(Star):
 
         # 最后一段交给正常流程发送
         last_seg = segments[-1]
+        # v2.1.0 one_per_reply：预选段是末段时由灵犀配音（框架 TTS 已被接管抑制）
+        if self.tts_mode == "one_per_reply" and tts_picked_idx == len(segments) - 1:
+            last_text = "".join(c.text for c in last_seg if isinstance(c, Plain))
+            tts_provider = await self._get_tts_provider_if_allowed(event.unified_msg_origin)
+            if tts_provider:
+                voiced = await self._send_segment_voice(event.unified_msg_origin, last_text, tts_provider)
+                if voiced and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in last_seg):
+                    # 语音替换文字：chain 留零宽占位
+                    result.chain.clear()
+                    result.chain.extend([Plain("\u200b")])
+                    self._stats["splitter_stats"]["total_splits"] += 1
+                    logger.info(f"[分段] 完成: {len(segments)}段, 主动发送{sent_count}段, 末段已配音（替换文字）")
+                    return
         result.chain.clear()
         result.chain.extend(last_seg)
 
@@ -6763,12 +6934,31 @@ class LingxiPlugin(Star):
                     )
 
             sent_count = 0
+            tts_sent = 0  # v2.1.0：本次主动发言已配音段数
+            # v2.1.0 one_per_reply：主动发言整体掷一次，命中则预选一段配音
+            proactive_tts_picked = -1
+            if self.tts_mode == "one_per_reply" and self._tts_roll():
+                proactive_tts_picked = self._pick_tts_segment_index(segments if segments else [[Plain(text)]])
             try:
                 if len(segments) <= 1:
                     # 单段直接发送（使用处理后 segments[0]，与多段一致）
-                    mc = MessageChain()
-                    mc.chain = segments[0] if segments else [Plain(text)]
-                    await self.context.send_message(umo_str, mc)
+                    # v2.1.0：单段也参与逐段 TTS 判定（主动发言框架看不到，不自管就永远没语音）
+                    seg_text = "".join(c.text for c in (segments[0] if segments else []) if isinstance(c, Plain))
+                    tts_hit = False
+                    if self.tts_mode == "per_segment" and (self.tts_max_per_reply <= 0 or tts_sent < self.tts_max_per_reply):
+                        tts_hit = await self._maybe_send_segment_tts(umo_str, seg_text or text)
+                        if tts_hit:
+                            tts_sent += 1
+                    elif self.tts_mode == "one_per_reply" and proactive_tts_picked >= 0:
+                        tts_provider = await self._get_tts_provider_if_allowed(umo_str)
+                        if tts_provider:
+                            tts_hit = await self._send_segment_voice(umo_str, seg_text or text, tts_provider)
+                            if tts_hit:
+                                tts_sent += 1
+                    if not (tts_hit and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in (segments[0] if segments else []))):
+                        mc = MessageChain()
+                        mc.chain = segments[0] if segments else [Plain(text)]
+                        await self.context.send_message(umo_str, mc)
                     sent_count = 1
                 else:
                     # 多段发送：前 N-1 段主动发送，每段之间有延迟
@@ -6778,15 +6968,44 @@ class LingxiPlugin(Star):
                         text_content = "".join([c.text for c in seg_chain if isinstance(c, Plain)])
                         if not text_content.strip(" \t\r\n\u200b") and not any(not isinstance(c, Plain) for c in seg_chain):
                             continue
+                        # v2.1.0：逐段 TTS 判定（per_segment 独立判定 / one_per_reply 仅预选段）
+                        tts_hit = False
+                        if self.tts_mode == "per_segment" and (self.tts_max_per_reply <= 0 or tts_sent < self.tts_max_per_reply):
+                            tts_hit = await self._maybe_send_segment_tts(umo_str, text_content)
+                            if tts_hit:
+                                tts_sent += 1
+                        elif self.tts_mode == "one_per_reply" and i == proactive_tts_picked:
+                            tts_provider = await self._get_tts_provider_if_allowed(umo_str)
+                            if tts_provider:
+                                tts_hit = await self._send_segment_voice(umo_str, text_content, tts_provider)
+                                if tts_hit:
+                                    tts_sent += 1
+                        if tts_hit and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in seg_chain):
+                            sent_count += 1
+                            await asyncio.sleep(self._calculate_segment_delay(text_content))
+                            continue
                         mc = MessageChain()
                         mc.chain = seg_chain
                         await self.context.send_message(umo_str, mc)
                         sent_count += 1
                         await asyncio.sleep(self._calculate_segment_delay(text_content))
-                    # 最后一段
-                    mc = MessageChain()
-                    mc.chain = segments[-1]
-                    await self.context.send_message(umo_str, mc)
+                    # 最后一段（主动发言框架看不到，同样由灵犀判定）
+                    last_text = "".join(c.text for c in segments[-1] if isinstance(c, Plain))
+                    tts_hit = False
+                    if self.tts_mode == "per_segment" and (self.tts_max_per_reply <= 0 or tts_sent < self.tts_max_per_reply):
+                        tts_hit = await self._maybe_send_segment_tts(umo_str, last_text)
+                        if tts_hit:
+                            tts_sent += 1
+                    elif self.tts_mode == "one_per_reply" and proactive_tts_picked == len(segments) - 1:
+                        tts_provider = await self._get_tts_provider_if_allowed(umo_str)
+                        if tts_provider:
+                            tts_hit = await self._send_segment_voice(umo_str, last_text, tts_provider)
+                            if tts_hit:
+                                tts_sent += 1
+                    if not (tts_hit and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in segments[-1])):
+                        mc = MessageChain()
+                        mc.chain = segments[-1]
+                        await self.context.send_message(umo_str, mc)
                     sent_count += 1
             except asyncio.CancelledError:
                 # 多段发送被取消：记录已发送段数，记忆中标记为部分发送

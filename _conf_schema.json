@@ -693,6 +693,39 @@
         ],
         "default": "linear",
         "hint": "linear 线性递增；log 对数递增；random 随机；fixed 固定间隔。"
+      },
+      "tts_mode": {
+        "description": "🎙️ 分段语音模式",
+        "type": "string",
+        "options": [
+          "last",
+          "per_segment",
+          "one_per_reply"
+        ],
+        "default": "last",
+        "hint": "v2.1.0 新增。last=仅末段可触发语音（框架原生行为）；per_segment=每个分段独立判定（可能多段配音）；one_per_reply=每次回复整体判定一次、命中则选一段配音（有且只有一段，框架末段判定被接管）。后两种模式使用灵犀自管概率，不读官方 trigger_probability。需先在 AstrBot 官方设置开启 TTS。"
+      },
+      "tts_probability": {
+        "description": "🎙️ 语音概率（灵犀自管）",
+        "type": "float",
+        "default": 0.3,
+        "min": 0,
+        "max": 1,
+        "hint": "v2.1.0 新增。per_segment=每段配音概率；one_per_reply=每次回复配音概率。0~1。仅在 tts_mode 非 last 时生效；last 模式仍用官方 trigger_probability。"
+      },
+      "tts_max_per_reply": {
+        "description": "🎙️ 单次回复语音上限",
+        "type": "int",
+        "default": 0,
+        "min": 0,
+        "hint": "v2.1.0 新增。per_segment 模式下，一次回复最多配音几段（0=不限）。防止多段全中刷屏。建议 1-2。注：被动回复的末段由框架独立判定，不占此上限；one_per_reply 模式至多一段，此参数不影响。"
+      },
+      "tts_min_chars": {
+        "description": "🎙️ 语音最短字数",
+        "type": "int",
+        "default": 4,
+        "min": 1,
+        "hint": "v2.1.0 新增。分段文本短于此字数不配音（如'嗯''好'这类语气段）。"
       }
     }
   },
