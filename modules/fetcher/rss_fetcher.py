@@ -207,6 +207,20 @@ class RSSFetcher(BaseFetcher):
             "https://rsshub.rssforever.com/zhihu/hot",       # 知乎热榜 - 30条目，0.97s (RSSHub镜像)
             "https://plink.anyfeeder.com/zaobao/realtime/china",  # 联合早报中国 - 24条目，0.29s
         ],
+        # v2.1.1 新增 3 个独立类别（全部使用直连源，已实测可达）
+        "游戏": [
+            "https://www.gcores.com/rss",            # 机核 - 20条目，0.29s，游戏综合（与游戏八卦共享但独立取用）
+            "https://www.yystv.cn/rss/feed",         # 游研社 - 12条目，0.32s
+        ],
+        "数码科技": [
+            "https://sspai.com/feed",                # 少数派 - 数字生活/效率工具
+            "https://www.solidot.org/index.rss",     # Solidot - 科技/开源/安全
+        ],
+        "开发者": [
+            "https://www.oschina.net/news/rss",      # 开源中国 - 开源/开发
+            "https://hellogithub.com/rss",           # HelloGitHub - 开源项目/编程
+            "https://github.blog/feed/",             # GitHub 官方博客
+        ],
     }
 
     def __init__(self, config: dict):

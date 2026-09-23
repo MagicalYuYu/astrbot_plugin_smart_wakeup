@@ -8,7 +8,7 @@ English | [中文](README.md)
 
 **Answers when called, speaks when it matters**
 
-A social-rhythm engine that makes your bot a real group member — proactive, tactful, and on a schedule<br/>
+Turns your group bot into a real group member — proactive, tactful, and on a schedule<br/>
 Compatible with Telegram and QQ (aiocqhttp)
 
 [🌐 Website](https://lx.magicalyu.online/) · [📖 Usage Guide](docs/usage_guide.md) · [🚀 Quick Start](#installation)
@@ -23,7 +23,7 @@ Compatible with Telegram and QQ (aiocqhttp)
 
 ---
 
-Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 151 Tunable Parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
+Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 151 tunable parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
 
 ## Why Lingxi
 
@@ -33,84 +33,83 @@ Group bots usually fail in one of two ways: they're dead — silent forever unle
 
 **🗣️ Proactive**
 
-- 🎯 **Starts Topics on Its Own** — A Proactive Speech Engine built on the AIF (Anticipation-Initiation-Planning) model periodically senses the group atmosphere and speaks only when the moment is right
-- 📚 **9-Category Topic System** — Sharing thoughts / asking questions / recalling memories / checking on someone / livening things up / tech news / gaming gossip / funny news / trending events, with custom topics and per-group weighting
-- 📰 **Reads the News, Drops Hot Takes** — The Fetcher module pulls RSS feeds and news APIs in real time (15 built-in Chinese sources across 4 categories), deduplicated across groups — your bot becomes a sharer, not just a taker
-- 🎲 **Never Sounds Templated** — 6 opener-pattern pools injected randomly + topic dedup + opener dedup, so proactive speech never repeats itself
+- 🎯 **Starts Topics on Its Own** — Periodically senses the group atmosphere and speaks only when the moment is right
+- 📚 **9 Topic Categories** — From sharing thoughts to trending news, with custom topics and per-group weighting
+- 📰 **Reads the News, Drops Hot Takes** — Pulls RSS feeds and news APIs in real time, deduplicated across groups — your bot becomes a sharer, not just a taker
+- 🎲 **Never Repeats Itself** — Multiple opener patterns, topic dedup, and opener dedup keep proactive speech fresh
 
 **🧭 Tactful**
 
-- 🛑 **Five Retreat Signals** — Stays quiet when the chat is lively / backs off progressively when ignored (first no-response only extends cooldown; 2/3/4 consecutive no-responses escalate to 2h/6h/24h retreats) / goes lurker mode on detecting "shut up" / "annoying" / goes quiet when talking to itself too much
-- 🌊 **Four Social-Breathing Engines** — Energy system (it gets tired) × Flow state machine (Bystander/Attentive/Flow/Fatigued) × engagement decay × fatigue multiplier — reply frequency ebbs and flows like a real person's
-- 🔔 **Answers When Called** — Replies to its name without fail (multiple aliases, case-insensitive); replying to or quoting the bot counts as a direct call (including Telegram "+1" repeat detection)
-- 💬 **Chats When Connected** — Probabilistic wakeup: joins naturally at a dynamic probability computed from "energy × flow × engagement × timing", even without being named
-- 🧊 **Rescues the Silence** — Warms up the chat when new messages arrive after a long silence, with cooldown and Quiet Hours constraints
-- 🤫 **The Right to Real Silence** — Dual reply-suppression: [SKIP] keyword interception at zero cost (prefix match blocks the whole reply, preventing thought leakage) + independent small-model compliance judgment — it never says what it shouldn't
-- 🍃 **Present Even in Silence** — Lightweight responses: when suppressed, occasionally drops a "true" / "fair point", guarded by probability + cooldown + hourly cap against spam
-- 🦜 **Repeat Chains Unbothered** — Repeat-chain detection (including partial substrings and Telegram "+1" repeats), probabilistic auto-suppression — it won't interrupt the group's repeat-copy fun
-- 🌙 **On a Real Schedule** — Multiple cross-midnight Quiet Hours (e.g. `23:00-07:00,13:00-14:00`), per-group overrides for overseas time zones, gradual ramp-up after quiet periods end
+- 🛑 **Knows When to Back Off** — Backs off progressively when ignored, goes quiet on annoyance keywords, and stops talking to itself
+- 🌊 **Social Breathing** — Energy drains and recovers, flow states rise and fall, reply frequency ebbs and flows like a real person
+- 🔔 **Answers When Called** — Always replies to its name; replies and quotes count too
+- 💬 **Joins When It Fits** — May join naturally via dynamic probability, like a group member who happens to be interested
+- 🧊 **Saves Dead Chats** — Warmly restarts the conversation after silence, with a cooldown
+- 🤫 **The Right to Silence** — Says nothing when nothing should be said — keyword blocking + small-model judgment
+- 🍃 **Present While Silent** — Occasionally drops a "true" or "fair point" when suppressed — no spam, no vanishing
+- 🦜 **No Repeat Interruption** — Probability drops sharply on repeat chains
+- 🌙 **Has a Sleep Schedule** — Multi-segment quiet hours across midnight; per-group overrides for overseas time zones
 
 **🎛️ Tunable**
 
-- 🖥️ **Dedicated Web Config Panel** — Not an auto-generated schema form: grouped tabs, live status polling every 5 seconds, one-click presets, test-speak, a log console, and unsaved-changes warnings
+- 🖥️ **Dedicated Config Panel** — Visual operation, no config file editing needed
 - 🔧 **151 Tunable Parameters** — 14 config groups, from energy recovery to topic weights
-- 🎚️ **Per-Group, Per-User Fine-Tuning** — 21 per-group override parameters + per-user reply-probability multipliers (0 = never reply to someone)
-- 💰 **Token Accountant** — Small-model context compression + incremental injection + four-dimension token statistics (model/group/hour/wakeup type) + σ anomaly alerts
-- 🧠 **Remembers What Everyone Said** — Layered conversation memory (recent turns verbatim + older turns summarized) + sender attribution + active-user annotations — no mistaking who said what
-- 🖼️ **Understands Images** — Framework image descriptions first (zero cost) + custom multimodal model recognition as fallback
+- 🎚️ **Per-Group Tuning** — Each group can have a different personality and schedule
+- 💰 **Token Control** — Small-model context compression, predictable costs
+- 🧠 **Remembers the Conversation** — Layered memory shared by both proactive and passive speech
+- 🖼️ **Understands Images** — Image content recognition
 
 ## Proactive Speech Engine
 
-The core leap of v2.0: Lingxi no longer waits to be @-mentioned.
+Lingxi no longer waits to be @-mentioned.
 
-- **AIF Model** — A proactive-speech decision framework based on Anticipation-Initiation-Planning, with a state machine switching between PASSIVE_MONITORING and AGENT_DOMINANT
-- **Conversation State Awareness** — Real-time detection of silence / lively / talking-to-itself states to decide whether to speak
-- **Topic System & News Injection** — 9 topic categories + custom topics + per-group weighting; the Fetcher module pulls RSS (15 built-in Chinese sources, 4 categories) and news APIs with cross-group dedup, so proactive speech always has substance
-- **Self-Protecting Retreat & Rest** — Five retreat signals + progressive retreat + Quiet Hours — proactivity never becomes a nuisance
-- **State Persistence** — Retreat state, cooldowns, and daily counters persist to proactive_state.json and survive plugin reloads
-- **Measurable Results** — CPS (Contextual Pertinence Score) and adoption rate over each group's last 20 proactive messages, queryable anytime via `/wakeup_proactive_metrics`
+- **Conversation State Awareness** — Real-time detection of silence, liveliness, or self-talk to decide whether to speak
+- **Topic System** — Share thoughts, ask questions, reminisce, care about someone, liven up the mood, plus tech/gaming/funny news and trending events — with custom topics and per-group weighting
+- **News Injection** — Fetcher module pulls RSS and news APIs in real time with cross-group dedup, so proactive speech always has substance
+- **Self-Protecting Retreat** — Five retreat signals plus quiet hours ensure proactivity never becomes a nuisance
+- **Survives Reloads** — Retreat state, cooldowns, and daily counters persist to disk
+- **Measurable Results** — Contextual pertinence score and adoption rate for each group's last 20 proactive messages, queryable via `/wakeup_proactive_metrics`
 
 <details>
 <summary><strong>Full Feature List</strong></summary>
 
 | Module | Description |
 |:-------|:------------|
-| Proactive Speech Engine | Periodically starts topics based on the AIF (Anticipation-Initiation-Planning) model; shares the same memory system as passive replies |
-| Conversation State Awareness | Detects silence / lively / talking-to-itself states to time proactive speech |
-| Topic System | 9 built-in categories (thoughts/questions/memories/caring/livening/tech/gaming/funny/trending) + custom topics + per-group weighting |
-| Fetcher News Aggregation | RSS (15 built-in Chinese sources, 4 categories) + news API dual channels, cross-group feed dedup, custom sources supported |
-| Five Retreat Signals | Activity surge / consecutive [SKIP] / annoyance keywords / self-talk ratio / consecutive no-response — any one silences the bot |
-| Progressive Retreat | First no-response doubles cooldown only; 2/3/4 consecutive no-responses escalate to 2h/6h/24h retreats (duration cap configurable) |
-| Quiet Hours | Multiple cross-midnight quiet periods (e.g. `23:00-07:00,13:00-14:00`), per-group overrides, overseas time-zone friendly |
-| Name Wakeup | Triggers when a message contains the bot's name or aliases (`\|`-separated), case-insensitive |
-| Probabilistic Wakeup | May reply even without being named; probability dynamically computed from energy, flow, and engagement using a squared curve interpolation |
-| Energy System | Simulates social fatigue — each reply costs energy, which recovers over time; depletion pauses proactive replies |
-| Flow State Machine | Bystander → Attentive → Flow → Fatigued — four states dynamically adjust reply strategy and probability |
-| Idle Rescue | Steps in when the group chat goes quiet, with a cooldown to prevent over-rescuing, subject to Quiet Hours |
-| Message Debounce | Waits for users to finish speaking before replying, aggregating multiple messages into one input |
-| Lightweight Responses | When a reply is suppressed, occasionally drops a short acknowledgment ("true" / "fair point"), guarded by probability + cooldown + hourly cap |
-| Dual Reply Suppression | [SKIP] keyword prefix match blocks the entire reply (zero cost, prevents thought leakage) + independent small-model compliance judgment |
-| Repeat Suppression | Detects repeat-copy chains (including partial substrings and Telegram "+1" repeats) and drastically lowers reply probability, preserving group repeat culture |
-| Low-Information Filter | Automatically filters out pure images, stickers, emoji-only messages via message-chain-level detection, saving tokens |
-| Command Prefix Skip | Messages starting with `/` or similar prefixes won't trigger wakeup (unless replying to the bot) |
-| Conversation Memory | Layered memory: recent turns verbatim + older turns compressed into summaries, shared by proactive and passive speech, supporting coherent multi-turn dialogue |
-| Image Context Association | Lets the bot understand image content: framework image descriptions first (zero cost) + custom multimodal model recognition as fallback, off by default |
-| Active User Awareness | Annotates recently active users in context, constraining the bot to address only present users and avoiding hallucinated mentions; always on |
-| Conversation Relation Annotation | BOT speech marked `[BOT]`, reply relations `→ Reply[BOT]`, implicit responses `(responding to BOT)`, omitted-subject hints; always on |
-| Image Message Placeholder | Pure image messages recorded as `[Image]` placeholder, updated to `[Image: description]` after recognition |
-| Context Compression | Compresses group chat context with a smaller model before injecting into the main model, significantly reducing token usage |
-| Auxiliary Small-Model Offloading | Auxiliary tasks like context compression and compliance judgment can use a dedicated small model, keeping the main model focused on dialogue — tiered cost control |
-| Message Splitting | Splits long replies into natural segments with realistic pacing and optional trailing punctuation cleanup |
-| Output Deduplication | Fingerprint-based deduplication with a 60-second window, preventing duplicate messages caused by LLM tool calls |
-| Anti-Self-Repeat | 6 opener-pattern pools injected randomly + topic dedup + opener dedup + semantic dedup — proactive speech never repeats itself |
-| Thinking Tag Filter | Strips LLM thinking content (e.g. `<think/>` tags) from replies as a safety net against prompt leakage |
-| Web Config Panel | Dedicated visual panel (10 REST APIs + standalone frontend): grouped tabs, 5-second live status polling, preset switching, test-speak, log console |
-| State Persistence | Proactive-speech state (retreat/cooldowns/daily counters/UMO) persisted to proactive_state.json, surviving plugin reloads |
-| Proactive Speech Metrics | CPS (Contextual Pertinence Score) and adoption rate over each group's last 20 proactive messages |
-| Per-User Override | Custom reply probability multipliers for specific users (0 = never reply, 0.5 = half, 1 = normal) |
-| Per-Group Override | 21 per-group override parameters (energy/flow/debounce/proactive speech/Quiet Hours, etc.); unoverridden fields fall back to global defaults |
-| Private Chat Wakeup | Name/probability wakeup in private chats (platform-adapted) |
-| Token Usage Tracking | Four-dimension statistics (model/group/hour/wakeup type) with anomaly detection alerts (σ-threshold + prompt ratio) |
+| Proactive Speech Engine | Periodically starts topics based on group atmosphere; shares the same memory system as passive replies |
+| Conversation State Awareness | Detects silence / lively / self-talk states to time proactive speech |
+| Topic System | 9 built-in categories + custom topics + per-group weighting |
+| Fetcher News Aggregation | RSS + news API dual channels, cross-group feed dedup, custom sources supported |
+| Five Retreat Signals | Activity surge / consecutive SKIP / annoyance keywords / self-talk ratio / consecutive no-response — any one silences the bot |
+| Progressive Retreat | First no-response doubles cooldown; repeated no-responses escalate (duration configurable) |
+| Quiet Hours | Multiple cross-midnight quiet periods, per-group overrides, overseas time-zone friendly |
+| Name Wakeup | Triggers when a message contains the bot's name or aliases, case-insensitive |
+| Probabilistic Wakeup | May reply even without being named; probability dynamically computed from energy, flow, and engagement |
+| Energy System | Simulates social fatigue — each reply costs energy, which recovers over time |
+| Flow State Machine | Bystander → Attentive → Flow → Fatigued — four states dynamically adjust reply strategy |
+| Idle Rescue | Steps in when the group chat goes quiet, with cooldown, subject to Quiet Hours |
+| Message Debounce | Waits for users to finish speaking before replying, aggregating multiple messages |
+| Lightweight Responses | When suppressed, occasionally drops a short acknowledgment, guarded by probability + cooldown + hourly cap |
+| Dual Reply Suppression | Keyword prefix match blocks the entire reply + independent small-model compliance judgment |
+| Repeat Suppression | Detects repeat-copy chains and lowers reply probability, preserving group repeat culture |
+| Low-Information Filter | Filters out pure images, stickers, and emoji-only messages, saving tokens |
+| Command Prefix Skip | Messages starting with `/` won't trigger wakeup (unless replying to the bot) |
+| Conversation Memory | Layered memory: recent turns verbatim + older turns summarized, shared by both paths |
+| Image Context | Framework image descriptions first + custom multimodal model fallback, off by default |
+| Active User Awareness | Annotates recently active users in context, constraining the bot to present users only |
+| Conversation Annotations | Bot speech marked `[BOT]`, reply relations, implicit responses, omitted-subject hints |
+| Image Placeholder | Pure image messages recorded as `[Image]`, updated to `[Image: description]` after recognition |
+| Context Compression | Compresses group chat context with a smaller model before main-model injection |
+| Small-Model Offloading | Auxiliary tasks like compression and compliance use a dedicated small model |
+| Message Splitting | Splits long replies into natural segments with realistic pacing |
+| Output Dedup | Fingerprint-based dedup with a 60-second window |
+| Anti-Self-Repeat | Multiple opener patterns + topic/opening/semantic dedup |
+| Think-Tag Filter | Strips LLM thinking content from replies as a safety net |
+| Web Config Panel | Visual panel: grouped tabs, live status polling, preset switching, test-speak, log console |
+| State Persistence | Proactive-speech state persisted to disk, survives reloads |
+| Proactive Metrics | Contextual pertinence score and adoption rate per group |
+| Per-User Override | Custom reply probability multipliers for specific users (0 = never reply) |
+| Per-Group Override | Multiple parameters overridable per group; unoverridden fields use global defaults |
+| Private Chat Wakeup | Name/probability wakeup in private chats |
 
 </details>
 
@@ -204,7 +203,7 @@ Two categories: wakeup-rhythm state (message buffers, energy/flow, etc.) is in-m
 <details>
 <summary>Can different groups have different settings?</summary>
 
-Yes. 21 parameters support per-group overrides (energy/flow/debounce/proactive speech/Quiet Hours, etc.); unoverridden fields fall back to global defaults — the same bot can have a different personality in each group.
+Yes. Multiple parameters support per-group overrides (energy/flow/debounce/proactive speech/Quiet Hours, etc.); unoverridden fields fall back to global defaults — the same bot can have a different personality in each group.
 
 </details>
 
