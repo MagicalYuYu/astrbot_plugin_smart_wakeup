@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.1.0",
+    "2.1.1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -5188,9 +5188,12 @@ class LingxiPlugin(Star):
                         voiced = await self._send_segment_voice(event.unified_msg_origin, single_text, tts_provider)
                         # 红队加固：段内含非文本组件（图片等）时不替换，避免丢图
                         if voiced and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in final):
-                            # 语音替换文字：chain 留零宽占位（框架发送不可见内容，防空结果副作用）
+                            # 语音替换文字：chain 留空——respond 阶段对空 chain 优雅跳过
+                            # （"The message is empty; skipping the respond stage"），
+                            # 且 after_message_sent 钩子照常触发，去重/记忆不受影响。
+                            # v2.1.1 修复：原零宽占位符 \u200b 不在 Python 空白字符集，
+                            # 不会被 respond 剔除，被当成正常文本发出形成空气泡。
                             result.chain.clear()
-                            result.chain.extend([Plain("\u200b")])
                             return
             result.chain.clear()
             result.chain.extend(final)
@@ -5264,9 +5267,9 @@ class LingxiPlugin(Star):
             if tts_provider:
                 voiced = await self._send_segment_voice(event.unified_msg_origin, last_text, tts_provider)
                 if voiced and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in last_seg):
-                    # 语音替换文字：chain 留零宽占位
+                    # 语音替换文字：chain 留空（respond 阶段优雅跳过，after_message_sent 照常）
+                    # v2.1.1 修复：原零宽占位符会被当成正常文本发出形成空气泡
                     result.chain.clear()
-                    result.chain.extend([Plain("\u200b")])
                     self._stats["splitter_stats"]["total_splits"] += 1
                     logger.info(f"[分段] 完成: {len(segments)}段, 主动发送{sent_count}段, 末段已配音（替换文字）")
                     return

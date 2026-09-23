@@ -1,5 +1,13 @@
 # 更新日志
 
+## [2.1.1] - 2026-09-23
+
+空气泡修复补丁（用户实测反馈）。
+
+### 修复
+
+- **语音替换文字后出现空气泡**：`dual_output=false` 时原实现向 `result.chain` 塞入 `Plain("\u200b")` 零宽占位符防止框架发空结果，但 `\u200b`（零宽空格）**不在 Python `str.strip()` 的空白字符集内**，AstrBot respond 阶段的空白文本剔除判定对它失效，占位符被当成正常文本发出形成空气泡。修复：直接留空 chain——respond 阶段对空 chain 优雅跳过（"The message is empty; skipping the respond stage"），且 `after_message_sent` 钩子照常触发，去重/记忆记录不受影响
+
 ## [2.1.0] - 2026-09-19
 
 分段语音适配（TTS 逐段判定）——用户音色克隆测试需求驱动的新功能。
