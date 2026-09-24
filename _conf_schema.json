@@ -128,7 +128,20 @@
         "description": "🧠 启用分层对话记忆",
         "type": "bool",
         "default": true,
-        "hint": "保留最近 N 轮原文对话，更早的对话压缩为摘要，使 Bot 能进行连贯的多轮对话。"
+        "hint": "v2.3.0 起此配置控制节律标注层开关。群聊上下文已移交 AstrBot 官方 GroupChatContext 管理，此项不再控制自管记忆注入。"
+      },
+      "presence_window_minutes": {
+        "description": "👁️ 在场用户检测窗口",
+        "type": "int",
+        "default": 30,
+        "min": 5,
+        "hint": "v2.3.0 新增。最近 N 分钟内在该群发过消息的用户视为在场。节律标注层会列出在场用户列表。"
+      },
+      "rhythm_annotation_enabled": {
+        "description": "🎵 节律状态标注",
+        "type": "bool",
+        "default": true,
+        "hint": "v2.3.0 新增。在 LLM 请求前注入当前节律状态（精力/心流/在场用户/发言计数），让 LLM 自然调整语气和参与度。"
       },
       "recent_rounds_keep": {
         "description": "🧠 保留最近 N 轮原文",

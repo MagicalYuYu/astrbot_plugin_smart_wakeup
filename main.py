@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.2.0",
+    "2.3.0b1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -154,10 +154,13 @@ class LingxiPlugin(Star):
         self.anomaly_prompt_ratio_threshold = basic.get("anomaly_prompt_ratio_threshold", 0.95)  # prompt占比阈值
 
         # 上下文管理策略
-        self.bypass_core_context = basic.get("bypass_core_context", True)  # 绕过AstrBot核心上下文，使用插件自管理的上下文
+        self.bypass_core_context = basic.get("bypass_core_context", True)  # 绕过AstrBot核心上下文，使用插件自管理的上下文（v2.3.0 群聊不再生效）
 
         # 分层对话记忆配置
         self.conversation_memory_enabled = basic.get("conversation_memory_enabled", True)
+        # v2.3.0 hybrid 模式新配置
+        self.presence_window_minutes = basic.get("presence_window_minutes", 30)
+        self.rhythm_annotation_enabled = basic.get("rhythm_annotation_enabled", True)
         self.recent_rounds_keep = basic.get("recent_rounds_keep", 10)  # 保留最近N轮原文
         self.summary_rounds_max = basic.get("summary_rounds_max", 30)  # 摘要覆盖的最大轮数
         self.summary_model = basic.get("summary_model", "")  # 摘要模型，留空则使用compression_model
@@ -3408,86 +3411,35 @@ class LingxiPlugin(Star):
 
         from astrbot.core.agent.message import TextPart
 
-        # ── 核心优化：绕过 AstrBot 内置上下文 ──
-        # 清空 AstrBot 核心加载的对话历史，避免历史膨胀导致的 TOKEN 消耗问题。
-        # 插件通过自己的消息缓冲区 + 增量注入 + 摘要压缩来管理上下文，
-        # 比核心的"全量历史"方式高效得多。
-        # 此操作仅影响唤醒触发的消息，正常 @ 对话仍使用核心的上下文机制。
-        if self.bypass_core_context:
-            original_count = len(req.contexts) if hasattr(req, 'contexts') and req.contexts else 0
-            if original_count > 0:
-                req.contexts = []
-                self._debug(
-                    f"[ContextBypass] 已清空核心对话历史 ({original_count}条)，"
-                    f"使用插件自管理的上下文"
-                )
-                logger.info(
-                    f"[ContextBypass] 群={event.message_obj.group_id} "
-                    f"清空核心历史 {original_count}条 → 0条"
-                )
+        # ── v2.3.0 hybrid 模式 ──
+        # 群聊：不再清空 req.contexts，群聊上下文由官方 GroupChatContext 管理
+        # 灵犀只注入节律状态标注（精力/心流/在场用户/最近发言）
+        # 私聊：保持自管上下文（GroupChatContext 不处理私聊）
+        group_id = event.message_obj.group_id
+
+        if group_id:
+            # 群聊 hybrid：上下文完全由官方管理
+            # GroupChatContext 注入群历史（extra_user_content_parts）
+            # 官方 req.contexts 提供标准对话历史（含 bot 回复）
+            pass
+        else:
+            # 私聊保持自管上下文
+            if self.bypass_core_context:
+                original_count = len(req.contexts) if hasattr(req, 'contexts') and req.contexts else 0
+                if original_count > 0:
+                    req.contexts = []
+                    self._debug(
+                        f"[ContextBypass] 私聊已清空核心对话历史 ({original_count}条)"
+                    )
 
         parts = []
 
-        # 提前获取 group_id，供后续对话记忆和群聊上下文注入使用
-        group_id = event.message_obj.group_id
-
-        # 注入分层对话记忆（替代被清空的核心上下文）
-        if self.conversation_memory_enabled and self.bypass_core_context and group_id:
-            memory_text = self._format_conversation_memory(group_id)
-            if memory_text:
-                parts.append(TextPart(text=memory_text))
-                self._debug(
-                    f"[ConversationMemory] 注入对话记忆 "
-                    f"群={group_id} 记忆长度={len(memory_text)}字符"
-                )
-
-        # 注入群聊上下文（支持增量注入和压缩）
         if group_id:
-            context_text, new_count, old_count = self._format_context(group_id, incremental=True)
-            if context_text:
-                original_chars = len(context_text)
-                compressed_text = context_text
-
-                # 小模型摘要压缩
-                if self.context_compression_enabled and original_chars > 200:
-                    compressed_text = await self._compress_context(context_text, group_id)
-
-                # 更新增量上下文时间戳
-                buffer = self._msg_buffer.get(group_id)
-                if buffer:
-                    self._last_context_ts[group_id] = buffer[-1][2]
-
-                # 构建上下文标签
-                if new_count > 0 and self.incremental_context_enabled:
-                    context_label = (
-                        f"以下是自上次回复后的群聊消息"
-                        f"（新增{new_count}条" +
-                        (f"+补充{old_count}条" if old_count > 0 else "") +
-                        f"）：\n"
-                    )
-                else:
-                    context_label = "以下是最近的群聊消息记录（包括未直接 @ 你的消息）：\n"
-
-                parts.append(
-                    TextPart(
-                        text=(
-                            "<group_chat_context>\n"
-                            + context_label
-                            + compressed_text + "\n"
-                            + "</group_chat_context>"
-                        )
-                    )
-                )
-
-                # 上下文注入诊断日志
-                compression_ratio = ""
-                if compressed_text != context_text:
-                    ratio = len(compressed_text) / original_chars * 100 if original_chars > 0 else 100
-                    compression_ratio = f" → 压缩={len(compressed_text)}字符({ratio:.0f}%)"
-                self._debug(
-                    f"[ContextInject] 群={group_id} 新增={new_count} 补充={old_count} "
-                    f"原始={original_chars}字符{compression_ratio}"
-                )
+            # ── 群聊：注入节律状态标注（v2.3.0 新增）──
+            rhythm_text = self._format_rhythm_annotation(group_id)
+            if rhythm_text:
+                parts.append(TextPart(text=rhythm_text))
+                self._debug(f"[RhythmAnnotation] 群={group_id} 节律标注注入")
 
         # 注入聚合消息信息
         aggregated_text = event.get_extra("aggregated_text")
@@ -4183,6 +4135,64 @@ class LingxiPlugin(Star):
         finally:
             # P1-9 修复：无论成功/失败/取消，都清除摘要任务标记，允许后续触发
             self._summary_in_progress.discard(group_id)
+
+    def _format_rhythm_annotation(self, group_id: str) -> str:
+        """格式化节律状态标注（v2.3.0 hybrid 模式）
+
+        将灵犀的社交节律状态（精力/心流/在场用户/发言计数）注入 LLM 请求，
+        让 LLM 自然地根据当前状态调整语气和参与度。
+
+        Args:
+            group_id: 群组 ID
+
+        Returns:
+            格式化的节律标注文本，空字符串表示无可用数据
+        """
+        try:
+            if not getattr(self, 'rhythm_annotation_enabled', True):
+                return ""
+            now = time.time()
+            energy_state = self._get_energy(group_id)
+            flow_state = self._get_flow(group_id)
+
+            # 在场用户：最近 presence_window_minutes 分钟内发过消息的用户
+            presence_window = getattr(self, 'presence_window_minutes', 30) * 60
+            recent_users = []
+            buffer = self._msg_buffer.get(group_id)
+            if buffer:
+                seen = set()
+                bot_name = self.bot_names[0] if self.bot_names else ""
+                for sender, text, ts, meta in reversed(buffer):
+                    if now - ts <= presence_window and sender not in seen and sender != bot_name:
+                        recent_users.append(sender)
+                        seen.add(sender)
+                    if len(recent_users) >= 10:
+                        break
+
+            # 今日主动发言计数
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            today_count = self._proactive_daily_count.get(group_id, {}).get(today_str, 0)
+
+            # 距上次发言
+            last_reply_time = self._last_bot_reply_time.get(group_id, 0)
+            last_reply_ago = int(now - last_reply_time) if last_reply_time else -1
+
+            pw = getattr(self, 'presence_window_minutes', 30)
+            lines = ["<system_reminder>", "当前社交节律状态："]
+            lines.append(f"- 精力: {int(energy_state.energy * 100)}/100")
+            lines.append(f"- 心流: {flow_state.state.value}")
+            lines.append(f"- 参与度: {flow_state.engagement:.2f}")
+            lines.append(f"- 今日主动发言: {today_count} 次")
+            if last_reply_ago >= 0:
+                lines.append(f"- 距你上次发言: {last_reply_ago} 秒")
+            if recent_users:
+                lines.append(f"- 在场用户（近{pw}分钟内发言）: {'、'.join(recent_users)}")
+            lines.append("请根据以上状态自然地调整你的语气和参与度。精力低时回复更简短，心流状态更活跃。")
+            lines.append("</system_reminder>")
+            return "\n".join(lines)
+        except Exception as e:
+            logger.debug(f"[RhythmAnnotation] 生成失败: {e}")
+            return ""
 
     def _format_conversation_memory(self, group_id: str) -> str:
         """格式化对话记忆，用于注入到 LLM 请求中

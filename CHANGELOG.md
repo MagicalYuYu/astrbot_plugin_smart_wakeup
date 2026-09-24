@@ -1,5 +1,30 @@
 # 更新日志
 
+## [2.3.0b1] - 2026-09-24
+
+hybrid 架构测试版——群聊上下文移交 AstrBot 官方 GroupChatContext 管理。
+
+### 架构变更
+
+- **`bypass_core_context` 废弃（群聊）**：灵犀不再清空 `req.contexts`，群聊上下文由官方 GroupChatContext（群 ICL + 图片描述 + 增量消费）和 `req.contexts`（标准对话历史含 Bot 回复）共同管理。私聊保持自管上下文不变。
+- **分层对话记忆停用（群聊）**：近期原文 + 远期摘要的自管记忆不再注入，由官方 contexts + GroupChatContext 替代。
+- **群聊上下文注入停用**：灵犀的增量注入 + 压缩群聊上下文不再注入，由 GroupChatContext 的消费式注入替代。
+- **主动发言路径保持现状**：主动发言仍使用灵犀自管的上下文（因不走 on_req_llm pipeline）。
+
+### 新增
+
+- **节律状态标注层**：在 LLM 请求前注入当前社交节律状态（精力百分比 / 心流状态 / 参与度 / 在场用户列表 / 今日发言计数 / 距上次发言时间），让 LLM 自然调整语气和参与度。
+- **在场用户定义**：最近 N 分钟内（`presence_window_minutes`，默认 30）在群内发过消息的用户。
+- 新增配置：`presence_window_minutes`（在场检测窗口）、`rhythm_annotation_enabled`（节律标注开关）。
+- 参数规模 151 → **153**。
+
+### 废弃
+
+- `bypass_core_context`（群聊不再生效，私聊保留）
+- `image_context_custom_model` / `image_context_custom_model_id`（图片识别完全交给官方 GroupChatContext + astr_main_agent）
+- `compression_model` / `context_compression_enabled`（使用官方 llm_compress）
+- `incremental_context_enabled` / `incremental_context_min_new`（GroupChatContext 消费式注入替代）
+
 ## [2.2.0] - 2026-09-23
 
 内容源扩充 + 文档重写版本。

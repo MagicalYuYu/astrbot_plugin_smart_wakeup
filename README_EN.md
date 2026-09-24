@@ -23,7 +23,7 @@ Compatible with Telegram and QQ (aiocqhttp)
 
 ---
 
-Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 151 tunable parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
+Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 153 tunable parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
 
 ## Why Lingxi
 
@@ -53,7 +53,7 @@ Group bots usually fail in one of two ways: they're dead — silent forever unle
 **🎛️ Tunable**
 
 - 🖥️ **Dedicated Config Panel** — Visual operation, no config file editing needed
-- 🔧 **151 Tunable Parameters** — 14 config groups, from energy recovery to topic weights
+- 🔧 **153 Tunable Parameters** — 14 config groups, from energy recovery to topic weights
 - 🎚️ **Per-Group Tuning** — Each group can have a different personality and schedule
 - 💰 **Token Control** — Small-model context compression, predictable costs
 - 🧠 **Remembers the Conversation** — Layered memory shared by both proactive and passive speech
