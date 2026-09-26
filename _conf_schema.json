@@ -139,19 +139,19 @@
         "description": "🧠 保留最近 N 轮原文",
         "type": "int",
         "default": 10,
-        "hint": "保留最近 N 轮对话的原文（每轮包含用户消息和 Bot 回复），超过此数量的旧对话将被压缩为摘要。"
+        "hint": "保留最近 N 轮对话的原文（每轮包含用户消息和 Bot 回复），超过此数量的旧对话将被压缩为摘要。生效范围：主动发言路径（被动群聊回复的上下文已由官方 GroupChatContext 接管）。"
       },
       "summary_rounds_max": {
         "description": "📝 摘要覆盖最大轮数",
         "type": "int",
         "default": 30,
-        "hint": "摘要覆盖的最大轮数，超过此数量的最旧对话将被丢弃。设为 0 则只保留 recent_rounds_keep 轮，不生成摘要。"
+        "hint": "摘要覆盖的最大轮数，超过此数量的最旧对话将被丢弃。设为 0 则只保留 recent_rounds_keep 轮，不生成摘要。生效范围：主动发言路径。"
       },
       "summary_model": {
         "description": "🤖 摘要模型提供商 ID",
         "type": "string",
         "default": "",
-        "hint": "对话摘要使用的模型提供商 ID，留空则使用 compression_model 配置的模型。"
+        "hint": "对话摘要使用的模型提供商 ID，留空则使用 compression_model 配置的模型。生效范围：主动发言路径的分层记忆摘要。"
       },
       "probability_wakeup": {
         "description": "🎲 启用概率唤醒",
