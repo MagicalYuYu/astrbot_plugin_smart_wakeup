@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.3.0b1",
+    "2.3.0",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -161,6 +161,10 @@ class LingxiPlugin(Star):
         # v2.3.0 hybrid 模式新配置
         self.presence_window_minutes = basic.get("presence_window_minutes", 30)
         self.rhythm_annotation_enabled = basic.get("rhythm_annotation_enabled", True)
+        # v2.3.0 图片描述等待（快速连发场景）
+        self.image_caption_wait_enabled = basic.get("image_caption_wait_enabled", True)
+        self.image_caption_wait_timeout = basic.get("image_caption_wait_timeout", 8)
+        self.image_caption_recent_window = basic.get("image_caption_recent_window", 10)
         self.recent_rounds_keep = basic.get("recent_rounds_keep", 10)  # 保留最近N轮原文
         self.summary_rounds_max = basic.get("summary_rounds_max", 30)  # 摘要覆盖的最大轮数
         self.summary_model = basic.get("summary_model", "")  # 摘要模型，留空则使用compression_model
@@ -3396,6 +3400,23 @@ class LingxiPlugin(Star):
 
     # ─── LLM 请求钩子 ─────────────────────────────────────
 
+    @filter.on_llm_request(priority=10)
+    async def on_llm_request_image_wait(self, event: AstrMessageEvent, req):
+        """图片描述等待（v2.3.0）：在 GroupChatContext 消费 raw_records 前等待描述就位
+
+        高优先级钩子（priority=10 > 默认 0），先于 builtin 的 GroupChatContext 注入执行。
+        仅处理灵犀唤醒触发的群聊请求，不影响官方 @ 回复与其他插件。
+        """
+        if not event.get_extra("smart_wakeup_triggered"):
+            return
+        group_id = event.message_obj.group_id
+        if not group_id or not self.image_caption_wait_enabled:
+            return
+        try:
+            await self._wait_for_pending_image_caption(event, group_id, req)
+        except Exception as e:
+            logger.debug(f"[ImageWait] 等待逻辑异常（不影响回复）: {e}")
+
     @filter.on_llm_request()
     async def on_llm_request(self, event: AstrMessageEvent, req):
         """在 LLM 请求前注入群聊上下文和自然唤醒提示"""
@@ -4135,6 +4156,117 @@ class LingxiPlugin(Star):
         finally:
             # P1-9 修复：无论成功/失败/取消，都清除摘要任务标记，允许后续触发
             self._summary_in_progress.discard(group_id)
+
+    def _get_group_chat_context(self):
+        """获取 AstrBot 官方 GroupChatContext 实例（v2.3.0 图片等待机制用）
+
+        builtin star "astrbot" 持有 group_chat_context 属性，
+        通过 star_map 查找其 star_cls 实例。找不到时返回 None（降级不等待）。
+        """
+        try:
+            from astrbot.core.star.star import star_map
+            for _path, metadata in star_map.items():
+                if getattr(metadata, 'name', None) == 'astrbot' and getattr(metadata, 'star_cls', None):
+                    gcc = getattr(metadata.star_cls, 'group_chat_context', None)
+                    if gcc is not None:
+                        return gcc
+        except Exception as e:
+            logger.debug(f"[ImageWait] 获取 GroupChatContext 实例失败: {e}")
+        return None
+
+    @staticmethod
+    def _rec_seconds_in_window(rec: str, now: float, window: int) -> bool:
+        """判断 GroupChatContext 记录的时间戳是否在最近 window 秒内
+
+        记录格式为 [昵称/HH:MM:SS]: ...（group_chat_context._format_message），
+        从中提取当日秒数与当前时间比较（跨天补偿）。
+        """
+        m = re.search(r"/(\d{2}):(\d{2}):(\d{2})\]", rec)
+        if not m:
+            return False
+        rec_secs = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+        lt = time.localtime(now)
+        now_secs = lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec
+        diff = now_secs - rec_secs
+        if diff < 0:
+            diff += 86400
+        return diff <= window
+
+    async def _wait_for_pending_image_caption(self, event, group_id: str, req) -> None:
+        """快速连发场景下等待并补注图片描述（v2.3.0）
+
+        时序问题（红队确认）：事件并发执行，图片 A 的 handle_message 先 await VLM
+        后写 raw_records，其记录必然落在文字 B 的记录之后；框架 on_req_llm 只注入
+        当前消息记录索引（prompt_idx）之前的记录，迟到的图片记录会被跳过。
+
+        因此本方法在等待描述落池后，自行取出"当前消息记录之后"的近期图片描述记录，
+        直接追加到本次请求（框架注入只负责 prompt_idx 之前的部分，不重复）。
+
+        近期图片判定：通过记录中的 HH:MM:SS 时间戳匹配，
+        避免"描述早已就位"的正常场景白等整个超时窗口。
+
+        Args:
+            event: 当前消息事件
+            group_id: 群组 ID
+            req: 当前 LLM 请求对象
+        """
+        buffer = self._msg_buffer.get(group_id)
+        if not buffer:
+            return
+        now = time.time()
+        has_recent_image = False
+        for sender, text, ts, meta in reversed(buffer):
+            if now - ts > self.image_caption_recent_window:
+                break
+            if text.strip().startswith("[图片") or (meta and meta.get("image_id")):
+                has_recent_image = True
+                break
+        if not has_recent_image:
+            return
+
+        gcc = self._get_group_chat_context()
+        if not gcc:
+            return
+
+        umo = event.unified_msg_origin
+        deadline = now + self.image_caption_wait_timeout
+        window = self.image_caption_recent_window
+        from astrbot.core.agent.message import TextPart
+
+        while time.time() < deadline:
+            records = list(gcc.raw_records.get(umo, []))
+            id_list = list(getattr(gcc, "_record_ids", {}).get(umo, []))
+            record_id = event.get_extra("_group_context_record_id")
+            cur_idx = (
+                id_list.index(record_id)
+                if record_id and record_id in id_list
+                else len(records) - 1
+            )
+            # 窗口内的近期图片记录（任何位置）
+            recent_image_recs = [
+                rec for rec in records
+                if "[Image:" in rec and self._rec_seconds_in_window(rec, now, window)
+            ]
+            if recent_image_recs:
+                # 已到位的近期描述。索引 ≤ cur_idx 的由框架正常注入；
+                # > cur_idx 的（迟到记录，框架会跳过）由本钩子补注
+                late = [rec for rec in recent_image_recs if records.index(rec) > cur_idx]
+                for rec in late:
+                    req.extra_user_content_parts.append(
+                        TextPart(text=f"<recent_image_context>\n{rec}\n</recent_image_context>")
+                    )
+                if late:
+                    self._debug(
+                        f"[ImageWait] 群={group_id} 补注 {len(late)} 条迟到图片描述"
+                        f"（等待 {time.time() - now:.1f}s）"
+                    )
+                return
+            await asyncio.sleep(0.5)
+
+        logger.info(
+            f"[ImageWait] 群={group_id} 图片描述等待超时"
+            f"（{self.image_caption_wait_timeout}s），照常回复"
+        )
 
     def _format_rhythm_annotation(self, group_id: str) -> str:
         """格式化节律状态标注（v2.3.0 hybrid 模式）

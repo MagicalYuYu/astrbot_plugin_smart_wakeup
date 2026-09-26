@@ -13,7 +13,7 @@
 
 [🌐 官网](https://lx.magicalyu.online/) · [📖 使用指南](docs/usage_guide.md) · [🚀 快速开始](#安装)
 
-[![Version](https://img.shields.io/badge/version-2.1.1-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Website](https://img.shields.io/badge/website-online-brightgreen?style=flat-square)](https://lx.magicalyu.online/)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
@@ -23,7 +23,7 @@
 
 ---
 
-大多数群机器人只有两种状态：被 @ 才应，不 @ 装死。灵犀让 Bot 成为真正的群友——它会观察群聊、自己找话题开口，聊嗨了全程在场，被无视时知趣收声，到点睡觉。153 项参数与专属可视化面板，让它在你的每个群里都是不同的性格。
+大多数群机器人只有两种状态：被 @ 才应，不 @ 装死。灵犀让 Bot 成为真正的群友——它会观察群聊、自己找话题开口，聊嗨了全程在场，被无视时知趣收声，到点睡觉。156 项参数与专属可视化面板，让它在你的每个群里都是不同的性格。
 
 ## 为什么做灵犀
 
@@ -53,7 +53,7 @@
 **🎛️ 可调校**
 
 - 🖥️ **专属配置面板** — 可视化操作，不用翻配置文件
-- 🔧 **153 个可调参数** — 14 个分组，从精力恢复到话题权重全部可调
+- 🔧 **156 个可调参数** — 14 个分组，从精力恢复到话题权重全部可调
 - 🎚️ **按群精调** — 每个群可以有不同的性格和作息
 - 💰 **Token 可控** — 小模型压缩上下文，成本有数
 - 🧠 **记得聊过什么** — 分层对话记忆，主动被动共享
@@ -118,7 +118,7 @@
 
 灵犀自带独立可视化配置面板，而非 schema 自动生成的冗长表单：
 
-- **分组标签** — 153 项参数按 14 个配置分组组织，不再滚屏找参数
+- **分组标签** — 156 项参数按 14 个配置分组组织，不再滚屏找参数
 - **实时状态** — 5 秒轮询展示各群精力/心流/退却/发言计数
 - **预设一键切换** — 内置预设快速切换整体性格
 - **测试发言** — 面板内直接触发测试，调参即刻见效
@@ -144,7 +144,7 @@
 | `proactive_speak.enabled` | 主动发言开关，开启后 Bot 会定时感知氛围主动发起话题 | 否 |
 | `splitter.enabled` | 消息分段开关，开启后长回复分段发送 | 否 |
 
-153 项参数均有合理默认值，开箱即用。详细配置说明请参阅 [使用指南](docs/usage_guide.md)。
+156 项参数均有合理默认值，开箱即用。详细配置说明请参阅 [使用指南](docs/usage_guide.md)。
 
 ## 调试指令
 

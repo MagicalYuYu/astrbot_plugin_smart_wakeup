@@ -143,6 +143,28 @@
         "default": true,
         "hint": "v2.3.0 新增。在 LLM 请求前注入当前节律状态（精力/心流/在场用户/发言计数），让 LLM 自然调整语气和参与度。"
       },
+      "image_caption_wait_enabled": {
+        "description": "🖼️ 图片描述等待",
+        "type": "bool",
+        "default": true,
+        "hint": "v2.3.0 新增。群友发图后立刻追问时，等待图片描述生成完毕再回复，确保'发图+追问'快速连发时 Bot 能看到图片内容。仅对快速连发场景生效，正常对话无额外延迟。"
+      },
+      "image_caption_wait_timeout": {
+        "description": "🖼️ 图片描述等待上限（秒）",
+        "type": "int",
+        "default": 8,
+        "min": 1,
+        "max": 30,
+        "hint": "v2.3.0 新增。等待图片描述的最长秒数，超时后照常回复（图片上下文可能缺失）。建议 5-10 秒。"
+      },
+      "image_caption_recent_window": {
+        "description": "🖼️ 近期图片检测窗口（秒）",
+        "type": "int",
+        "default": 10,
+        "min": 3,
+        "max": 60,
+        "hint": "v2.3.0 新增。检测最近 N 秒内是否有图片消息，有则触发描述等待。过小可能漏检慢速连发，过大可能误判旧图。"
+      },
       "recent_rounds_keep": {
         "description": "🧠 保留最近 N 轮原文",
         "type": "int",

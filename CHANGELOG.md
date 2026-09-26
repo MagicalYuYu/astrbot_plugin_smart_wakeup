@@ -1,8 +1,16 @@
 # 更新日志
 
-## [2.3.0b1] - 2026-09-24
+## [2.3.0] - 2026-09-26
 
-hybrid 架构测试版——群聊上下文移交 AstrBot 官方 GroupChatContext 管理。
+架构迁移正式版——群聊上下文移交 AstrBot 官方 GroupChatContext 管理，新增图片描述等待机制。
+
+### 新增
+
+- **图片描述等待机制**：群友发图后立刻追问时，等待图片描述生成完毕再回复（`image_caption_wait_enabled`，默认开启）。实现方式：高优先级钩子在官方上下文注入前检测近期图片消息并轮询等待描述就位，仅对快速连发场景生效（最长 `image_caption_wait_timeout` 秒，默认 8），正常对话零额外延迟。
+- **节律状态标注层**：在 LLM 请求前注入当前社交节律状态（精力百分比 / 心流状态 / 参与度 / 在场用户列表 / 今日发言计数 / 距上次发言时间），让 LLM 自然调整语气和参与度。
+- **在场用户定义**：最近 N 分钟内（`presence_window_minutes`，默认 30）在群内发过消息的用户。
+- 新增配置：`presence_window_minutes`、`rhythm_annotation_enabled`、`image_caption_wait_enabled`、`image_caption_wait_timeout`、`image_caption_recent_window`。
+- 参数规模 151 → **156**。
 
 ### 架构变更
 
@@ -10,13 +18,6 @@ hybrid 架构测试版——群聊上下文移交 AstrBot 官方 GroupChatContex
 - **分层对话记忆停用（群聊）**：近期原文 + 远期摘要的自管记忆不再注入，由官方 contexts + GroupChatContext 替代。
 - **群聊上下文注入停用**：灵犀的增量注入 + 压缩群聊上下文不再注入，由 GroupChatContext 的消费式注入替代。
 - **主动发言路径保持现状**：主动发言仍使用灵犀自管的上下文（因不走 on_req_llm pipeline）。
-
-### 新增
-
-- **节律状态标注层**：在 LLM 请求前注入当前社交节律状态（精力百分比 / 心流状态 / 参与度 / 在场用户列表 / 今日发言计数 / 距上次发言时间），让 LLM 自然调整语气和参与度。
-- **在场用户定义**：最近 N 分钟内（`presence_window_minutes`，默认 30）在群内发过消息的用户。
-- 新增配置：`presence_window_minutes`（在场检测窗口）、`rhythm_annotation_enabled`（节律标注开关）。
-- 参数规模 151 → **153**。
 
 ### 废弃
 
