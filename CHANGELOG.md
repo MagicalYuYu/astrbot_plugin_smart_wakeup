@@ -1,5 +1,23 @@
 # 更新日志
 
+## [2.3.1] - 2026-09-26
+
+废弃配置项安全删除——大版本迁移后的配置面清理。
+
+### 删除的配置项（代码与面板同步移除，旧配置中的同名键被安全忽略）
+
+- `bypass_core_context`：群聊与私聊统一使用官方上下文（原私聊清空上下文的行为一并移除，私聊回复从此拥有完整对话历史）
+- `context_compression_enabled`：上下文压缩由 AstrBot 官方 llm_compress 统一处理
+- `incremental_context_enabled` / `incremental_context_min_new`：由官方 GroupChatContext 消费式注入替代
+- `image_context_custom_model` / `image_context_custom_model_id`：图片识别由官方图片描述管线统一处理（图片上下文配置组整体移除，配置面板侧边栏同步精简为 6 组）
+- `cascade_upgrade_enabled`：零行为历史遗留参数
+
+### 调整
+
+- `compression_model` 用途明确为：分层记忆摘要与 SKIP 合规判别的小模型（原上下文压缩用途已删除）
+- 分层记忆相关参数（recent_rounds_keep / summary_rounds_max / summary_model）生效范围标注为主动发言路径
+- 参数规模 156 → **149**，配置分组 14 → 13
+
 ## [2.3.0] - 2026-09-26
 
 架构迁移正式版——群聊上下文移交 AstrBot 官方 GroupChatContext 管理，新增图片描述等待机制。

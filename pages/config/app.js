@@ -22,8 +22,9 @@
 const { createApp, reactive, ref, computed, onMounted, onUnmounted } = Vue;
 
 /* ============================================================================
- * 7 大类侧边栏映射（基于 14 个 schema 分类合并）
+ * 6 大类侧边栏映射（基于 13 个 schema 分类合并）
  * 顺序与任务规划文档 4.3 节一致
+ * v2.3.1：image_context 分类已随自定义识图删除而移除（图片识别由官方管线处理）
  * ============================================================================ */
 const SIDEBAR_GROUPS = [
     { id: 'basic',     icon: '📋', label: '基础设置',   categories: ['basic', 'group_filter'] },
@@ -31,7 +32,6 @@ const SIDEBAR_GROUPS = [
     { id: 'fetcher',   icon: '📰', label: '资讯 Fetcher', categories: ['fetcher'] },
     { id: 'flow',      icon: '🧠', label: '心流状态机', categories: ['flow', 'energy'] },
     { id: 'message',   icon: '💬', label: '消息处理',   categories: ['debounce', 'splitter', 'light_response', 'reply_suppression', 'filter_settings'] },
-    { id: 'image',     icon: '🖼️', label: '图片识别',   categories: ['image_context'] },
     { id: 'advanced',  icon: '🔧', label: '高级调优',   categories: ['advanced'] }
 ];
 
@@ -124,7 +124,7 @@ createApp({
         // ====================================================================
 
         // Schema 版本（兜底 2.3.0）
-        const schemaVersion = computed(() => schema.value.version || '2.3.0');
+        const schemaVersion = computed(() => schema.value.version || '2.3.1');
 
         // 总配置项数
         const totalItems = computed(() => {

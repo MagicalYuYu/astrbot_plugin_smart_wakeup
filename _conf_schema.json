@@ -32,7 +32,7 @@
         "description": "📜 上下文消息数量",
         "type": "int",
         "default": 10,
-        "hint": "唤醒时提供给 LLM 的最近群聊消息条数。数量越多理解越好，但 token 消耗越高。建议 10~50，最多 200。"
+        "hint": "提供给 LLM 的最近群聊消息条数。v2.3.0 起生效范围：主动发言与私聊；被动群聊回复的上下文由官方 GroupChatContext 管理。建议 10~50，最多 200。"
       },
       "context_truncation_enabled": {
         "description": "✂️ 启用消息截断与过滤",
@@ -58,29 +58,11 @@
         "default": 3,
         "hint": "过滤短于此长度的消息（纯表情/标点等低信息量内容）。"
       },
-      "incremental_context_enabled": {
-        "description": "📈 启用增量上下文注入",
-        "type": "bool",
-        "default": true,
-        "hint": "仅注入上次回复后的新消息，避免重复内容写入对话历史。"
-      },
-      "incremental_context_min_new": {
-        "description": "📈 增量最少新消息数",
-        "type": "int",
-        "default": 5,
-        "hint": "新增消息少于此数时补充旧消息，确保上下文充足。"
-      },
-      "context_compression_enabled": {
-        "description": "🗜️ 启用上下文摘要压缩",
-        "type": "bool",
-        "default": true,
-        "hint": "将群聊上下文压缩后再注入主模型，大幅减少 token 消耗。使用独立的小模型执行压缩。"
-      },
       "compression_model": {
-        "description": "🤖 压缩模型提供商 ID",
+        "description": "🤖 小模型提供商 ID",
         "type": "string",
         "default": "",
-        "hint": "压缩使用的模型提供商 ID（如 Volcengine/doubao-seed-2-0-lite-260215），留空则使用当前 LLM 提供者。填写完整的提供商 ID，不是模型名称。"
+        "hint": "分层记忆摘要与 SKIP 合规判别使用的小模型提供商 ID（如 Volcengine/doubao-seed-2-0-lite-260215），留空则使用当前 LLM 提供者。填写完整的提供商 ID，不是模型名称。"
       },
       "model_routing_enabled": {
         "description": "🔀 启用智能模型路由",
@@ -93,12 +75,6 @@
         "type": "string",
         "default": "",
         "hint": "路由目标小模型提供商 ID（如 Volcengine/doubao-seed-2-0-lite-260215），留空则不路由。填写完整的提供商 ID，不是模型名称。"
-      },
-      "cascade_upgrade_enabled": {
-        "description": "⬆️ 级联升级（已弃用·无效参数）",
-        "type": "bool",
-        "default": false,
-        "hint": "⚠️ 当前版本未实现：原级联升级逻辑已在 P1-10 修复中移除（功能未完成且统计虚高），保留此项仅为兼容已有配置结构。开启后无任何效果。 v2.0.3 审计声明：原级联升级逻辑已删除，本参数不产生任何行为，仅为兼容旧配置结构保留。"
       },
       "anomaly_detection_enabled": {
         "description": "🚨 启用 Token 消耗异常检测",
@@ -118,17 +94,11 @@
         "default": 0.95,
         "hint": "Prompt token 占总 token 比超过此值时建议优化上下文注入。"
       },
-      "bypass_core_context": {
-        "description": "🔄 绕过核心上下文（推荐开启）",
-        "type": "bool",
-        "default": true,
-        "hint": "开启后唤醒触发的消息将清空核心对话历史，仅使用插件自管理的上下文（消息缓冲区+增量注入+摘要压缩），这是控制 token 消耗的关键方案。仅影响唤醒消息，正常 @ 对话仍使用核心上下文。"
-      },
       "conversation_memory_enabled": {
         "description": "🧠 启用分层对话记忆",
         "type": "bool",
         "default": true,
-        "hint": "v2.3.0 起此配置控制节律标注层开关。群聊上下文已移交 AstrBot 官方 GroupChatContext 管理，此项不再控制自管记忆注入。"
+        "hint": "保留最近 N 轮原文对话、更早的压缩为摘要。v2.3.0 起生效范围：主动发言路径与 Bot 消息记录；被动群聊回复的上下文已由官方 GroupChatContext 接管。"
       },
       "presence_window_minutes": {
         "description": "👁️ 在场用户检测窗口",
@@ -556,25 +526,6 @@
         "type": "int",
         "default": 3,
         "hint": "冷场救场时的防抖等待时间，建议 2~5 秒。"
-      }
-    }
-  },
-  "image_context": {
-    "description": "🖼️ 图片上下文",
-    "type": "object",
-    "hint": "让 Bot 理解图片内容。框架会自动生成图片描述并注入上下文；若框架未提供描述，可开启自定义模型识别作为降级方案。",
-    "items": {
-      "image_context_custom_model": {
-        "description": "🤖 自定义模型图片识别（降级方案）",
-        "type": "bool",
-        "default": false,
-        "hint": "当框架未提供图片描述时，使用自选多模态模型识别图片内容。需配置多模态模型提供商 ID。通常无需开启，仅在框架图片描述功能异常时作为降级方案。"
-      },
-      "image_context_custom_model_id": {
-        "description": "🤖 图片识别模型提供商 ID",
-        "type": "string",
-        "default": "",
-        "hint": "多模态模型的提供商 ID（如 Volcengine/doubao-vision-pro-32k），仅当「自定义模型图片识别」开启时生效。填写完整的提供商 ID，不是模型名称。模型需支持图片输入。"
       }
     }
   },

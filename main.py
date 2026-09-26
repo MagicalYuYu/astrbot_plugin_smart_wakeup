@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.3.0",
+    "2.3.1",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -138,15 +138,15 @@ class LingxiPlugin(Star):
         self.context_truncation_max_len = basic.get("context_truncation_max_len", 60)
         self.context_truncation_keep_len = basic.get("context_truncation_keep_len", 30)
         self.context_min_length = basic.get("context_min_length", 3)  # 过滤过短消息
-        self.incremental_context_enabled = basic.get("incremental_context_enabled", True)
-        self.incremental_context_min_new = basic.get("incremental_context_min_new", 5)  # 新增消息少于此数时补充旧消息
-        self.context_compression_enabled = basic.get("context_compression_enabled", True)
-        self.compression_model = basic.get("compression_model", "")  # 留空则使用当前LLM提供者
+        # v2.3.1：incremental_context_enabled / incremental_context_min_new /
+        # context_compression_enabled 已随自管上下文架构一并删除（schema 同步移除，
+        # 旧配置中的同名键被安全忽略）
+        self.compression_model = basic.get("compression_model", "")  # 小模型提供商ID：分层记忆摘要与SKIP判别用
 
         # 智能模型路由配置
         self.model_routing_enabled = basic.get("model_routing_enabled", False)
         self.routing_small_model = basic.get("routing_small_model", "")  # 留空则不路由
-        self.cascade_upgrade_enabled = basic.get("cascade_upgrade_enabled", False)  # 级联升级默认关闭
+        # v2.3.1：cascade_upgrade_enabled 已删除（原为零行为兼容参数，schema 同步移除）
 
         # 异常检测配置
         self.anomaly_detection_enabled = basic.get("anomaly_detection_enabled", True)
@@ -154,7 +154,8 @@ class LingxiPlugin(Star):
         self.anomaly_prompt_ratio_threshold = basic.get("anomaly_prompt_ratio_threshold", 0.95)  # prompt占比阈值
 
         # 上下文管理策略
-        self.bypass_core_context = basic.get("bypass_core_context", True)  # 绕过AstrBot核心上下文，使用插件自管理的上下文（v2.3.0 群聊不再生效）
+        # v2.3.1：bypass_core_context 已删除——群聊上下文由官方 GroupChatContext 管理，
+        # 私聊同样使用官方对话历史（原私聊清空上下文的行为一并移除）
 
         # 分层对话记忆配置
         self.conversation_memory_enabled = basic.get("conversation_memory_enabled", True)
@@ -203,12 +204,12 @@ class LingxiPlugin(Star):
         self.debug_mode = basic.get("debug_mode", False)
 
         # 图片上下文关联配置
-        image_context_config = self.config.get("image_context", {})
-        self.image_context_custom_model = image_context_config.get("image_context_custom_model", False)
-        self.image_context_custom_model_id = image_context_config.get("image_context_custom_model_id", "")
-
-        # 图片上下文是否启用（自定义模型模式）
-        self.image_context_enabled = self.image_context_custom_model
+        # v2.3.1：自定义模型图片识别（image_context_custom_model/_id）已删除——
+        # 图片识别由 AstrBot 官方图片描述管线统一处理（GroupChatContext + M3）。
+        # 以下属性恒为 False 以保留占位符记录等既有逻辑的兼容性
+        self.image_context_custom_model = False
+        self.image_context_custom_model_id = ""
+        self.image_context_enabled = False
 
         # 精力系统
         energy_config = self.config.get("energy", {})
@@ -491,11 +492,8 @@ class LingxiPlugin(Star):
             f"关键词: {self.keywords or '无'} | "
             f"上下文消息数: {self.context_messages_count} | "
             f"上下文截断: {'启用' if self.context_truncation_enabled else '关闭'} | "
-            f"增量注入: {'启用' if self.incremental_context_enabled else '关闭'} | "
-            f"摘要压缩: {'启用' if self.context_compression_enabled else '关闭'} | "
             f"模型路由: {'启用' if self.model_routing_enabled else '关闭'}(小模型={self.routing_small_model or '未指定'}) | "
             f"异常检测: {'启用' if self.anomaly_detection_enabled else '关闭'}(σ={self.anomaly_sigma_threshold}) | "
-            f"绕过核心上下文: {'启用' if self.bypass_core_context else '关闭'} | "
             f"对话记忆: {'启用' if self.conversation_memory_enabled else '关闭'}(近{self.recent_rounds_keep}轮原文+{self.summary_rounds_max}轮摘要) | "
             f"白名单: {'启用' if self.whitelist_enabled else '关闭'} | "
             f"白名单群: {self.enabled_groups} | 黑名单群: {self.blocked_groups} | "
@@ -1703,59 +1701,27 @@ class LingxiPlugin(Star):
         text = re.sub(r'Sticker:\s*\S+', '[贴纸]', text)
         return text
 
-    def _format_context(self, group_id: str, incremental: bool = False) -> tuple[str, int, int]:
+    def _format_context(self, group_id: str) -> tuple[str, int, int]:
         """将消息缓冲区格式化为 LLM 可读的上下文文本
+
+        v2.3.1：incremental 增量模式已随自管上下文架构一并删除，
+        统一为全量模式（取最近 context_messages_count 条）。
 
         Args:
             group_id: 群ID
-            incremental: 是否使用增量模式（只注入新增消息）
 
         Returns:
             (formatted_text, new_msg_count, old_msg_count)
-            - formatted_text: 格式化后的上下文文本
-            - new_msg_count: 新增消息数（增量注入时）
-            - old_msg_count: 补充的旧消息数
         """
         buffer = self._msg_buffer.get(group_id)
         if not buffer:
             return "", 0, 0
 
         all_messages = list(buffer)
+        # 全量模式：取最近 context_messages_count 条
+        messages = all_messages[-self.context_messages_count:]
+        old_msg_count = len(messages)
         new_msg_count = 0
-        old_msg_count = 0
-
-        if incremental and self.incremental_context_enabled and group_id in self._last_context_ts:
-            # 增量模式：只取上次注入后的新消息
-            last_ts = self._last_context_ts[group_id]
-            new_messages = []
-            old_messages = []
-
-            for msg in all_messages:
-                _, _, ts, _meta = msg
-                if ts > last_ts:
-                    new_messages.append(msg)
-                else:
-                    old_messages.append(msg)
-
-            new_msg_count = len(new_messages)
-
-            if new_msg_count >= self.incremental_context_min_new:
-                # 新增消息足够，只注入新增消息
-                messages = new_messages[-self.context_messages_count:]
-                new_msg_count = len(messages)
-                old_msg_count = 0
-            else:
-                # 新增消息不足，补充最近的旧消息
-                supplement_count = self.context_messages_count - new_msg_count
-                supplement = old_messages[-supplement_count:] if supplement_count > 0 else []
-                messages = new_messages + supplement
-                new_msg_count = len(new_messages)
-                old_msg_count = len(supplement)
-        else:
-            # 全量模式：取最近 context_messages_count 条
-            messages = all_messages[-self.context_messages_count:]
-            old_msg_count = len(messages)
-            new_msg_count = 0
 
         if not messages:
             return "", 0, 0
@@ -3433,25 +3399,9 @@ class LingxiPlugin(Star):
         from astrbot.core.agent.message import TextPart
 
         # ── v2.3.0 hybrid 模式 ──
-        # 群聊：不再清空 req.contexts，群聊上下文由官方 GroupChatContext 管理
-        # 灵犀只注入节律状态标注（精力/心流/在场用户/最近发言）
-        # 私聊：保持自管上下文（GroupChatContext 不处理私聊）
+        # 群聊与私聊统一使用官方上下文（v2.3.1：bypass_core_context 已删除）
+        # 群聊：上下文由官方 GroupChatContext 管理，灵犀注入节律状态标注
         group_id = event.message_obj.group_id
-
-        if group_id:
-            # 群聊 hybrid：上下文完全由官方管理
-            # GroupChatContext 注入群历史（extra_user_content_parts）
-            # 官方 req.contexts 提供标准对话历史（含 bot 回复）
-            pass
-        else:
-            # 私聊保持自管上下文
-            if self.bypass_core_context:
-                original_count = len(req.contexts) if hasattr(req, 'contexts') and req.contexts else 0
-                if original_count > 0:
-                    req.contexts = []
-                    self._debug(
-                        f"[ContextBypass] 私聊已清空核心对话历史 ({original_count}条)"
-                    )
 
         parts = []
 
@@ -3849,9 +3799,7 @@ class LingxiPlugin(Star):
         # P1-10 修复：移除未实现的级联升级逻辑
         # 原逻辑在 on_llm_response 中设置 smart_wakeup_cascade_upgrade 标记，
         # 但 on_decorating_result 从未检查该标记，功能未实现且统计虚高。
-        # 保留 cascade_upgrade_enabled 配置项避免破坏用户配置结构，
-        # 如需启用需在 on_decorating_result 中实现回退大模型重新调用的完整逻辑。
-        # 保留 cascade_upgrade_count 统计字段（始终为 0）避免 KeyError
+        # v2.3.1：cascade_upgrade_enabled 配置项已随废弃项清理一并删除。
 
         # 定期检查异常（每10次调用检查一次，避免频繁计算）
         if self._stats["llm_call_count"] % 10 == 0:
@@ -6853,7 +6801,7 @@ class LingxiPlugin(Star):
             # === 2. 构建上下文 ===
             memory_text = self._format_conversation_memory(group_id) if self.conversation_memory_enabled else ""
             # _format_context 返回 (formatted_text, new_msg_count, old_msg_count) 三元组
-            context_text, _, _ = self._format_context(group_id, incremental=False)
+            context_text, _, _ = self._format_context(group_id)
 
             # v1.8.1 修复 P0 根因 2：过滤 context 中的命令文本
             # 问题：用户发送 /wakeup_proactive 科技资讯 后，命令文本被 _record_message 写入 _msg_buffer，
