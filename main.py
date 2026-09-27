@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.3.2",
+    "2.3.3",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -486,6 +486,9 @@ class LingxiPlugin(Star):
         }
         self._quote_chars = {'"', "'", "`"}
         self._secondary_pattern = re.compile(r"[，,、；;]+")
+
+        # v2.3.3：官方上下文参数配置健康检查（一次性启动建议）
+        self._check_context_config_health()
 
         logger.info(
             f"灵犀插件已加载 | 名称: {self.bot_names} | "
@@ -4105,6 +4108,50 @@ class LingxiPlugin(Star):
             # P1-9 修复：无论成功/失败/取消，都清除摘要任务标记，允许后续触发
             self._summary_in_progress.discard(group_id)
 
+    def _check_context_config_health(self):
+        """官方上下文参数配置健康检查（v2.3.3 新增，启动时执行一次）
+
+        v2.3.0 起群聊上下文由 AstrBot 官方管理。官方的部分默认参数
+        （如对话历史长度不设限、群历史注入上限过大）在活跃群聊场景下
+        可能产生较大的 token 消耗。检测到未合理配置时输出一次性建议。
+        """
+        try:
+            from astrbot.core import astrbot_config
+            ps = astrbot_config.get("provider_settings", {})
+            ltm = astrbot_config.get("provider_ltm_settings", {})
+            suggestions = []
+
+            max_len = ps.get("max_context_length", -1)
+            if max_len == -1 or max_len > 100:
+                suggestions.append(
+                    f"provider_settings.max_context_length 当前为 {max_len}"
+                    f"（对话历史长度未合理限制），建议设为 30-50 轮，"
+                    f"并将 context_limit_reached_strategy 设为 llm_compress（超限自动压缩）"
+                )
+
+            if ltm.get("group_icl_enable"):
+                max_cnt = ltm.get("group_message_max_cnt", 1000)
+                if max_cnt == 0 or max_cnt > 200:
+                    suggestions.append(
+                        f"provider_ltm_settings.group_message_max_cnt 当前为 {max_cnt}"
+                        f"（群历史注入上限过大），建议设为 30-50 条"
+                    )
+
+            if ps.get("context_limit_reached_strategy") == "llm_compress" and not ps.get("llm_compress_provider_id"):
+                suggestions.append(
+                    "llm_compress_provider_id 未指定（压缩将使用默认对话模型），"
+                    "建议选择低成本模型执行压缩"
+                )
+
+            if suggestions:
+                logger.warning(
+                    "[配置建议] 检测到官方上下文参数在活跃群聊场景下可能产生较大 token 消耗：\n"
+                    + "\n".join(f"  - {s}" for s in suggestions)
+                    + "\n  可在 AstrBot WebUI 设置中调整。详见插件文档的 Token 配置建议章节。"
+                )
+        except Exception:
+            pass  # 检查失败不影响插件加载
+
     def _get_group_chat_context(self):
         """获取 AstrBot 官方 GroupChatContext 实例（v2.3.0 图片等待机制用）
 
@@ -4679,10 +4726,11 @@ class LingxiPlugin(Star):
                 f"[ToolCallDetect] 检测到 tool_call，清空 result.chain 防止重复发送 | "
                 f"群={group_id} 内容='{post_filter_text[:80]}'"
             )
-            # 用零宽空格替代输出（而非清空），防止 intelligent_retry 插件重试
+            # v2.3.3：改用空 chain（与 v2.1.1 TTS 修复同款方案）——
+            # 原零宽空格占位是为防 intelligent_retry 插件重试，该插件现已禁用；
+            # 且 \u200b 不在 Python 空白字符集，会被框架当成正常文本发出形成空气泡
             result.chain.clear()
-            result.chain.append(Plain("\u200b"))
-            # P1-12 修复：设置 suppressed 标记，让 after_message_sent 跳过记录零宽空格到对话记忆
+            # P1-12 修复：设置 suppressed 标记，让 after_message_sent 跳过记录到对话记忆
             event.set_extra("smart_wakeup_suppressed", True)
             return
 
@@ -4753,10 +4801,12 @@ class LingxiPlugin(Star):
                             )
                             return  # 不执行后续抑制逻辑
 
-        # 1. 用零宽空格替换输出（而非清空），防止 intelligent_retry 插件重试
+        # 1. v2.3.3：改用空 chain 抑制输出——原零宽空格占位是为防 intelligent_retry
+        # 插件重试（该插件现已禁用），且 \u200b 会被框架当成正常文本发出形成空气泡。
+        # 空 chain 时框架 respond 阶段会优雅跳过，after_message_sent 钩子仍正常触发。
         result = event.get_result()
         if result:
-            result.chain = [Plain("\u200b")]
+            result.chain.clear()
 
         # 标记事件为已抑制，after_message_sent 据此跳过记录
         event.set_extra("smart_wakeup_suppressed", True)
@@ -7355,6 +7405,9 @@ class LingxiPlugin(Star):
                 "反面示例（禁止这样写）：",
                 "  刚在 TechCrunch 上看到一条新闻，说是 OpenAI 又融资了。具体多少来着，反正是很多钱。",
                 "  哈哈这个公司真有钱。（← 错误：套用模板化开头 + 信息模糊 + 吐槽太短）",
+                "",
+                "【硬性禁令】不要在任何分段中包含链接或 URL——你的任务是转述新闻内容本身，",
+                "群友感兴趣自然会去搜来源。贴链接的分享像机器人转发，不像真人说话。",
                 "",
                 "格式要求：",
                 "- 每段用句号或感叹号结束",
