@@ -124,7 +124,7 @@ createApp({
         // ====================================================================
 
         // Schema 版本（兜底 2.3.0）
-        const schemaVersion = computed(() => schema.value.version || '2.3.4');
+        const schemaVersion = computed(() => schema.value.version || '2.3.5');
 
         // 总配置项数
         const totalItems = computed(() => {

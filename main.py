@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.3.4",
+    "2.3.5",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -4929,12 +4929,15 @@ class LingxiPlugin(Star):
     # 官方 enable 与会话开关仍作总闸门（管理开关而非概率）。
 
     async def _get_tts_provider_if_allowed(self, umo_str: str):
-        """TTS 总闸门：官方 enable + 会话开关 + provider 可用性。返回 provider 或 None"""
+        """TTS 总闸门：会话开关 + provider 可用性。返回 provider 或 None
+
+        v2.3.5：不再依赖官方 provider_tts_settings.enable 总开关——灵犀的
+        TTS 总开关即 tts_mode 本身（last=关闭，per_segment/one_per_reply=开启）。
+        背景：官方 TTS 通道在 Telegram 上发送语音时会把原文作为 caption 附带
+        显示（适配器用 Record.text 作 caption），"音频+文本一起发送"；关闭官方
+        开关后灵犀语音不应被连带关闭，故解耦。会话级开关仍生效。
+        """
         try:
-            from astrbot.core import astrbot_config
-            tts_settings = astrbot_config.get("provider_tts_settings", {})
-            if not tts_settings.get("enable"):
-                return None
             from astrbot.core.star.session_llm_manager import SessionServiceManager
             if not await SessionServiceManager.is_tts_enabled_for_session(umo_str):
                 return None
