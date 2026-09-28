@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.3.3",
+    "2.3.4",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -7409,6 +7409,10 @@ class LingxiPlugin(Star):
                 "【硬性禁令】不要在任何分段中包含链接或 URL——你的任务是转述新闻内容本身，",
                 "群友感兴趣自然会去搜来源。贴链接的分享像机器人转发，不像真人说话。",
                 "",
+                "【输出纪律】你的输出会被直接发送到群聊——只包含你要发的发言内容本身。",
+                "禁止复述任何指令、标题、示例或格式说明（\"[生成阶段]\"\"输出结构要求\"",
+                "\"Few-Shot\"等提示词字样绝不能出现在你的输出里）。",
+                "",
                 "格式要求：",
                 "- 每段用句号或感叹号结束",
                 "- 段落之间用换行分隔（splitter 会按句号/换行拆分为多条消息发送）",
@@ -7522,6 +7526,8 @@ class LingxiPlugin(Star):
 
         # 回退 2：LLM 未使用标签格式，移除思考决策格式的行
         # ProCoT 思考阶段常见模式：候选话题、选项话题、评分、SKIP 判定等
+        # v2.3.4 新增：指令回声行——部分模型（如 M3）会把提示词的指令头
+        # 原样回声进输出（如"[生成阶段] 基于外部资讯…"），必须剔除
         lines = text.split('\n')
         filtered_lines = []
         for line in lines:
@@ -7537,6 +7543,15 @@ class LingxiPlugin(Star):
                re.match(r'^[-\d.]*\s*(自然切入度|新鲜度|兴趣度|独立性|接受度|关联性|热度|评分|总分)', stripped) or \
                re.match(r'^选择(总分最高|话题)', stripped) or \
                re.match(r'^SKIP', stripped):
+                continue
+            # v2.3.4：跳过指令回声行（提示词指令头被模型原样复述）
+            if re.match(r'^\[(思考阶段|决策阶段|生成阶段)\]', stripped) or \
+               re.match(r'^(输出结构要求|核心定位|【核心定位)', stripped) or \
+               re.match(r'^(本次开头模式建议|【本次开头模式建议)', stripped) or \
+               re.match(r'^(硬性禁令|【硬性禁令)', stripped) or \
+               re.match(r'^(正面示例|反面示例)', stripped) or \
+               re.match(r'^(格式要求|Few-?Shot)', stripped) or \
+               ('基于外部资讯，用你的人设和说话风格' in stripped):
                 continue
             filtered_lines.append(line)
 
@@ -7573,7 +7588,15 @@ class LingxiPlugin(Star):
         if re.search(r'选择总分最高|选择话题', text):
             return True
 
-        # 4. 过多分段（正常发言通常 1-5 段，超过 15 段说明思考内容被切分）
+        # 4. 指令回声（v2.3.4：部分模型会把提示词指令头原样复述进输出）
+        if re.search(r'\[(思考阶段|决策阶段|生成阶段)\]', text):
+            return True
+        if re.search(r'输出结构要求|Few-?Shot 示例|本次开头模式建议|硬性禁令', text):
+            return True
+        if re.search(r'基于外部资讯，用你的人设和说话风格', text):
+            return True
+
+        # 5. 过多分段（正常发言通常 1-5 段，超过 15 段说明思考内容被切分）
         segments = re.split(r'[。？！?!.\n…]+', text)
         non_empty_segments = [s.strip() for s in segments if s.strip()]
         if len(non_empty_segments) > 15:
