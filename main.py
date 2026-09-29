@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.3.7",
+    "2.3.8",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -5361,6 +5361,34 @@ class LingxiPlugin(Star):
                     result.append(p_seg)
         return result
 
+    # ─── v2.3.8 URL 原子化保护（占位符 masking）──────────────
+    # 动机：split_regex 含 "."，URL（如 xxx.shtml）会被从中切碎。
+    # 方案：切分前把 URL 替换为无切分字符的占位符，切分后逐字节还原。
+    # 安全性：无 URL 的文本替换零命中 → 引擎路径与原先完全一致；
+    # 有 URL 时仅移除 URL 内部的切点，其余切分逻辑不受影响。
+
+    _URL_PATTERN = re.compile(
+        r"""https?://[^\s\u4e00-\u9fff\u3000-\u303f\uff00-\uffef<>"']+""",
+        re.IGNORECASE,
+    )
+    _URL_PLACEHOLDER = re.compile(r"\x00U(\d+)\x00")
+
+    def _mask_urls(self, text: str, url_map: list) -> str:
+        """URL → 占位符（\x00Un\x00，不含任何切分触发字符）"""
+        def _sub(m):
+            url_map.append(m.group(0))
+            return f"\x00U{len(url_map) - 1}\x00"
+        return self._URL_PATTERN.sub(_sub, text)
+
+    def _restore_urls(self, text: str, url_map: list) -> str:
+        """占位符 → 原始 URL（逐字节还原）"""
+        if not url_map or "\x00" not in text:
+            return text
+        return self._URL_PLACEHOLDER.sub(
+            lambda m: url_map[int(m.group(1))] if int(m.group(1)) < len(url_map) else m.group(0),
+            text,
+        )
+
     async def _splitter_process(self, event: AstrMessageEvent):
         """分段模块核心处理，在 on_decorating_result 中调用"""
         result = event.get_result()
@@ -5387,6 +5415,12 @@ class LingxiPlugin(Star):
                 if "\u200b" in comp.text:
                     comp.text = comp.text.replace("\u200b \u200b", "__ZWSP_D__").replace("\u200b", "__ZWSP_S__")
 
+        # v2.3.8：URL 原子化保护——占位符替换，切分后还原（切分器不再接触 URL 内部字符）
+        _url_map: list = []
+        for comp in result.chain:
+            if isinstance(comp, Plain) and comp.text and "http" in comp.text:
+                comp.text = self._mask_urls(comp.text, _url_map)
+
         # 计算理想段长（均分模式）
         ideal_length = 0
         if self.balanced_split_mode and self.max_segments > 0:
@@ -5412,7 +5446,7 @@ class LingxiPlugin(Star):
         full_text_parts = []
         for comp in result.chain:
             if hasattr(comp, "text") and comp.text:
-                full_text_parts.append(comp.text)
+                full_text_parts.append(self._restore_urls(comp.text, _url_map))
         if full_text_parts:
             event.set_extra("full_response_text_before_split", " ".join(full_text_parts))
 
@@ -5431,6 +5465,7 @@ class LingxiPlugin(Star):
                 self._strip_segment_trailing_punct(seg)
             for comp in seg:
                 if isinstance(comp, Plain) and comp.text:
+                    comp.text = self._restore_urls(comp.text, _url_map)
                     comp.text = comp.text.replace("__ZWSP_D__", "\u200b \u200b").replace("__ZWSP_S__", "\u200b")
 
         # 只有一段，无需分段发送
@@ -7168,15 +7203,20 @@ class LingxiPlugin(Star):
             umo_str, _ = self._group_umo[group_id]
 
             # 将文本按标点切分成多段（复用 splitter 的 _split_chain）
-            full_chain = [Plain(text)]
+            # v2.3.8：URL 原子化保护——占位符替换，切分后还原
+            _proactive_url_map: list = []
+            full_chain = [Plain(self._mask_urls(text, _proactive_url_map))]
             segments = self._split_chain(full_chain, self.split_regex, 0)
 
-            # 后处理：清理空行 + 剔除末尾标点（与被动回复一致）
+            # 后处理：清理空行 + 剔除末尾标点 + URL 还原（与被动回复一致）
             for seg in segments:
                 if self.trim_segment_edge_blank_lines:
                     self._trim_segment_blank_lines(seg)
                 if self.strip_trailing_punct_enabled:
                     self._strip_segment_trailing_punct(seg)
+                for comp in seg:
+                    if isinstance(comp, Plain) and comp.text:
+                        comp.text = self._restore_urls(comp.text, _proactive_url_map)
 
             # v2.0.3 新增：资讯首图（先图后文，失败静默降级纯文本）
             # v2.0.4 修正：图片取"LLM 实际写的那条资讯"，不再无条件取第 1 条
