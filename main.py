@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.3.8",
+    "2.4.0",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -535,6 +535,8 @@ class LingxiPlugin(Star):
         self._proactive_self_talk_hours = proactive_cfg.get("proactive_self_talk_hours", 2.0)
         self._proactive_min_energy = proactive_cfg.get("proactive_min_energy", 0.15)
         self._proactive_model = proactive_cfg.get("proactive_model", "")
+        # v2.4.0：话题冷却——近期已提话题清单注入 + 确定性关键词闸
+        self._proactive_topic_dedup = proactive_cfg.get("proactive_topic_dedup", True)
         # 冷场检测参数
         self._proactive_idle_threshold = max(300, proactive_cfg.get("proactive_idle_threshold", 600))
         # UMO 有效期（24 小时）
@@ -5303,11 +5305,14 @@ class LingxiPlugin(Star):
         item_start = re.compile(
             r'^\s*(?:>\s*)?(?:\d{1,2}[.、．]|[(（]\d{1,2}[)）]|[一二三四五六七八九十]{1,3}[、.])\s*\S'
         )
+        # v2.4.0：裸序号行（"1." 独占一行、内容在下一行）也作为新组起点，
+        # 否则序号会被粘到上一组消息的尾部
+        bare_number = re.compile(r'^\s*(?:>\s*)?\d{1,2}[.、．]\s*$')
         groups = []
         for para in paragraphs:
             cur_lines = []
             for ln in para.split('\n'):
-                if item_start.match(ln) and cur_lines:
+                if (item_start.match(ln) or bare_number.match(ln)) and cur_lines:
                     groups.append('\n'.join(cur_lines))
                     cur_lines = [ln]
                 else:
@@ -5466,6 +5471,10 @@ class LingxiPlugin(Star):
             for comp in seg:
                 if isinstance(comp, Plain) and comp.text:
                     comp.text = self._restore_urls(comp.text, _url_map)
+                    # v2.4.0：剥离 markdown 星号——聊天平台不渲染星号会原样露出，
+                    # 教学类输出的加粗格式靠提示词无法归零（实测 132 处漏网），确定性剥离
+                    if "**" in comp.text:
+                        comp.text = comp.text.replace("**", "")
                     comp.text = comp.text.replace("__ZWSP_D__", "\u200b \u200b").replace("__ZWSP_S__", "\u200b")
 
         # 只有一段，无需分段发送
@@ -7208,7 +7217,7 @@ class LingxiPlugin(Star):
             full_chain = [Plain(self._mask_urls(text, _proactive_url_map))]
             segments = self._split_chain(full_chain, self.split_regex, 0)
 
-            # 后处理：清理空行 + 剔除末尾标点 + URL 还原（与被动回复一致）
+            # 后处理：清理空行 + 剔除末尾标点 + URL 还原 + 星号剥离（与被动回复一致）
             for seg in segments:
                 if self.trim_segment_edge_blank_lines:
                     self._trim_segment_blank_lines(seg)
@@ -7217,6 +7226,8 @@ class LingxiPlugin(Star):
                 for comp in seg:
                     if isinstance(comp, Plain) and comp.text:
                         comp.text = self._restore_urls(comp.text, _proactive_url_map)
+                        if "**" in comp.text:
+                            comp.text = comp.text.replace("**", "")
 
             # v2.0.3 新增：资讯首图（先图后文，失败静默降级纯文本）
             # v2.0.4 修正：图片取"LLM 实际写的那条资讯"，不再无条件取第 1 条
@@ -7453,11 +7464,40 @@ class LingxiPlugin(Star):
         """
         parts = []
 
+        # v2.4.0：当前时间锚——主动发言时间表述的唯一基准。
+        # 背景：主动发言直接调 provider，LLMPerception 的日期/星期/节假日感知注入
+        # 不会触发；群聊上下文时间戳只有时:分:秒。模型不知"今天几号"时只能从
+        # 历史旧消息猜日期，产生"假期第一天还说明天放假"的过期锚定。
+        _now = datetime.now()
+        _weekday_cn = "一二三四五六日"[_now.weekday()]
+        parts.append(
+            f"<current_time>今天是 {_now.year}年{_now.month}月{_now.day}日 星期{_weekday_cn}，"
+            f"现在 {_now.strftime('%H:%M')}</current_time>\n"
+            "任何涉及今天/明天/昨天/星期/节假日的表述，必须且只能以这个时间为准——"
+            "禁止从聊天记录里的旧消息推断当前日期（历史消息可能是几天前的）。"
+        )
+
         if memory_text:
             parts.append(f"<conversation_memory>\n{memory_text}\n</conversation_memory>")
 
         if context_text:
             parts.append(f"<group_chat_context>\n{context_text}\n</group_chat_context>")
+
+        # v2.4.0：话题冷却注入——近期已主动提起的话题清单（复用持久化的
+        # _proactive_topic_history，重载后依然生效）
+        if group_id and group_id in self._proactive_topic_history:
+            _recent_topics = list(self._proactive_topic_history[group_id])[-8:]
+            if _recent_topics:
+                _topic_lines = "\n".join(
+                    f"- {time.strftime('%m-%d %H:%M', time.localtime(ts))} {t}"
+                    for ts, t in reversed(_recent_topics)
+                )
+                parts.append(
+                    "<recent_proactive_topics>\n"
+                    "以下是你最近主动提起过的话题（最新在前）。禁止再次主动提起同一件事——"
+                    "换个说法、换个角度重提也不行，除非群友先重新聊起它：\n"
+                    f"{_topic_lines}\n</recent_proactive_topics>"
+                )
 
         # 外部资讯上下文（v1.8.0 新增：资讯类话题时注入）
         if news_context:
@@ -7471,6 +7511,7 @@ class LingxiPlugin(Star):
             "- 哪些话题与近期讨论相关但可以独立成立（不需要前文铺垫也能理解）",
             "- 哪些话题对群友可能有趣",
             "- 哪些话题你未曾深入分享过",
+            "- 对照 <recent_proactive_topics> 清单，排除你最近已主动提过的话题",
             "",
             "输出格式：",
             "1. 候选话题A：<简述>",
@@ -7576,6 +7617,7 @@ class LingxiPlugin(Star):
                 "- 每段用句号或感叹号结束",
                 "- 段落之间用换行分隔（splitter 会按句号/换行拆分为多条消息发送）",
                 "- 第一段必须包含新闻核心事实，不得跳过直接吐槽",
+                "- 【长度纪律】总共最多 3 段：一段新闻事实 + 最多两段锐评。宁短勿长，群友不爱看长篇",
                 "- 【重要】每句话必须使用正常中文标点符号（。！？）结束，禁止用空格分隔句子",
                 "- 【重要】禁止使用账号 ID、用户名或英文昵称直接称呼群友",
                 "",
@@ -7597,6 +7639,7 @@ class LingxiPlugin(Star):
                 "[生成阶段] 用你的人设和说话风格，将选定的话题方向转化为一段自然的群聊发言。",
                 "要求：",
                 "- 自然切入，不要生硬地宣布\"我要发起话题\"",
+                "- 【长度纪律】宁短勿长：最多 2 句（约 40 字）。你在群里随口搭话，不是写文章",
                 "- 简短自然，像朋友间随口一提",
                 "- 不要分析性或总结性的语气，像真人聊天而非做报告",
                 "- 不要接着之前的话题深入分析，而是自然地开启一个相关的新角度",
@@ -8442,23 +8485,46 @@ class LingxiPlugin(Star):
             weighted.extend([cat] * int(weight * 10))
         return random.choice(weighted) if weighted else random.choice(categories)
 
+    # v2.4.0：话题特征词提取——拉丁字母/数字 token（中文群聊中高度可判别，
+    # 如 MC、GPT-5、Steam、12306）。过泛的行业词不计（AI 是整个行业不是话题）。
+    _TOPIC_TOKEN_RE = re.compile(r'[A-Za-z][A-Za-z0-9\-]{1,11}')
+    _TOPIC_TOKEN_STOPSET = {'AI', 'ai', 'Ai', 'APP', 'App', 'app', 'PC', 'pc', 'OK', 'ok'}
+
+    @classmethod
+    def _extract_topic_tokens(cls, text: str) -> set:
+        return {t for t in cls._TOPIC_TOKEN_RE.findall(text) if t not in cls._TOPIC_TOKEN_STOPSET}
+
     def _is_topic_duplicate(self, group_id: str, text: str) -> bool:
         """话题去重：检查发言是否与近期主动发言话题重复
 
-        使用文本相似度检查，避免7天内重复发起相同话题（新鲜度指标）。
+        v2.4.0 双层判定（原实现仅 bigram Jaccard≥0.6，抓不住"同话题不同措辞"——
+        实测 MC 服务器话题一天主动提 6 次全部漏过，因措辞各异相似度仅 0.05-0.15）：
+        1. bigram Jaccard ≥ 0.5（话题冷却开启时）/ 0.6（关闭时保持旧行为）
+        2. 话题特征词闸（仅话题冷却开启时）：48 小时内与历史发言共享任一特征词
+           （如 MC、Steam）即视为同话题重复
         """
         history = self._proactive_topic_history.get(group_id)
         if not history:
             return False
         now = time.time()
+        dedup_on = self._proactive_topic_dedup
+        threshold = 0.5 if dedup_on else 0.6
+        new_tokens = self._extract_topic_tokens(text) if dedup_on else set()
         # 仅检查最近7天的话题
         for ts, topic_text in history:
-            if now - ts > 604800:  # 7天
+            age = now - ts
+            if age > 604800:  # 7天
                 continue
             similarity = self._calc_text_similarity(text, topic_text)
-            if similarity >= 0.6:
+            if similarity >= threshold:
                 logger.info(f"[主动发言] 群={group_id} 话题与历史重复(相似度={similarity:.2f})")
                 return True
+            # 特征词闸：48 小时内同特征词 = 同话题（不同措辞也拦）
+            if dedup_on and age < 172800 and new_tokens:
+                shared = new_tokens & self._extract_topic_tokens(topic_text)
+                if shared:
+                    logger.info(f"[主动发言] 群={group_id} 话题特征词重复: {shared}（{age/3600:.1f}小时前提过）")
+                    return True
         return False
 
     def _filter_sensitive_words(self, text: str) -> bool:

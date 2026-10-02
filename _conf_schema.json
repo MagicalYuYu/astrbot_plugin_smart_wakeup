@@ -371,6 +371,12 @@
         "hint": "每个群每天最多主动发言次数。默认 20 次。拟人模式下正常社交频率。",
         "min": 1
       },
+      "proactive_topic_dedup": {
+        "description": "🚫 话题冷却",
+        "type": "bool",
+        "default": true,
+        "hint": "防止反复主动提起同一件事（实测曾一天提同一话题 6 次）。开启后：①生成时注入'近期已提话题清单'，明确禁止重提 ②48 小时内与历史发言共享话题特征词（如 MC、Steam）即拦截。关闭则退回仅按文本相似度去重。"
+      },
       "proactive_probability": {
         "description": "🎲 触发概率",
         "type": "float",

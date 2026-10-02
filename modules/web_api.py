@@ -43,7 +43,7 @@ from astrbot.api.star import StarTools
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
 
 # 配置文件版本
-CONFIG_VERSION = "2.3.8"
+CONFIG_VERSION = "2.4.0"
 
 
 # ============================================================================
