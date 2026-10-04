@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.4.1",
+    "2.4.2",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -5409,6 +5409,28 @@ class LingxiPlugin(Star):
             text,
         )
 
+    def _enforce_segment_cap(self, segments: list) -> list:
+        """分段硬上限（v2.4.2）：超过 max_segments 时反复合并最短的相邻段
+
+        背景：max_segments 原本只在均分模式（balanced_split_mode）参与计算，
+        非均分部署下没有任何段数上限生效——模型写多长就发多长（实测闪档模型
+        常态 5-8 段）。此方法作为与模式无关的确定性保险丝：
+        合并策略取"最短相邻对"，保留自然边界、损伤最小。
+        """
+        cap = self.max_segments if self.max_segments and self.max_segments >= 2 else 7
+        while len(segments) > cap:
+            best = 0
+            best_len = None
+            for i in range(len(segments) - 1):
+                w = sum(len(c.text) for c in segments[i] + segments[i + 1]
+                        if isinstance(c, Plain))
+                if best_len is None or w < best_len:
+                    best_len = w
+                    best = i
+            segments[best].extend(segments[best + 1])
+            del segments[best + 1]
+        return segments
+
     async def _splitter_process(self, event: AstrMessageEvent):
         """分段模块核心处理，在 on_decorating_result 中调用"""
         result = event.get_result()
@@ -5460,6 +5482,8 @@ class LingxiPlugin(Star):
         else:
             segments = self._split_chain(result.chain, self.split_regex, ideal_length)
         segments = self._merge_orphan_segments(segments)
+        # v2.4.2：分段硬上限——任何模式生效的确定性保险丝
+        segments = self._enforce_segment_cap(segments)
 
         # 在分段修改 chain 之前，保存完整回复文本供 after_message_sent 记录
         # 否则 after_message_sent 只能拿到最后一段，导致复读检测失效
@@ -7243,6 +7267,8 @@ class LingxiPlugin(Star):
                         comp.text = self._restore_urls(comp.text, _proactive_url_map)
                         if "**" in comp.text:
                             comp.text = comp.text.replace("**", "")
+            # v2.4.2：主动发言同样受分段硬上限约束
+            segments = self._enforce_segment_cap(segments)
 
             # v2.0.3 新增：资讯首图（先图后文，失败静默降级纯文本）
             # v2.0.4 修正：图片取"LLM 实际写的那条资讯"，不再无条件取第 1 条
