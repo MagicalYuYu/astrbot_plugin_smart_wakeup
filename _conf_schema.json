@@ -916,10 +916,10 @@
         "hint": "分段模块的数值参数，普通用户无需调整，保持默认即可。",
         "items": {
           "max_segments": {
-            "description": "🔢 分段硬上限",
+            "description": "🔢 最大段数",
             "type": "int",
-            "default": 4,
-            "hint": "任何模式下单次回复的最大分段数（v2.4.2 起为全模式硬上限）：超过时自动合并最短的相邻段。默认 4——群聊里 5 段以上的连续消息已经不像真人说话。"
+            "default": 7,
+            "hint": "均分模式下的最大分段数。"
           },
           "min_segment_length": {
             "description": "📏 最小段长",
