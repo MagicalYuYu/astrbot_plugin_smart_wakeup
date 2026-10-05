@@ -5293,6 +5293,10 @@ class LingxiPlugin(Star):
         re.compile(r'^[>\s|~#*>•·\-]{1,6}$'),                 # 纯装饰符
     )
     _ORPHAN_CLOSER = re.compile(r'^[)\]】》〕」』*#]{1,4}$')     # 孤立闭合符
+    # v2.4.3：段首闭合标点（引号/括号闭合被换行甩到下一条开头，如 "，语法全对…）
+    _LEADING_CLOSER = re.compile(r'^[”’\'"』」》）】〕］)*#]{1,3}[，,。；;：:]?')
+    # v2.4.3：列表项起始（序号或子弹）
+    _LIST_ITEM_START = re.compile(r'^(\d{1,2}[.、．]\s*\S|[（(]\d{1,2}[)）]\s*\S|[-*•]\s+\S)')
 
     def _is_structured_content(self, text: str) -> bool:
         """结构化内容检测门（v2.3.7）
@@ -5348,18 +5352,32 @@ class LingxiPlugin(Star):
         """
         if len(segments) <= 1:
             return segments
-        # 1) 向后合并闭合符
+        # 1) 向后合并闭合符（v2.4.3：含"段首闭合标点"——闭合引号/括号
+        #    被换行切到本段开头的，整段并回前一段，如 "，语法全对…）
         merged = []
         for seg in segments:
             t = self._seg_plain_text(seg)
             if not t:
                 continue  # 空段丢弃（后处理亦有清理）
-            if merged and self._ORPHAN_CLOSER.match(t):
+            if merged and (self._ORPHAN_CLOSER.match(t) or self._LEADING_CLOSER.match(t)):
                 merged[-1].extend(seg)
             else:
                 merged.append(list(seg))
         if not merged:
             return segments
+        # 1.5) v2.4.3 列表标题粘合——短标题段（≤20字且不以句末标点收尾）
+        #      与紧随的序号项合并（如 "两个简短的实际要点" + "1. …"）
+        glued = []
+        for seg in merged:
+            t = self._seg_plain_text(seg)
+            if (glued and self._LIST_ITEM_START.match(t)
+                    and len(self._seg_plain_text(glued[-1])) <= 20
+                    and not re.search(r'[。？！.!?\n]$', self._seg_plain_text(glued[-1]))):
+                glued[-1].append(Plain("\n"))
+                glued[-1].extend(seg)
+            else:
+                glued.append(list(seg))
+        merged = glued
         # 2) 向前合并孤儿序号/装饰符
         result = []
         pending = []
