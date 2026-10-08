@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.4.3",
+    "2.4.4",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -3394,6 +3394,27 @@ class LingxiPlugin(Star):
         if not event.get_extra("smart_wakeup_triggered"):
             return
 
+        # v2.4.4：从唤醒回复的可用工具集中摘除 send_message_to_user
+        # 背景：该工具让模型走"工具通道"独立发送完整文本，与正常管线输出重复
+        # （实测 M3 一次回复双发：分段一遍 + 工具全量一遍）；且原有重复检测
+        # 按 OpenAI 格式探测，对 AstrBot 统一实体（tools_call_args）永久失效。
+        # 摘除后回复统一走管线，分段/节奏/语音保留；web_search 等工具不受影响。
+        try:
+            if req.func_tool and getattr(req.func_tool, 'tools', None):
+                _before = len(req.func_tool.tools)
+                req.func_tool.tools = [
+                    t for t in req.func_tool.tools
+                    if (getattr(t, 'name', '') or getattr(t, 'tool_name', '')
+                        or getattr(t, 'func_name', '')) != 'send_message_to_user'
+                ]
+                if len(req.func_tool.tools) < _before:
+                    self._debug(
+                        f"[ToolStrip] 已从唤醒请求摘除 send_message_to_user"
+                        f"（{_before}→{len(req.func_tool.tools)}）"
+                    )
+        except Exception as e:
+            logger.debug(f"[ToolStrip] 工具摘除异常（不影响回复）: {e}")
+
         # 诊断（v1.7.3）：记录 LLM 请求开始时间，用于 _auto_clear_llm_flag 诊断
         _group_id_for_diag = event.message_obj.group_id
         if _group_id_for_diag:
@@ -3684,12 +3705,20 @@ class LingxiPlugin(Star):
             return
 
         # 检测 tool_call：当 LLM 使用 send_message_to_user 时标记，防止重复输出
+        # v2.4.4：补充 AstrBot 统一实体字段探测（tools_call_args/tools_call_name）
+        # ——原探测只认 OpenAI 格式（finish_reason/tool_calls），对 anthropic 源
+        # 与 openai 源统一封装的 LLMResponse 实体全部失效，anthropic 格式下
+        # send_message_to_user 双发问题因此漏网
         finish_reason = getattr(resp, 'finish_reason', None)
         tool_calls = getattr(resp, 'tool_calls', None)
-        if finish_reason == 'tool_calls' or (tool_calls and len(tool_calls) > 0):
+        tools_call_args = getattr(resp, 'tools_call_args', None)
+        tools_call_name = getattr(resp, 'tools_call_name', None)
+        if finish_reason == 'tool_calls' or (tool_calls and len(tool_calls) > 0) \
+                or (tools_call_args and len(tools_call_args) > 0) \
+                or (tools_call_name and len(tools_call_name) > 0):
             event.set_extra("smart_wakeup_has_tool_call", True)
             # 检查是否为 send_message_to_user 工具
-            tool_names = []
+            tool_names = list(tools_call_name) if tools_call_name else []
             if tool_calls:
                 for tc in tool_calls:
                     if hasattr(tc, 'function') and hasattr(tc.function, 'name'):
@@ -4672,16 +4701,21 @@ class LingxiPlugin(Star):
             has_tool_call = True
             logger.info("[ToolCallDetect] on_decorating_result 检测到 tool_call flag（来自 hook）")
 
-        # 策略2: 检查 result 对象的 tool_calls/finish_reason 属性
+        # 策略2: 检查 result 对象的 tool_calls/finish_reason 属性（v2.4.4 补充统一实体字段）
         if not has_tool_call:
             _result_tc = getattr(result, 'tool_calls', None)
             _result_fr = getattr(result, 'finish_reason', None)
+            _result_tca = getattr(result, 'tools_call_args', None)
+            _result_tcn = getattr(result, 'tools_call_name', None)
             if _result_tc and len(_result_tc) > 0:
                 has_tool_call = True
                 logger.info(f"[ToolCallDetect] on_decorating_result 检测到 result.tool_calls={_result_tc}")
             elif _result_fr == 'tool_calls':
                 has_tool_call = True
                 logger.info("[ToolCallDetect] on_decorating_result 检测到 result.finish_reason='tool_calls'")
+            elif (_result_tca and len(_result_tca) > 0) or (_result_tcn and len(_result_tcn) > 0):
+                has_tool_call = True
+                logger.info(f"[ToolCallDetect] on_decorating_result 检测到 result.tools_call_*（统一实体）")
 
         # 策略3: 检查 event 对象的 LLM 响应相关属性
         if not has_tool_call:
