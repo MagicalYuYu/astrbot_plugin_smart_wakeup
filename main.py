@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.4.4",
+    "2.4.5",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -247,6 +247,11 @@ class LingxiPlugin(Star):
         self.debounce_wait_name = debounce_config.get("debounce_wait_name", 5)
         self.debounce_wait_prob = debounce_config.get("debounce_wait_prob", 10)
         self.debounce_wait_rescue = debounce_config.get("debounce_wait_rescue", 3)
+        # v2.4.5：防抖聚合归属标注（两个独立开关）
+        # 同用户连发合并：窗口内同一人的连续消息合并为一条完整话语
+        self.debounce_merge_same_user = debounce_config.get("debounce_merge_same_user", True)
+        # 跨用户归属标注：多人接连发言时每段加 [昵称] 前缀，防止归因混淆
+        self.debounce_cross_user_label = debounce_config.get("debounce_cross_user_label", True)
 
         # 思考标签过滤配置
         filter_config = self.config.get("filter_settings", {})
@@ -2678,6 +2683,10 @@ class LingxiPlugin(Star):
         ))
         last_event.set_extra("aggregated_sender_ids", sender_ids)
 
+        # v2.4.5：标记跨用户聚合，供 on_llm_request 追加归属提示
+        if len({_s for _s, _t, _ts, _e in messages}) > 1:
+            last_event.set_extra("aggregated_multi_user", True)
+
         # 多条消息聚合时，将 message_str 替换为聚合文本
         # 这样 _trigger_wake 添加前缀后，LLM 收到的输入是完整的聚合内容
         # 而非仅最后一条消息
@@ -2736,29 +2745,58 @@ class LingxiPlugin(Star):
 
         return base_wait
 
+    @staticmethod
+    def _sanitize_nickname(name: str) -> str:
+        """昵称消毒（v2.4.5）：昵称为第三方可控输入，入 prompt 前折叠换行/
+        控制符、替换方括号并限长，防止结构性注入"""
+        if not name:
+            return "群友"
+        cleaned = re.sub(r'[\r\n\u2028\u2029\x85\x00-\x1f]+', ' ', str(name))
+        cleaned = cleaned.replace('[', '(').replace(']', ')')
+        return cleaned[:24] or "群友"
+
     def _aggregate_messages(self, messages: list) -> str:
-        """将多条消息聚合为一条逻辑话语"""
+        """将多条消息聚合为一条逻辑话语
+
+        v2.4.5：跨用户聚合时添加发送者归属标注（由 debounce_cross_user_label
+        控制），同用户连发合并由 debounce_merge_same_user 控制。
+        背景：v1.0.0 起聚合文本无发送者标注，多人接连发言时（占聚合 25%）
+        模型无法区分归属，产生张冠李戴（实测把 A 的话当成 B 说的）。
+        单用户窗口的输出与旧版逐字节一致（回归安全）。
+        """
         if len(messages) == 1:
             return messages[0][1]
 
-        # 同一用户连续消息直接拼接，不同用户消息用换行分隔
-        parts = []
-        current_sender = None
-        current_parts = []
+        merge_same = self.debounce_merge_same_user
+        label_cross = self.debounce_cross_user_label
 
+        senders = {sender for sender, _text, _ts, _e in messages}
+
+        # 单用户窗口：仅拼接方式差异，无需归属标注
+        if len(senders) == 1:
+            texts = [text for _s, text, _t, _e in messages if text.strip()]
+            if merge_same:
+                return " ".join(texts)
+            return "\n".join(texts)
+
+        # 多用户窗口：按连续同发送者分块（保持时间序，交错不跨块合并）
+        blocks = []  # [(sender, [texts])]
         for sender, text, _ts, _event in messages:
-            if sender != current_sender:
-                if current_parts:
-                    parts.append(" ".join(current_parts))
-                current_sender = sender
-                current_parts = [text]
+            if not text.strip():
+                continue  # 空文本（纯图片/表情）不产生独立块
+            if blocks and blocks[-1][0] == sender:
+                blocks[-1][1].append(text)
             else:
-                current_parts.append(text)
+                blocks.append((sender, [text]))
 
-        if current_parts:
-            parts.append(" ".join(current_parts))
-
-        return "\n".join(parts)
+        rendered = []
+        for sender, texts in blocks:
+            body = " ".join(texts) if merge_same else "\n".join(texts)
+            if label_cross:
+                rendered.append(f"[{self._sanitize_nickname(sender)}] {body}")
+            else:
+                rendered.append(body)
+        return "\n".join(rendered)
 
     async def _evaluate_debounced_messages(self, group_id: str, event: AstrMessageEvent, messages: list, silence_gap: float = 0.0):
         """防抖到期后执行唤醒判定"""
@@ -3443,17 +3481,25 @@ class LingxiPlugin(Star):
         aggregated_count = event.get_extra("aggregated_count") or 1
 
         if aggregated_count > 1 and aggregated_text:
-            parts.append(
-                TextPart(
-                    text=(
-                        "<aggregated_messages>\n"
-                        f"用户在 {aggregated_count} 条连续消息中表达了以下内容（已聚合）：\n"
-                        f"{aggregated_text}\n"
-                        "请将以上内容视为一个完整的表述来回复。\n"
-                        "</aggregated_messages>"
-                    )
+            if event.get_extra("aggregated_multi_user"):
+                # v2.4.5：跨用户聚合——归属说明（原注入文本写"用户…表达了
+                # 以下内容"，单数框架教模型把多人内容当成一个人说的）
+                _agg_note = (
+                    "<aggregated_messages>\n"
+                    "群聊中多人接连发言（每条已用 [昵称] 标注说话人）：\n"
+                    f"{aggregated_text}\n"
+                    "注意区分每段是谁说的，回复时对准正确的对象，不要把不同人的话混为一谈。\n"
+                    "</aggregated_messages>"
                 )
-            )
+            else:
+                _agg_note = (
+                    "<aggregated_messages>\n"
+                    f"用户在 {aggregated_count} 条连续消息中表达了以下内容（已聚合）：\n"
+                    f"{aggregated_text}\n"
+                    "请将以上内容视为一个完整的表述来回复。\n"
+                    "</aggregated_messages>"
+                )
+            parts.append(TextPart(text=_agg_note))
 
         # 根据唤醒类型注入不同提示
         wakeup_type = event.get_extra("wakeup_type") or "name_trigger"

@@ -532,6 +532,18 @@
         "type": "int",
         "default": 3,
         "hint": "冷场救场时的防抖等待时间，建议 2~5 秒。"
+      },
+      "debounce_merge_same_user": {
+        "description": "🔗 同用户连发合并",
+        "type": "bool",
+        "default": true,
+        "hint": "防抖窗口内同一人的连续消息合并为一条完整话语（真人把一句话拆几条发的场景）。关闭则逐条独立处理。"
+      },
+      "debounce_cross_user_label": {
+        "description": "🏷️ 跨用户归属标注",
+        "type": "bool",
+        "default": true,
+        "hint": "防抖窗口内包含多人发言时，为每段发言添加 [昵称] 归属标注，防止 Bot 混淆谁说的。强烈建议保持开启——关闭会把不同人的话拼成无标注文本，可能导致 Bot 把 A 的话当成 B 说的。"
       }
     }
   },
