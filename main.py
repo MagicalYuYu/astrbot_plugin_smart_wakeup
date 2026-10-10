@@ -83,7 +83,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.4.5",
+    "2.4.6",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -5374,7 +5374,10 @@ class LingxiPlugin(Star):
     )
     _ORPHAN_CLOSER = re.compile(r'^[)\]】》〕」』*#]{1,4}$')     # 孤立闭合符
     # v2.4.3：段首闭合标点（引号/括号闭合被换行甩到下一条开头，如 "，语法全对…）
-    _LEADING_CLOSER = re.compile(r'^[”’\'"』」》）】〕］)*#]{1,3}[，,。；;：:]?')
+    # v2.4.6：直引号 " ' 从闭合符集合移除——直引号是双向的，段首的直引号
+    # 几乎总是开引号（引用的开始），把它当闭合符会把正确切开的段又合并回去
+    # （实测：空行处切分后，引号开头的段被误并回前段，空行留在消息里）
+    _LEADING_CLOSER = re.compile(r'^[”’』」》）】〕］)*#]{1,3}[，,。；;：:]?')
     # v2.4.3：列表项起始（序号或子弹）
     _LIST_ITEM_START = re.compile(r'^(\d{1,2}[.、．]\s*\S|[（(]\d{1,2}[)）]\s*\S|[-*•]\s+\S)')
 
