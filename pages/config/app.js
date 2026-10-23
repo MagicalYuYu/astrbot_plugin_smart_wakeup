@@ -8,7 +8,7 @@
  * 主要职责：
  * 1. 调用 AstrBotPluginPage.ready() 等待桥接 SDK 就绪
  * 2. 拉取 schema（/config/schema）和当前配置（/config）
- * 3. 渲染 14 分类共 143 项配置（按 7 大类侧边栏分组）
+ * 3. 渲染 13 分类共 124 项配置（按 7 大类侧边栏分组）
  * 4. 搜索过滤、简单/高级模式切换
  * 5. 保存（/config POST）、重置、导入、导出
  * 6. 预设管理（/config/presets + /config/preset/<name>）
@@ -320,13 +320,19 @@ createApp({
 
         // 统一 API 调用封装（带错误处理和数据格式归一化）
         // 后端返回格式可能是 {ok: true, data: ...} 或直接数据，这里统一提取 data
+        // v2.4.8 修复：所有 POST 调用点都把请求体作为第 3 参（params）传入，
+        // 而 POST 分支原先只读第 4 参（body），导致 apiPost 实际收到 null——
+        // 桥接父页面将 null 兜底为 {} 发出：保存配置被后端按"空保存"照单全收
+        // 并返回假成功（issue #2，修改从未落盘）；测试发言/重置状态因空载荷
+        // 缺少必填参数必然报错；仅应用预设不受影响（参数在 URL，不读请求体）。
+        // 现 POST 分支回退读取 params（body ?? params），四种调用形态全部覆盖。
         async function callApi(method, endpoint, params = null, body = null) {
             try {
                 let result;
                 if (method === 'GET') {
                     result = await AstrBotPluginPage.apiGet(endpoint, params);
                 } else if (method === 'POST') {
-                    result = await AstrBotPluginPage.apiPost(endpoint, body);
+                    result = await AstrBotPluginPage.apiPost(endpoint, body ?? params);
                 } else {
                     throw new Error(`不支持的 HTTP 方法: ${method}`);
                 }

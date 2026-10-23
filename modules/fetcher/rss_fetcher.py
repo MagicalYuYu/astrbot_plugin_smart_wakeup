@@ -304,10 +304,16 @@ class RSSFetcher(BaseFetcher):
 
         # v1.8.0 修复（B1 二次审查 M2）：同时支持冒号和竖线作为类别分隔符
         # 与 _conf_schema.json hint 描述（"类别:URL"）保持一致
-        has_categories = ("|" in feeds_str and ";" in feeds_str) or \
-                         (":" in feeds_str and ";" in feeds_str) or \
-                         ("|" in feeds_str and "\n" not in feeds_str) or \
-                         (":" in feeds_str and "\n" not in feeds_str)
+        # v2.4.8 修复：以裸 URL（scheme://）开头的输入不再误判为分类格式——
+        # 原探测把单个 URL 的协议冒号当作类别分隔符，类别被解析为 "https"，
+        # 导致任何资讯类别都取不到源、RSS 静默返回空（hint 承诺的格式 3 失效）。
+        starts_with_url = bool(re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", feeds_str))
+        has_categories = not starts_with_url and (
+            ("|" in feeds_str and ";" in feeds_str) or
+            (":" in feeds_str and ";" in feeds_str) or
+            ("|" in feeds_str and "\n" not in feeds_str) or
+            (":" in feeds_str and "\n" not in feeds_str)
+        )
 
         if has_categories:
             # 分类格式：按 ; 分割各组，每组按 | 或 : 分割类别和 URL

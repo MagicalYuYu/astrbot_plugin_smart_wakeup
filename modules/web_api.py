@@ -43,7 +43,7 @@ from astrbot.api.star import StarTools
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
 
 # 配置文件版本
-CONFIG_VERSION = "2.4.6"
+CONFIG_VERSION = "2.4.8"
 
 
 # ============================================================================
@@ -321,6 +321,16 @@ def register_web_apis(plugin, context):
                 if key.startswith("_"):
                     continue
                 clean_config[key] = val
+
+            # v2.4.8 防呆（issue #2）：空配置保存无意义，且曾是静默故障放大器——
+            # 前端参数错位期间，面板以空载荷保存并得到"已保存并热生效"假成功。
+            # 显式拒绝并留日志，让此类前端回归立刻可见，不再静默吞掉。
+            if not clean_config:
+                logger.warning(
+                    "[smart_wakeup] POST /config 收到空配置，已拒绝保存"
+                    "（正常情况下前端总是提交完整配置；空载荷通常意味着前端传参丢失）"
+                )
+                return jsonify({"ok": False, "error": "配置内容为空，未执行保存"}), 400
 
             # v1.9.7 新增 M4：基于 schema 的配置类型验证
             # 防止前端传入错误类型的值（如 string 传给 int 字段）导致插件运行异常

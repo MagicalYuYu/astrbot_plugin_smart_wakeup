@@ -23,7 +23,7 @@ Compatible with Telegram and QQ (aiocqhttp)
 
 ---
 
-Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 149 tunable parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
+Most group bots have only two states: answer when @-mentioned, or play dead otherwise. Lingxi turns your bot into a real group member — it starts topics on its own, shares fresh news, stays present when the chat heats up, backs off gracefully when ignored, and goes to sleep on schedule. With 124 tunable parameters and a dedicated visual config panel, it can have a different personality in every one of your groups.
 
 ## Why Lingxi
 
@@ -34,7 +34,7 @@ Group bots usually fail in one of two ways: they're dead — silent forever unle
 **🗣️ Proactive**
 
 - 🎯 **Starts Topics on Its Own** — Periodically senses the group atmosphere and speaks only when the moment is right
-- 📚 **9 Topic Categories** — From sharing thoughts to trending news, with custom topics and per-group weighting
+- 📚 **12 Topic Categories** — From sharing thoughts to trending news, with custom topics and per-group weighting
 - 📰 **Reads the News, Drops Hot Takes** — Pulls RSS feeds and news APIs in real time, deduplicated across groups — your bot becomes a sharer, not just a taker
 - 🎲 **Never Repeats Itself** — Multiple opener patterns, topic dedup, and opener dedup keep proactive speech fresh
 
@@ -53,7 +53,7 @@ Group bots usually fail in one of two ways: they're dead — silent forever unle
 **🎛️ Tunable**
 
 - 🖥️ **Dedicated Config Panel** — Visual operation, no config file editing needed
-- 🔧 **149 tunable parameters** — 13 config groups, from energy recovery to topic weights
+- 🔧 **124 tunable parameters** — 13 config groups, from energy recovery to topic weights
 - 🎚️ **Per-Group Tuning** — Each group can have a different personality and schedule
 - 💰 **Token Control** — Small-model context compression, predictable costs
 - 🧠 **Remembers the Conversation** — Layered memory shared by both proactive and passive speech
@@ -117,7 +117,7 @@ Lingxi no longer waits to be @-mentioned.
 
 Lingxi ships with a dedicated visual config panel — not an auto-generated schema form:
 
-- **Grouped Tabs** — 149 parameters organized into 13 config groups, no more endless scrolling
+- **Grouped Tabs** — 124 parameters organized into 13 config groups, no more endless scrolling
 - **Live Status** — 5-second polling shows each group's energy / flow / retreat / message counters
 - **One-Click Presets** — Built-in presets to switch the overall personality instantly
 - **Test-Speak** — Trigger a test message right from the panel and see tuning take effect immediately
@@ -143,7 +143,7 @@ The dedicated **Web Config Panel** is recommended (see above), or configure via 
 | `proactive_speak.enabled` | Enable proactive speech — the bot periodically senses the atmosphere and starts topics | No |
 | `splitter.enabled` | Enable message splitting — long replies are sent in natural segments | No |
 
-All 151 parameters have sensible defaults and work out of the box. For detailed configuration, see the [Usage Guide](docs/usage_guide.md) (Chinese).
+All 124 parameters have sensible defaults and work out of the box. For detailed configuration, see the [Usage Guide](docs/usage_guide.md) (Chinese).
 
 ## Debug Commands
 
@@ -182,7 +182,7 @@ That's the Quiet Hours mechanism protecting your group. See the "Quiet Hours" se
 <details>
 <summary>How do I change or add RSS news sources?</summary>
 
-Edit the RSS source list in the Fetcher configuration — three custom formats are supported; 15 built-in Chinese sources across 4 categories work out of the box. See the [Usage Guide](docs/usage_guide.md) for details.
+Edit the RSS source list in the Fetcher configuration — three custom formats are supported; 22 built-in Chinese sources across 7 categories work out of the box. See the [Usage Guide](docs/usage_guide.md) for details.
 
 </details>
 
@@ -308,7 +308,7 @@ flowchart TD
         K[Periodic scheduler] --> L[Conversation state awareness<br/>silence / lively / self-talk]
         L --> M{Retreat & Quiet Hours check}
         M -->|In retreat / Quiet Hours| N[Skip this round]
-        M -->|Passed| O[Topic selection<br/>9 categories + Fetcher news injection]
+        M -->|Passed| O[Topic selection<br/>12 categories + Fetcher news injection]
     end
     G & H & I & O --> P{Per-User Override}
     P --> Q[Message debounce]

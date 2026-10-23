@@ -625,7 +625,8 @@ class LingxiPlugin(Star):
         # 读取顺序：proactive_speak 配置 → schema 默认值
         self._retreat_active_surge_secs = max(60, proactive_cfg.get("proactive_retreat_active_surge_secs", 3600))
         self._retreat_consecutive_skip_secs = max(60, proactive_cfg.get("proactive_retreat_consecutive_skip_secs", 3600))
-        self._retreat_no_response_base_secs = max(300, proactive_cfg.get("proactive_retreat_no_response_base_secs", 3600))
+        # v2.4.8：删除死参数 proactive_retreat_no_response_base_secs（v1.8.4 查表法重构后
+        # 从不参与计算）——无回应退却实际为查表三档（7200/21600/86400）+ 下方 max 上限钳制
         self._retreat_no_response_max_secs = max(3600, proactive_cfg.get("proactive_retreat_no_response_max_secs", 86400))
         self._retreat_annoyed_secs = max(3600, proactive_cfg.get("proactive_retreat_annoyed_secs", 86400))
 

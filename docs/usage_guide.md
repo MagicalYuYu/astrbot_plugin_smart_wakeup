@@ -17,7 +17,7 @@
 | 3 | 多别名 | 支持 `\|` 分隔多个别名，大小写不敏感 |
 | 4 | 概率唤醒 | 未命中名称/关键词时也有概率主动回复，概率由精力、心流等因子动态计算 |
 | 5 | 主动发言引擎 | 基于 AIF（Anticipation-Initiation-Planning）模型周期性主动发起话题，与被动回复共享记忆体系 |
-| 6 | 资讯注入（Fetcher） | RSS（内置 15 个中文源、4 大类）+ 资讯 API 双通道，跨群去重，为主动发言提供实时素材 |
+| 6 | 资讯注入（Fetcher） | RSS（内置 7 类 22 条国内直连源）+ 资讯 API 双通道，跨群去重，为主动发言提供实时素材 |
 | 7 | 五路退却机制 | 活跃激增 / 连续 SKIP / 厌烦关键词 / 自说自话 / 连续无回应，任一路触发即知趣收声 |
 | 8 | 静默时段 | 支持多个跨午夜时段（如 `23:00-07:00,13:00-14:00`），可单群覆盖 |
 | 9 | 精力系统 | 模拟社交疲劳，防止过度活跃 |
@@ -174,14 +174,13 @@
 | `proactive_idle_threshold` | int | `600` | 冷场判定阈值（秒），群聊沉默超过此值才考虑主动发言 |
 | `proactive_self_talk_ratio` | float | `0.8` | 自说自话占比阈值，超过则触发退却 |
 | `proactive_self_talk_hours` | float | `2.0` | 自说自话检测时间窗口（小时） |
-| `proactive_topic_categories` | string | `分享想法\|提问讨论\|回忆过去\|关注某人\|活跃气氛\|科技资讯\|游戏八卦\|沙雕新闻\|热点事件` | 话题类别，9 类内置话题，用 `\|` 分隔 |
+| `proactive_topic_categories` | string | `分享想法\|提问讨论\|回忆过去\|关注某人\|活跃气氛\|科技资讯\|游戏八卦\|沙雕新闻\|热点事件\|游戏\|数码科技\|开发者` | 话题类别，12 类内置话题，用 `\|` 分隔 |
 | `proactive_custom_topics` | string | `""` | 自定义话题，用 `\|` 分隔，加入话题池参与随机选取 |
 | `proactive_target_groups` | string | `""` | 主动发言目标群列表，留空则所有群生效 |
 | `proactive_retreat_active_surge_secs` | int | `3600` | 活跃激增退却时长（秒），群内突然热闹时主动让位 |
 | `proactive_retreat_consecutive_skip_secs` | int | `3600` | 连续 SKIP 退却时长（秒），主动发言连续被抑制后收声 |
-| `proactive_retreat_no_response_base_secs` | int | `3600` | 连续无回应退却基础时长（秒） |
 | `proactive_retreat_no_response_max_secs` | int | `86400` | 连续无回应退却最大时长（秒），按 2h/6h/24h 阶梯递增 |
-| `proactive_retreat_annoyed_secs` | int | `86400` | 厌烦关键词退却时长（秒），检测到"闭嘴""烦"等信号后长时间收声 |
+| `proactive_retreat_annoyed_secs` | int | `86400` | 厌烦关键词退却时长（秒），检测到"闭嘴""烦死了"等完整短语后长时间收声 |
 
 ### 3.7 消息防抖
 
@@ -280,13 +279,13 @@
 
 ### 3.14 资讯模块（Fetcher）
 
-为主动发言提供实时资讯素材：RSS 订阅 + 资讯 API 双通道，内置 15 个中文资讯源（科技/游戏/沙雕/热点 4 大类），跨群去重。
+为主动发言提供实时资讯素材：RSS 订阅 + 资讯 API 双通道，内置 22 条国内直连资讯源（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者 7 大类），跨群去重。
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `fetcher_enabled` | bool | `false` | 启用资讯模块，默认关闭 |
 | `fetcher_rss_enabled` | bool | `true` | 启用 RSS 数据源 |
-| `fetcher_rss_feeds` | string | `""` | 自定义 RSS 源，格式见下方说明，留空使用内置 15 源 |
+| `fetcher_rss_feeds` | string | `""` | 自定义 RSS 源，格式见下方说明，留空使用内置 7 类 22 条国内直连源 |
 | `fetcher_api_provider` | string | `""` | 资讯 API 提供商 |
 | `fetcher_api_key` | string | `""` | 资讯 API Key |
 | `fetcher_api_key_env` | string | `""` | API Key 环境变量名（可选，优先于直接填写 Key） |
@@ -295,7 +294,7 @@
 | `fetcher_pool_size` | int | `15` | 资讯池子大小 |
 | `fetcher_proxy` | string | `""` | HTTP 代理地址，网络受限环境使用 |
 
-自定义 RSS 源格式（`fetcher_rss_feeds`）：支持三种写法——① `类别|URL1,URL2;类别2|URL3`（竖线分隔类别与源、逗号分隔同源多地址、分号分隔类别）；② `类别:URL`（冒号分隔）；③ 每行一个 URL（自动归类）。留空时使用内置的 15 个中文资讯源，开箱即用。
+自定义 RSS 源格式（`fetcher_rss_feeds`）：支持三种写法——① `类别|URL1,URL2;类别2|URL3`（竖线分隔类别与源、逗号分隔同源多地址、分号分隔类别）；② `类别:URL`（冒号分隔）；③ 每行一个 URL（自动归类）。留空时使用内置的 7 类 22 条国内直连资讯源，开箱即用。
 
 ### 3.15 机器人名称配置示例
 
@@ -666,7 +665,7 @@ LLM 生成回复
   │
   ▼ ⑥ 概率判定：proactive_probability（默认 0.6）
   │
-  ▼ ⑦ 话题选取：9 类内置话题 + 自定义话题 + Fetcher 资讯注入
+  ▼ ⑦ 话题选取：12 类内置话题 + 自定义话题 + Fetcher 资讯注入
   │     （话题去重 + 开场白去重，避免模板感）
   │
   ▼ ⑧ 调用 LLM 生成发言 → 与被动回复共享上下文/记忆/输出管道
@@ -676,9 +675,9 @@ LLM 生成回复
 
 **话题体系：**
 
-- **9 类内置话题**：分享想法 / 提问讨论 / 回忆过去 / 关注某人 / 活跃气氛 / 科技资讯 / 游戏八卦 / 沙雕新闻 / 热点事件
+- **12 类内置话题**：分享想法 / 提问讨论 / 回忆过去 / 关注某人 / 活跃气氛 / 科技资讯 / 游戏八卦 / 沙雕新闻 / 热点事件 / 游戏 / 数码科技 / 开发者
 - **自定义话题**：`proactive_custom_topics` 中按 `|` 分隔添加，与内置话题混合随机选取
-- **资讯注入**：资讯类话题（科技/游戏/沙雕/热点）由 Fetcher 模块提供实时素材（RSS 内置 15 个中文源 + 资讯 API），跨群去重，不会多个群发同一条新闻
+- **资讯注入**：资讯类话题（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者）由 Fetcher 模块提供实时素材（RSS 内置 7 类 22 条国内直连源 + 资讯 API），跨群去重，不会多个群发同一条新闻
 - **反重复**：6 组开场白模式池随机注入 + 话题指纹去重 + 开场白去重，主动发言不会出现模板感
 
 **效果度量：**
@@ -693,8 +692,8 @@ LLM 生成回复
 |--------|---------|-------------|--------|
 | 活跃激增 | 群内突然热闹起来，Bot 主动让位 | 1 小时 | `proactive_retreat_active_surge_secs` |
 | 连续 SKIP | 主动发言连续被回复抑制拦截 | 1 小时 | `proactive_retreat_consecutive_skip_secs` |
-| 连续无回应 | 主动发言后无人接话，按 2h → 6h → 24h 阶梯递增 | 1h 起步，最长 24h | `proactive_retreat_no_response_base_secs` / `proactive_retreat_no_response_max_secs` |
-| 厌烦关键词 | 检测到"闭嘴""烦"等针对 Bot 的厌烦信号 | 24 小时 | `proactive_retreat_annoyed_secs` |
+| 连续无回应 | 主动发言后无人接话，按 2h → 6h → 24h 阶梯递增 | 查表三档，最长 24h | `proactive_retreat_no_response_max_secs` |
+| 厌烦关键词 | 检测到"闭嘴""烦死了"等针对 Bot 的完整短语厌烦信号 | 24 小时 | `proactive_retreat_annoyed_secs` |
 | 自说自话 | 检测窗口内 Bot 发言占比超过阈值（默认 2 小时内 80%） | 触发后进入退却 | `proactive_self_talk_ratio` / `proactive_self_talk_hours` |
 
 退却状态可通过 `/wakeup_proactive_status` 实时查看。
@@ -973,7 +972,7 @@ LLM 生成回复
 
 ### Q: 如何更换或新增 RSS 资讯源？
 
-开启 `fetcher_enabled` 后，在 `fetcher_rss_feeds` 中添加自定义源，支持三种格式：`类别|URL1,URL2;类别2|URL3`、`类别:URL`、每行一个 URL；留空时使用内置的 15 个中文资讯源（科技/游戏/沙雕/热点 4 大类），开箱即用。
+开启 `fetcher_enabled` 后，在 `fetcher_rss_feeds` 中添加自定义源，支持三种格式：`类别|URL1,URL2;类别2|URL3`、`类别:URL`、每行一个 URL；留空时使用内置的 7 类 22 条国内直连资讯源（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者），开箱即用。
 
 ### Q: 如何为特定群设置不同的参数？
 

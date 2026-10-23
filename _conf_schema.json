@@ -20,7 +20,7 @@
         "description": "🎲 关键词回复概率",
         "type": "float",
         "default": 0.5,
-        "hint": "命中关键词时的基础回复概率（0~1），还会与精力、心流、用户概率等因子综合计算。"
+        "hint": "命中关键词时的回复概率（0~1），实际概率 = 此值 × 用户概率乘数。关键词触发为独立判定：不消耗精力、不经心流调制（与概率唤醒的公式不同）。"
       },
       "enable_private_chat": {
         "description": "💬 启用私聊唤醒",
@@ -32,7 +32,7 @@
         "description": "📜 上下文消息数量",
         "type": "int",
         "default": 10,
-        "hint": "提供给 LLM 的最近群聊消息条数。v2.3.0 起生效范围：主动发言与私聊；被动群聊回复的上下文由官方 GroupChatContext 管理。建议 10~50，最多 200。"
+        "hint": "提供给 LLM 的最近群聊消息条数。生效范围：主动发言路径（私聊与被动群聊回复的上下文均由官方框架管理）。建议 10~50，最多 200。"
       },
       "context_truncation_enabled": {
         "description": "✂️ 启用消息截断与过滤",
@@ -145,7 +145,7 @@
         "description": "📝 摘要覆盖最大轮数",
         "type": "int",
         "default": 30,
-        "hint": "摘要覆盖的最大轮数，超过此数量的最旧对话将被丢弃。设为 0 则只保留 recent_rounds_keep 轮，不生成摘要。生效范围：主动发言路径。"
+        "hint": "摘要覆盖的最大轮数，超过此数量的最旧对话将被丢弃。注意：设为 0 表示不保留任何对话历史（分层记忆整体失效），并非只保留 recent_rounds_keep 轮。生效范围：主动发言路径。"
       },
       "summary_model": {
         "description": "🤖 摘要模型提供商 ID",
@@ -262,25 +262,25 @@
   "flow": {
     "description": "🌊 心流状态机",
     "type": "object",
-    "hint": "根据群聊活跃度动态调整回复概率。状态从低到高：旁观→关注→心流→疲劳，状态越高回复概率越大。疲劳时暂停概率唤醒。",
+    "hint": "根据群聊活跃度动态调整回复概率。参与度状态：旁观→关注→心流，状态越高基础回复概率越大；疲劳是精力不足时的降级态，此时暂停概率唤醒、等待精力恢复。",
     "items": {
       "flow_bystander_prob": {
         "description": "👁️ 旁观状态回复概率",
         "type": "float",
         "default": 0.08,
-        "hint": "群聊冷清、话题无关时的回复概率。默认 8%。"
+        "hint": "群聊冷清、话题无关时的基础回复概率（默认 8%）。实际概率还会随精力水平与时间因子上下浮动。"
       },
       "flow_attentive_prob": {
         "description": "👀 关注状态回复概率",
         "type": "float",
         "default": 0.2,
-        "hint": "群聊活跃、话题相关时的回复概率。默认 20%。"
+        "hint": "群聊活跃、话题相关时的基础回复概率（默认 20%）。实际概率还会随精力水平与时间因子上下浮动。"
       },
       "flow_flow_prob": {
         "description": "🔥 心流状态回复概率",
         "type": "float",
         "default": 0.4,
-        "hint": "群聊高度活跃、深度参与时的回复概率。默认 40%。"
+        "hint": "群聊高度活跃、深度参与时的基础回复概率（默认 40%）。实际概率还会随精力水平与时间因子上下浮动。"
       },
       "engagement_decay_per_minute": {
         "description": "📉 参与度衰减速率",
@@ -292,7 +292,7 @@
         "description": "📈 回复时参与度刷新量",
         "type": "float",
         "default": 0.3,
-        "hint": "概率唤醒或冷场救场回复后参与度增加的量。0.3 表示每次回复补充 30%。建议 0.1~0.5。"
+        "hint": "概率唤醒、冷场救场或主动发言回复后，参与度增加的量。0.3 表示每次回复补充 30%。建议 0.1~0.5。"
       },
       "fatigue_coefficient": {
         "description": "😴 疲劳系数",
@@ -336,13 +336,13 @@
   "proactive_speak": {
     "description": "🚀 主动发言",
     "type": "object",
-    "hint": "Bot 定时主动发起话题，打破沉默、活跃群氛围。基于三要素模型（Anticipation-Initiation-Planning）设计，与被动回复共享同一套记忆系统。仅支持 aiocqhttp/Telegram/飞书平台。默认关闭。",
+    "hint": "Bot 定时主动发起话题，打破沉默、活跃群氛围。基于三要素模型（Anticipation-Initiation-Planning）设计，与被动回复共享同一套记忆系统。仅支持 aiocqhttp/Telegram 平台。默认关闭。",
     "items": {
       "proactive_enabled": {
         "description": "🚀 启用主动发言",
         "type": "bool",
         "default": false,
-        "hint": "开启后 Bot 会定时检查是否适合主动发起话题。默认关闭。仅支持 aiocqhttp/Telegram/飞书平台。"
+        "hint": "开启后 Bot 会定时检查是否适合主动发起话题。默认关闭。仅支持 aiocqhttp/Telegram 平台。"
       },
       "proactive_check_interval": {
         "description": "⏱️ 检查间隔（秒）（下限 300）",
@@ -375,7 +375,7 @@
         "description": "🚫 话题冷却",
         "type": "bool",
         "default": true,
-        "hint": "防止反复主动提起同一件事（实测曾一天提同一话题 6 次）。开启后：①生成时注入'近期已提话题清单'，明确禁止重提 ②48 小时内与历史发言共享话题特征词（如 MC、Steam）即拦截。关闭则退回仅按文本相似度去重。"
+        "hint": "防止反复主动提起同一件事（实测曾一天提同一话题 6 次）。生成时始终注入'近期已提话题清单'明确禁止重提；本开关控制拦截强度——开启：48 小时内与历史发言共享话题特征词（如 MC、Steam）即以较低阈值拦截；关闭：仅按较高文本相似度去重。"
       },
       "proactive_probability": {
         "description": "🎲 触发概率",
@@ -437,7 +437,7 @@
         "description": "📝 话题类别",
         "type": "string",
         "default": "分享想法|提问讨论|回忆过去|关注某人|活跃气氛|科技资讯|游戏八卦|沙雕新闻|热点事件|游戏|数码科技|开发者",
-        "hint": "主动发言的话题方向类别，用 | 分隔。资讯类话题（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者）需启用 Fetcher 模块，否则将自动降级为活跃气氛。"
+        "hint": "主动发言的话题方向类别，用 | 分隔。资讯类话题（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者）需启用 Fetcher 模块；若 Fetcher 未启用或无可用资讯，该次发言将直接跳过（不会降级为其他类别）。"
       },
       "proactive_custom_topics": {
         "description": "📝 自定义话题",
@@ -469,15 +469,6 @@
         "advanced": true,
         "hint": "v1.9.7 新增：LLM 连续 3 次输出 [SKIP] 时触发的退却时长。默认 3600 秒（1 小时）。"
       },
-      "proactive_retreat_no_response_base_secs": {
-        "description": "😶 连续无回应退却基础时长（秒）",
-        "type": "int",
-        "default": 3600,
-        "min": 300,
-        "max": 86400,
-        "advanced": true,
-        "hint": "v1.9.7 新增：连续无回应退却的基础时长，实际退却 = base × 连续次数（受最大值限制）。默认 3600 秒（1 小时）。"
-      },
       "proactive_retreat_no_response_max_secs": {
         "description": "🔇 连续无回应退却最大时长（秒）",
         "type": "int",
@@ -494,7 +485,7 @@
         "min": 3600,
         "max": 604800,
         "advanced": true,
-        "hint": "v1.9.7 新增：检测到厌烦关键词（如闭嘴、烦）时触发的退却时长。默认 86400 秒（24 小时）。"
+        "hint": "v1.9.7 新增：检测到厌烦关键词（如'闭嘴''烦死了'等完整短语）时触发的退却时长。默认 86400 秒（24 小时）。"
       }
     }
   },
@@ -531,7 +522,7 @@
         "description": "🆘 冷场救场等待时间（秒）",
         "type": "int",
         "default": 3,
-        "hint": "冷场救场时的防抖等待时间，建议 2~5 秒。"
+        "hint": "冷场后首条消息的防抖等待时间（按上一条消息的间隔启发式判定为冷场，不依赖冷场救场开关），建议 2~5 秒。"
       },
       "debounce_merge_same_user": {
         "description": "🔗 同用户连发合并",
@@ -592,7 +583,7 @@
         "description": "🤖 判别模型提供商 ID",
         "type": "string",
         "default": "",
-        "hint": "合规判别使用的模型提供商 ID，留空则使用摘要压缩同模型。仅当模式为 judge 或 both 时生效。"
+        "hint": "合规判别使用的模型提供商 ID。留空则依次回退：摘要压缩模型 → 路由小模型；三者皆空时跳过判别直接放行（方案 B 不生效）。仅当模式为 judge 或 both 时生效。"
       },
       "reply_suppression_judge_prompt": {
         "description": "📝 自定义判别提示词",
@@ -605,7 +596,7 @@
   "light_response": {
     "description": "💬 轻量回应",
     "type": "object",
-    "hint": "当回复被抑制时，以一定概率输出简短附和语替代完全沉默，表达在场感。需配合「回复抑制」使用。",
+    "hint": "当回复被抑制时（回复抑制功能拦截，或语义去重后重新生成失败），以一定概率输出简短附和语替代完全沉默，表达在场感。",
     "items": {
       "light_response_enabled": {
         "description": "💬 启用轻量回应",
@@ -660,13 +651,13 @@
         "description": "✂️ 剔除标点字符集",
         "type": "string",
         "default": "。；;：:、",
-        "hint": "需要从段末剔除的标点字符。默认剔除句号、分号、冒号、顿号等语气中性标点。仅应包含分段正则中会作为分段点的标点，逗号不在分段正则中故不应在此剔除。问号和感叹号有语气功能，默认保留。"
+        "hint": "需要从段末剔除的标点字符。默认剔除句号、分号、冒号、顿号等语气中性标点；问号和感叹号有语气功能，默认保留。均分模式的次级切分标点（逗号等）位于段中，一般无需在此剔除。"
       },
       "split_regex": {
         "description": "📐 分段正则",
         "type": "string",
-        "default": "[。？！?!\\n.…]+",
-        "hint": "匹配到这些标点时切分。默认匹配中英文句末标点、换行和省略号。英文句号会自动跳过缩写/小数/域名。"
+        "default": "[。？！?!.\\n…]+",
+        "hint": "匹配到这些标点时切分。默认匹配中英文句末标点、换行和省略号。英文句号跳过缩写/小数/域名的保护仅在「智能识别」开启时生效；结构化内容（多行列表/标题等）与 URL 另有专门保护，不受此正则影响。"
       },
       "enable_smart_split": {
         "description": "🧠 智能识别",
@@ -707,7 +698,7 @@
           "one_per_reply"
         ],
         "default": "last",
-        "hint": "v2.1.0 新增。last=仅末段可触发语音（依赖官方 TTS 通道，需在 AstrBot 官方设置开启）；per_segment=每个分段独立判定（可能多段配音）；one_per_reply=每次回复整体判定一次、命中则选一段配音（有且只有一段）。后两种模式完全由灵犀自身处理，不依赖官方 TTS 开关——建议保持官方 TTS 关闭（官方通道在 Telegram 上发送语音会附带原文文本）。"
+        "hint": "v2.1.0 新增。last=仅末段可触发语音（依赖官方 TTS 通道，需在 AstrBot 官方设置开启）；per_segment=前 N-1 段逐段独立判定（可能多段配音），末段仍由框架按官方通道判定；one_per_reply=每次回复整体判定一次、命中则选一段配音（有且只有一段），完全由灵犀自管、不依赖官方 TTS 开关。注意：会话级 /tts off 在任何模式下都会关闭语音。用 per_segment 且希望末段可配音时需开启官方 TTS 通道（Telegram 上官方通道发语音会附带原文文本）；若希望完全脱离官方通道，请选 one_per_reply。"
       },
       "tts_probability": {
         "description": "🎙️ 语音概率（灵犀自管）",
@@ -928,10 +919,10 @@
         "hint": "分段模块的数值参数，普通用户无需调整，保持默认即可。",
         "items": {
           "max_segments": {
-            "description": "🔢 最大段数",
+            "description": "🔢 均分目标段数",
             "type": "int",
             "default": 7,
-            "hint": "均分模式下的最大分段数。"
+            "hint": "均分模式下用于计算理想段长的目标段数（理想段长 = 总字数 ÷ 此值）。它不是实际段数的硬上限——切分点较多时实际段数可能超过此值；设为 0 时均分模式不生效。"
           },
           "min_segment_length": {
             "description": "📏 最小段长",
@@ -959,7 +950,7 @@
             "description": "📉 对数系数",
             "type": "float",
             "default": 0.8,
-            "hint": "延迟 = 基础值 + 系数 × ln(字数+1)。"
+            "hint": "延迟 = 基础值 + 系数 × ln(字数+1)，上限 5 秒（linear 策略无上限）。延迟策略填写非法值时静默回退为固定延迟。"
           },
           "random_min": {
             "description": "🎲 随机最小值（秒）",
@@ -989,7 +980,7 @@
         "description": "📡 启用资讯模块",
         "type": "bool",
         "default": false,
-        "hint": "开启后主动发言可使用外部资讯作为话题来源。默认关闭。启用后需在「主动发言-话题类别」中添加资讯类话题（科技资讯/游戏八卦/沙雕新闻/热点事件）。"
+        "hint": "开启后主动发言可使用外部资讯作为话题来源。默认关闭。启用后需在「主动发言-话题类别」中添加资讯类话题（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者）。"
       },
       "fetcher_rss_enabled": {
         "description": "📰 启用 RSS 数据源",
@@ -1001,7 +992,7 @@
         "description": "📰 自定义 RSS 源",
         "type": "string",
         "default": "",
-        "hint": "自定义 RSS 源列表，覆盖内置默认源。格式（v1.8.0 更新）：\n1. 分类格式（推荐）：类别|URL1,URL2;类别|URL1,URL2\n2. 分类格式（兼容冒号）：类别:URL1,URL2;类别:URL1,URL2\n3. 简化格式：每行一个 URL（统一归入「通用」类别）\n示例：科技资讯|https://www.theverge.com/rss/index.xml,https://techcrunch.com/feed/;游戏八卦|https://kotaku.com/rss\n留空则使用内置默认源（The Verge/TechCrunch/Kotaku/BBC Oddly Enough 等）。"
+        "hint": "自定义 RSS 源列表，覆盖内置默认源。格式：\n1. 分类格式（推荐）：类别|URL1,URL2;类别|URL1,URL2\n2. 分类格式（兼容冒号）：类别:URL1,URL2;类别:URL1,URL2\n3. 简化格式：每行一个 URL（统一归入「通用」类别）\n示例：科技资讯|https://www.ithome.com/rss/,https://36kr.com/feed;游戏八卦|https://www.yystv.cn/rss/feed\n留空则使用内置默认源（IT之家/36氪/少数派/游研社/机核等国内直连源，v1.9.5 起）。"
       },
       "fetcher_api_provider": {
         "description": "🔑 API 提供商",
@@ -1042,19 +1033,19 @@
         "description": "🌊 资讯池子大小",
         "type": "int",
         "default": 15,
-        "hint": "每次拉取 RSS/API 填充池子的资讯条数。默认 15 条。池子跨群复用，每个群从中取「单次获取上限」条该群未发送过的。池子越大可服务更多群/更多次发言，但 token 消耗越高。建议 10-30。"
+        "hint": "每次拉取 RSS/API 填充池子的资讯条数。默认 15 条。池子跨群复用，每个群从中取「单次获取上限」条该群未发送过的。池子越大可服务更多群/更多次发言，但抓取流量与内存占用越高（池子内容不直接进入 prompt，不影响 token）。建议 10-30。"
       },
       "fetcher_proxy": {
         "description": "🌐 HTTP 代理地址",
         "type": "string",
         "default": "",
-        "hint": "v1.8.3 新增：RSS 拉取使用的 HTTP 代理地址。当 AstrBot 作为 NSSM 服务运行在 SYSTEM 账户时，无法读取用户配置的 Windows 系统代理（winreg/urllib.getproxies 均失效），必须在此显式配置。格式：http://127.0.0.1:7897（Clash 默认端口）。留空则尝试自动探测系统代理（独立进程有效，NSSM 服务无效）。"
+        "hint": "v1.8.3 新增：RSS 拉取使用的 HTTP 代理地址，仅对自定义 RSS 源生效——使用内置默认源时强制直连、代理不生效。当 AstrBot 作为 NSSM 服务运行在 SYSTEM 账户时，无法读取用户配置的 Windows 系统代理（winreg/urllib.getproxies 均失效），必须在此显式配置。格式：http://127.0.0.1:7897（Clash 默认端口）。留空则尝试自动探测系统代理（独立进程有效，NSSM 服务无效）。新闻 API 数据源不使用代理。"
       },
       "fetcher_send_first_image": {
         "description": "🖼️ 资讯推送附带首图",
         "type": "bool",
         "default": false,
-        "hint": "v2.0.3 新增：资讯类主动发言时尝试附带文章首图（RSS 四级提取，无图自动降级纯文本）。部分图床有防盗链，插件会先带 Referer 下载再发送；仍失败则降级直链或纯文本。"
+        "hint": "v2.0.3 新增：资讯类主动发言时尝试附带文章配图——按图文相似度选取最匹配资讯的配图（相似度不达标则跳过附图，v2.0.4 起；RSS 源四级提取，API 源资讯不带图），无图自动降级纯文本。部分图床有防盗链，插件会先带 Referer 下载再发送；仍失败则降级直链或纯文本。"
       }
     }
   }
