@@ -75,6 +75,15 @@ class NewsFilter:
                 logger.debug(f"[NewsFilter] 标题过短: {item.title}")
                 continue
 
+            # v2.4.9（虎嗅事件）：无实质内容拦截——摘要剥 HTML 后 <30 字的条目
+            # 没有可转述的事实，LLM 只能输出「发布了题为X的消息」式空话
+            # （2026-11-15 03:35 实锤：虎嗅条目摘要恒空，bot 对着标题自说自话）。
+            # rss_fetcher 会先尝试抓文章页富化，富化失败到这里的即为真无内容。
+            summary_plain = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", item.summary or "")).strip()
+            if len(summary_plain) < 30:
+                logger.debug(f"[NewsFilter] 无实质内容（摘要过薄）: {item.title[:30]}")
+                continue
+
             # v2.4.9 新增：图片板类空条目拦截（煎蛋无聊图类源的典型输出）
             # 特征：标题以冒号结尾、冒号前是短作者名（如「杯面骑士:」「HeHeDa:」），
             # 且摘要剥离 HTML 后无文字（纯图）。此类条目无任何可转述事实，

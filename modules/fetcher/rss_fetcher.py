@@ -294,6 +294,33 @@ class RSSFetcher(BaseFetcher):
             self._session = None
             logger.debug("[RSSFetcher] 持久 session 已关闭")
 
+    # v2.4.9（虎嗅事件）：标题党条目富化
+    _MAX_ENRICH_PER_FEED = 5
+    _P_TAG_RE = re.compile(r"<p[^>]*>(.*?)</p>", re.DOTALL | re.IGNORECASE)
+
+    async def _enrich_summary_from_article(self, article_url: str, proxy_url: str = None) -> str:
+        """标题党条目富化：抓文章页提取 <p> 正文（v2.4.9，虎嗅事件）
+
+        Args:
+            article_url: 文章页链接
+            proxy_url: 与主拉取一致的代理设置
+        Returns:
+            正文前 600 字；失败/正文过短返回空串（调用方保留原摘要，由 NewsFilter 兜底）
+        """
+        try:
+            session = await self._get_session()
+            async with session.get(article_url, proxy=proxy_url,
+                                   timeout=aiohttp.ClientTimeout(total=6)) as resp:
+                if resp.status != 200:
+                    return ""
+                html = await resp.text(errors="ignore")
+            texts = [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", m)).strip()
+                     for m in self._P_TAG_RE.findall(html)]
+            body = " ".join(t for t in texts if len(t) > 20)
+            return body[:600] if len(body) >= 60 else ""
+        except Exception:
+            return ""
+
     def _parse_custom_feeds(self, feeds_str: str) -> Dict[str, List[str]]:
         """解析自定义 RSS 源配置
 
@@ -502,6 +529,7 @@ class RSSFetcher(BaseFetcher):
 
                     # v1.8.0 修复（B1 二次审查 m7）：每个源最多取 max_items*2 条（适度冗余）
                     per_feed_limit = max(max_items * 2, 5)
+                    enriched_count = 0  # v2.4.9：本源已富化条数（防请求风暴）
                     for entry in feed.entries[:per_feed_limit]:
                         # 解析发布时间
                         published_at = datetime.now()
@@ -517,11 +545,26 @@ class RSSFetcher(BaseFetcher):
                                 pass
 
                         # 获取摘要（v1.8.0 修复 B1 二次审查 m6：处理 None 情况）
-                        summary = ""
+                        raw_summary = ""
                         if hasattr(entry, "summary"):
-                            summary = (entry.summary or "")[:200]
+                            raw_summary = entry.summary or ""
                         elif hasattr(entry, "description"):
-                            summary = (entry.description or "")[:200]
+                            raw_summary = entry.description or ""
+
+                        # v2.4.9（虎嗅事件）：标题党条目富化——摘要剥 HTML 后不足 30 字时
+                        # 抓文章页提取正文（实测虎嗅 RSS 摘要恒空、文章页正文完整可用）。
+                        # 每源最多富化 5 条；失败静默保留原摘要（NewsFilter 兜底丢弃）
+                        _plain_len = len(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", raw_summary)).strip())
+                        article_url = (entry.get("link") or "").strip()
+                        if (_plain_len < 30 and enriched_count < self._MAX_ENRICH_PER_FEED
+                                and article_url.startswith("http") and aiohttp is not None):
+                            enriched_text = await self._enrich_summary_from_article(article_url, proxy_url)
+                            if enriched_text:
+                                raw_summary = enriched_text
+                                enriched_count += 1
+
+                        # v2.4.9：摘要上限 200→600 字——给 LLM 足够事实可转述
+                        summary = raw_summary[:600]
 
                         # v1.8.0 修复（B1 二次审查 m4）：source 表达式拆为显式 if/else 提升可读性
                         if hasattr(feed, "feed"):
