@@ -1,4 +1,4 @@
-<div align="center">
+div align="center">
 
 [English](README_EN.md) | 中文
 
@@ -13,7 +13,7 @@
 
 [🌐 官网](https://lx.magicalyu.online/) · [📖 使用指南](docs/usage_guide.md) · [🚀 快速开始](#安装)
 
-[![Version](https://img.shields.io/badge/version-2.4.7-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Version](https://img.shields.io/badge/version-2.4.9-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Website](https://img.shields.io/badge/website-online-brightgreen?style=flat-square)](https://lx.magicalyu.online/)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
@@ -141,7 +141,7 @@
 |:-------|:-----|:----:|
 | `bot_name` | Bot 名称/别名，多个用 `\|` 分隔，如 `Bot\|小助手` | 是 |
 | `probability_wakeup` | 概率唤醒开关，开启后未提及名称也有概率回复 | 否 |
-| `proactive_speak.enabled` | 主动发言开关，开启后 Bot 会定时感知氛围主动发起话题 | 否 |
+| `proactive_enabled` | 主动发言开关，开启后 Bot 会定时感知氛围主动发起话题 | 否 |
 | `splitter.enabled` | 消息分段开关，开启后长回复分段发送 | 否 |
 
 124 项参数均有合理默认值，开箱即用。详细配置说明请参阅 [使用指南](docs/usage_guide.md)。
@@ -169,7 +169,7 @@
 <details>
 <summary>如何让 Bot 主动说话？</summary>
 
-开启 `proactive_speak.enabled`（主动发言开关），按需调整检查间隔、触发概率、话题方向等参数。也可用 `/wakeup_proactive` 手动触发一次试试效果。
+开启 `proactive_enabled`（主动发言开关，位于 `proactive_speak` 配置组内），按需调整检查间隔、触发概率、话题方向等参数。也可用 `/wakeup_proactive` 手动触发一次试试效果。
 
 </details>
 
@@ -183,7 +183,7 @@
 <details>
 <summary>如何更换或添加 RSS 资讯源？</summary>
 
-在 Fetcher 配置中编辑 RSS 源列表，支持三种自定义格式；默认内置 7 类 22 条国内直连源，开箱即用。详见 [使用指南](docs/usage_guide.md)。
+在 Fetcher 配置中编辑 RSS 源列表，支持三种自定义格式；默认内置 7 类 21 条国内直连源，开箱即用。详见 [使用指南](docs/usage_guide.md)。
 
 </details>
 
@@ -218,11 +218,10 @@ Telegram 和 QQ（通过 aiocqhttp 适配器接入）。两个平台功能一致
 <details>
 <summary>Token 消耗太大怎么办？</summary>
 
-1. 开启 `context_compression_enabled`（上下文压缩），用小模型压缩群聊上下文
-2. 开启 `bypass_core_context`（绕过核心上下文），避免重复注入
-3. 减小 `context_messages_count`（上下文消息数量）
-4. 开启 `incremental_context_enabled`（增量注入），避免重复内容
-5. 如有条件，配置独立的小模型用于压缩（`compression_model`）
+1. 调低 `context_messages_count`（上下文消息数量；自 v2.3.0 起该值仅影响主动发言路径的上下文拼装）
+2. 在 AstrBot 官方侧启用 `llm_compress`（官方上下文压缩），并把官方会话设置中的 `group_message_max_cnt` 控制在 30-50 轮
+3. 降低 `context_truncation_max_len`（上下文截断长度），压缩长消息的注入体积
+4. 如有条件，配置独立小模型用于分层记忆摘要与 SKIP 判别（`compression_model`），分担主模型消耗
 
 </details>
 

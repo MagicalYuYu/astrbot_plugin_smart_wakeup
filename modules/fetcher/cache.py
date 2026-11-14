@@ -1,11 +1,9 @@
 """资讯缓存与池子模块
 
 提供两种机制：
-1. NewsCache：TTL 缓存（v1.8.0 原有，单次调用结果缓存）
 2. NewsPool：资讯池子（v1.8.1 新增，跨群共享 + per-group 去重）
 
 v1.8.1 重构说明（P0 LLM 编造新闻问题修复）：
-- 原 NewsCache 仅缓存 max_items 条（默认 3 条），且 mark_sent 时清除缓存，
   导致群 1 用掉后群 2 拿不到资讯（sent_titles 全局集合跨群去重根因）。
 - 新增 NewsPool 类：拉取 pool_size 条（默认 15）填充池子，
   跨群共享池子，但每个群独立记录已发送标题，从池子中取该群未发送过的。
@@ -18,59 +16,6 @@ from typing import Dict, List, Optional, Set
 # 日志必须且只能从 astrbot.api 导入（插件市场合规要求，v2.0.1 移除标准 logging 回退）
 from astrbot.api import logger
 
-
-class NewsCache:
-    """资讯缓存（TTL 机制）
-
-    缓存按类别存储，超过 TTL 后自动失效。
-    v1.8.1 起主要供 API 数据源使用，RSS 池子逻辑由 NewsPool 接管。
-    """
-
-    def __init__(self, ttl_seconds: int = 1800):
-        """初始化缓存
-
-        Args:
-            ttl_seconds: 缓存有效期（秒），默认 1800（30 分钟）
-        """
-        self.ttl = timedelta(seconds=ttl_seconds)
-        self._cache: dict[str, tuple[list, datetime]] = {}
-
-    def get(self, category: str) -> Optional[list]:
-        """获取缓存
-
-        Args:
-            category: 资讯类别
-        Returns:
-            缓存的 NewsItem 列表，未命中或已过期返回 None
-        """
-        if category in self._cache:
-            items, ts = self._cache[category]
-            if datetime.now() - ts < self.ttl:
-                logger.debug(f"[NewsCache] 缓存命中: {category} ({len(items)} 条)")
-                return items
-            # 过期，删除
-            logger.debug(f"[NewsCache] 缓存过期: {category}")
-            del self._cache[category]
-        return None
-
-    def set(self, category: str, items: list) -> None:
-        """写入缓存
-
-        Args:
-            category: 资讯类别
-            items: NewsItem 列表
-        """
-        self._cache[category] = (items, datetime.now())
-        logger.debug(f"[NewsCache] 写入缓存: {category} ({len(items)} 条)")
-
-    def clear(self) -> None:
-        """清空所有缓存"""
-        self._cache.clear()
-        logger.debug("[NewsCache] 已清空所有缓存")
-
-    def remove(self, category: str) -> None:
-        """删除指定类别的缓存"""
-        self._cache.pop(category, None)
 
 
 class NewsPool:

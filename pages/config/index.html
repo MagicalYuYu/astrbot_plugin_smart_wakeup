@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <!-- Vue 3 CDN（生产版，禁止改为 npm 依赖，因为本插件无构建工具链） -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <!-- 样式文件（AstrBot 会自动重写为带 asset_token 的绝对路径） -->
-    <link rel="stylesheet" href="styles.css?v=2.4.7">
+    <link rel="stylesheet" href="styles.css?v=2.4.9">
 </head>
 <body>
     <!-- Vue 应用根节点：使用 mount 元素 innerHTML 作为模板，避免引入 .vue 单文件组件 -->
@@ -252,11 +252,13 @@
                                             :placeholder="item.default || ''"
                                         >
                                     </div>
-                                    <!-- int 类型：数字输入 + 范围提示 -->
+                                    <!-- int 类型：数字输入 + 范围提示（v2.4.9 S2-8：绑定 schema min/max） -->
                                     <div v-else-if="item.type === 'int'" class="control-number">
                                         <input
                                             type="number"
                                             step="1"
+                                            :min="item.min"
+                                            :max="item.max"
                                             :id="'cfg-' + item.fullKey"
                                             v-model.number="config[item.category][item.key]"
                                             @input="markModified(item)"
@@ -264,11 +266,13 @@
                                         >
                                         <span class="control-hint" v-if="item.hint">{{ extractRangeHint(item.hint) }}</span>
                                     </div>
-                                    <!-- float 类型：数字输入 + 范围提示 -->
+                                    <!-- float 类型：数字输入 + 范围提示（v2.4.9 S2-8：绑定 schema min/max） -->
                                     <div v-else-if="item.type === 'float'" class="control-number">
                                         <input
                                             type="number"
                                             step="0.01"
+                                            :min="item.min"
+                                            :max="item.max"
                                             :id="'cfg-' + item.fullKey"
                                             v-model.number="config[item.category][item.key]"
                                             @input="markModified(item)"
@@ -466,7 +470,7 @@
                         >
                             <div class="status-group-header">
                                 <span class="status-group-id" :title="groupId">{{ formatGroupId(groupId) }}</span>
-                                <span class="status-group-tag" :class="`state-${groupState.flow_state || 'idle'}`">
+                                <span class="status-group-tag" :class="`state-${String(groupState.flow_state || 'idle').toLowerCase()}`">
                                     {{ flowStateLabel(groupState.flow_state) }}
                                 </span>
                             </div>
@@ -670,6 +674,6 @@
     </div>
 
     <!-- 主应用脚本（AstrBot 会自动重写为带 asset_token 的绝对路径，v= 版本号查询参数用于强制浏览器重新加载） -->
-    <script src="app.js?v=2.4.7"></script>
+    <script src="app.js?v=2.4.9"></script>
 </body>
 </html>

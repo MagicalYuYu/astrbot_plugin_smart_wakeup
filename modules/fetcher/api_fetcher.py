@@ -28,14 +28,21 @@ class APIFetcher(BaseFetcher):
 
     # API 端点
     APITUBE_ENDPOINT = "https://api.apitube.io/v1/news/articles"
-    NEWSDATA_ENDPOINT = "https://newsdata.io/api/1/news"
+    # v2.4.9（S3-7）：NewsData 官方已弃用 /api/1/news（2024-05 宣布 sunset），
+    # 改用现行 /api/1/latest（q/size/language/apikey 参数兼容，results/pubDate 解析不变）
+    NEWSDATA_ENDPOINT = "https://newsdata.io/api/1/latest"
 
     # 类别映射到 API 关键词
+    # v2.4.9（S3-5）：补齐 v2.1.1 新增的三个类别——原映射缺失时中文类别名被直接
+    # 当作英文 API 的 q 查询词，API 源对 3/7 类别静默返回 0 条
     CATEGORY_KEYWORDS = {
         "科技资讯": "technology OR AI OR startup",
         "游戏八卦": "gaming OR video game OR esports",
         "沙雕新闻": "odd news OR weird news",
         "热点事件": "breaking news OR trending",
+        "游戏": "gaming OR video game",
+        "数码科技": "gadget OR consumer tech",
+        "开发者": "developer OR programming",
     }
 
     def __init__(self, config: dict):
@@ -89,7 +96,7 @@ class APIFetcher(BaseFetcher):
         return self._session
 
     async def close(self):
-        """关闭持久 session（v2.4.10 S3-2）
+        """关闭持久 session（v2.4.9 S3-2）
 
         与 RSSFetcher.close 对齐。FetcherManager.close 通过
         hasattr(fetcher, 'close') 跳过无 close 方法的 fetcher——

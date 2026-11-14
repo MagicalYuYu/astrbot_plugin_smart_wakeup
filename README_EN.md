@@ -1,4 +1,4 @@
-<div align="center">
+div align="center">
 
 English | [中文](README.md)
 
@@ -13,7 +13,7 @@ Compatible with Telegram and QQ (aiocqhttp)
 
 [🌐 Website](https://lx.magicalyu.online/) · [📖 Usage Guide](docs/usage_guide.md) · [🚀 Quick Start](#installation)
 
-[![Version](https://img.shields.io/badge/version-2.4.7-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
+[![Version](https://img.shields.io/badge/version-2.4.9-blue?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![Website](https://img.shields.io/badge/website-online-brightgreen?style=flat-square)](https://lx.magicalyu.online/)
 [![Platform](https://img.shields.io/badge/platform-Telegram%20%7C%20QQ(aiocqhttp)-green?style=flat-square)](https://github.com/MagicalYuYu/astrbot_plugin_smart_wakeup)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-orange?style=flat-square)](LICENSE)
@@ -77,7 +77,7 @@ Lingxi no longer waits to be @-mentioned.
 |:-------|:------------|
 | Proactive Speech Engine | Periodically starts topics based on group atmosphere; shares the same memory system as passive replies |
 | Conversation State Awareness | Detects silence / lively / self-talk states to time proactive speech |
-| Topic System | 9 built-in categories + custom topics + per-group weighting |
+| Topic System | 12 built-in categories + custom topics + per-group weighting |
 | Fetcher News Aggregation | RSS + news API dual channels, cross-group feed dedup, custom sources supported |
 | Five Retreat Signals | Activity surge / consecutive SKIP / annoyance keywords / self-talk ratio / consecutive no-response — any one silences the bot |
 | Progressive Retreat | First no-response doubles cooldown; repeated no-responses escalate (duration configurable) |
@@ -140,7 +140,7 @@ The dedicated **Web Config Panel** is recommended (see above), or configure via 
 |:--------|:------------|:--------:|
 | `bot_name` | Bot name/aliases, `\|`-separated, e.g. `Bot\|Assistant` | Yes |
 | `probability_wakeup` | Enable probabilistic wakeup — the bot may reply even without being named | No |
-| `proactive_speak.enabled` | Enable proactive speech — the bot periodically senses the atmosphere and starts topics | No |
+| `proactive_enabled` | Enable proactive speech — the bot periodically senses the atmosphere and starts topics | No |
 | `splitter.enabled` | Enable message splitting — long replies are sent in natural segments | No |
 
 All 124 parameters have sensible defaults and work out of the box. For detailed configuration, see the [Usage Guide](docs/usage_guide.md) (Chinese).
@@ -168,7 +168,7 @@ Admin-only commands, sent in group chat:
 <details>
 <summary>How do I make the bot speak proactively?</summary>
 
-Enable `proactive_speak.enabled`, then tune the check interval, trigger probability, topic preferences, etc. as needed. You can also run `/wakeup_proactive` to trigger one manually and see how it feels.
+Enable `proactive_enabled` (the proactive-speech switch inside the `proactive_speak` config group), then tune the check interval, trigger probability, topic preferences, etc. as needed. You can also run `/wakeup_proactive` to trigger one manually and see how it feels.
 
 </details>
 
@@ -182,7 +182,7 @@ That's the Quiet Hours mechanism protecting your group. See the "Quiet Hours" se
 <details>
 <summary>How do I change or add RSS news sources?</summary>
 
-Edit the RSS source list in the Fetcher configuration — three custom formats are supported; 22 built-in Chinese sources across 7 categories work out of the box. See the [Usage Guide](docs/usage_guide.md) for details.
+Edit the RSS source list in the Fetcher configuration — three custom formats are supported; 21 built-in Chinese sources across 7 categories work out of the box. See the [Usage Guide](docs/usage_guide.md) for details.
 
 </details>
 
@@ -217,11 +217,10 @@ Set `probability_wakeup = false`. The bot will only reply when its name or keywo
 <details>
 <summary>Token usage is too high — what can I do?</summary>
 
-1. Enable `context_compression_enabled` — compresses group chat context with a smaller model
-2. Enable `bypass_core_context` — avoids duplicate injection
-3. Reduce `context_messages_count` — fewer messages in context
-4. Enable `incremental_context_enabled` — avoids re-injecting content
-5. If possible, configure a dedicated small model for compression (`compression_model`)
+1. Reduce `context_messages_count` (context message count; since v2.3.0 it only affects context assembly on the proactive-speech path)
+2. Enable `llm_compress` (official context compression) on the AstrBot side, and keep the official session setting `group_message_max_cnt` at 30-50 rounds
+3. Lower `context_truncation_max_len` (context truncation length) to shrink injected long messages
+4. If possible, configure a dedicated small model for layered-memory summarization and SKIP judging (`compression_model`) to offload the main model
 
 </details>
 

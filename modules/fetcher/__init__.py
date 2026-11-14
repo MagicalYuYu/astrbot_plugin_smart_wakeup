@@ -16,7 +16,7 @@ from astrbot.api import logger
 from typing import List
 
 from .base import BaseFetcher, NewsItem
-from .cache import NewsCache, NewsPool
+from .cache import NewsPool
 from .filter import NewsFilter
 
 
@@ -54,8 +54,6 @@ class FetcherManager:
         pool_size = config.get("fetcher_pool_size", 15)
         self.pool = NewsPool(ttl_seconds=cache_ttl, pool_size=pool_size)
 
-        # v1.8.1 保留 NewsCache 供 API 数据源使用（API 数据源可能不需要池子模式）
-        self.cache = NewsCache(ttl_seconds=cache_ttl)
         self.filter = NewsFilter()
 
         # v1.8.1 兼容性：保留 sent_titles 属性供旧代码诊断日志访问
@@ -267,8 +265,7 @@ class FetcherManager:
         self.pool.seed_sent(group_id, titles)
 
     def clear_cache(self) -> None:
-        """清空所有缓存（v1.8.1：同时清空 NewsCache 和 NewsPool）"""
-        self.cache.clear()
+        """清空资讯池缓存（v2.4.9 S3-4：NewsCache 死链路已删除）"""
         self.pool.clear_pool()
 
     async def refresh(self) -> None:
@@ -282,4 +279,4 @@ class FetcherManager:
                 )
 
 
-__all__ = ["FetcherManager", "BaseFetcher", "NewsItem"]
+__all__ = ["FetcherManager", "BaseFetcher", "NewsItem", "NewsPool"]

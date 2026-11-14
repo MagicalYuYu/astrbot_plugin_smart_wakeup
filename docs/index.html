@@ -975,7 +975,7 @@ a { color: var(--blue); text-decoration: none; }
         <ul class="pillar-list">
           <li data-i18n="pillar1_f1">AIF 主动发言引擎（旁观监测 ⇄ 主动主导）</li>
           <li data-i18n="pillar1_f2">12 类话题 + 自定义话题 + 按群加权</li>
-          <li data-i18n="pillar1_f3">Fetcher 资讯注入：RSS 7 类 22 源 + 新闻 API</li>
+          <li data-i18n="pillar1_f3">Fetcher 资讯注入：RSS 7 类 21 源 + 新闻 API</li>
           <li data-i18n="pillar1_f4">6 种开头模式池，主动发言不复读自己</li>
         </ul>
       </div>
@@ -1037,7 +1037,7 @@ a { color: var(--blue); text-decoration: none; }
       <div class="feature-card" data-tooltip="配置：fetcher 组 11 项&#10;默认：资讯池 15 条 · 缓存 TTL 6 小时 · 跨群共享池子、按群去重" data-i18n-tooltip="f3_tooltip">
         <div class="feature-icon">📰</div>
         <h3 class="feature-title" data-i18n="f3_title">刷资讯发锐评</h3>
-        <p class="feature-desc" data-i18n="f3_desc">RSS 7 类 22 源 + 新闻 API 双通道，Bot 从索取者变成分享者</p>
+        <p class="feature-desc" data-i18n="f3_desc">RSS 7 类 21 源 + 新闻 API 双通道，Bot 从索取者变成分享者</p>
       </div>
       <div class="feature-card" data-tooltip="机制：6 种开头模式池随机注入 + 话题去重 + 开头去重 + 语义去重&#10;让每次主动发言都有新鲜感" data-i18n-tooltip="f4_tooltip">
         <div class="feature-icon">🎲</div>
@@ -1098,7 +1098,7 @@ a { color: var(--blue); text-decoration: none; }
       <div class="feature-card" data-tooltip="配置：fetcher 组 11 项&#10;默认：资讯池 15 条 · 缓存 TTL 6 小时 · 跨群共享池子、按群去重" data-i18n-tooltip="f3_tooltip">
         <div class="feature-icon">📰</div>
         <h3 class="feature-title" data-i18n="f3_title">刷资讯发锐评</h3>
-        <p class="feature-desc" data-i18n="f3_desc">RSS 7 类 22 源 + 新闻 API 双通道，Bot 从索取者变成分享者</p>
+        <p class="feature-desc" data-i18n="f3_desc">RSS 7 类 21 源 + 新闻 API 双通道，Bot 从索取者变成分享者</p>
       </div>
       <div class="feature-card" data-tooltip="机制：6 种开头模式池随机注入 + 话题去重 + 开头去重 + 语义去重&#10;让每次主动发言都有新鲜感" data-i18n-tooltip="f4_tooltip">
         <div class="feature-icon">🎲</div>
@@ -1388,8 +1388,8 @@ a { color: var(--blue); text-decoration: none; }
       </div>
       <div class="tune-card reveal reveal-delay-2">
         <div class="tune-icon">🖼️</div>
-        <h3 class="tune-title" data-i18n="tune6_title">图片双通道理解</h3>
-        <p class="tune-desc" data-i18n="tune6_desc">框架图片描述直取为主（零成本）+ 自定义多模态模型降级识别兜底（<code>image_context_custom_model</code>）</p>
+        <h3 class="tune-title" data-i18n="tune6_title">图片理解（官方管线）</h3>
+        <p class="tune-desc" data-i18n="tune6_desc">图片描述由 AstrBot 官方管线（image_caption）提供，插件侧零配置、零额外成本</p>
       </div>
     </div>
 
@@ -1409,7 +1409,7 @@ a { color: var(--blue); text-decoration: none; }
     </div>
 
     <div class="config-grid">
-      <div class="config-item reveal" data-tooltip="34 项：bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · bypass_core_context=true · 上下文压缩/分层记忆/异常检测等" data-i18n-tooltip="config1_tooltip">
+      <div class="config-item reveal" data-tooltip="34 项：bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · 分层记忆/异常检测等" data-i18n-tooltip="config1_tooltip">
         <div class="config-num">01</div>
         <div class="config-info">
           <div class="config-name" data-i18n="config1_name">🧩 基础设置</div>
@@ -1458,11 +1458,11 @@ a { color: var(--blue); text-decoration: none; }
           <div class="config-desc" data-i18n="config7_desc">按唤醒类型区分的防抖等待</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="2 项：image_context_custom_model=false（默认用框架描述，零成本）· custom_model_id（降级识别兜底）" data-i18n-tooltip="config8_tooltip">
+      <div class="config-item reveal" data-tooltip="图片描述自 v2.3.1 起由 AstrBot 官方管线（image_caption）提供，本插件不再有自定义降级开关" data-i18n-tooltip="config8_tooltip">
         <div class="config-num">08</div>
         <div class="config-info">
           <div class="config-name" data-i18n="config8_name">🖼️ 图片上下文</div>
-          <div class="config-desc" data-i18n="config8_desc">框架描述直取、自定义模型降级识别</div>
+          <div class="config-desc" data-i18n="config8_desc">描述由官方管线提供，插件侧零配置</div>
         </div>
       </div>
       <div class="config-item reveal" data-tooltip="1 项：filter_thinking_tags=true；兜底过滤 LLM 思考内容，防提示词泄露" data-i18n-tooltip="config9_tooltip">
@@ -1504,7 +1504,7 @@ a { color: var(--blue); text-decoration: none; }
         <div class="config-num">14</div>
         <div class="config-info">
           <div class="config-name" data-i18n="config14_name">📡 外部资讯模块</div>
-          <div class="config-desc" data-i18n="config14_desc">内置 7 类 22 源、RSS+API 双通道、跨群去重</div>
+          <div class="config-desc" data-i18n="config14_desc">内置 7 类 21 源、RSS+API 双通道、跨群去重</div>
         </div>
       </div>
     </div>
@@ -1696,7 +1696,7 @@ const i18n = {
     pillar1_desc: '不只是被动应答——AIF 三要素主动发言引擎定时感知群内氛围，该开口时才开口',
     pillar1_f1: 'AIF 主动发言引擎（旁观监测 ⇄ 主动主导）',
     pillar1_f2: '12 类话题 + 自定义话题 + 按群加权',
-    pillar1_f3: 'Fetcher 资讯注入：RSS 7 类 22 源 + 新闻 API',
+    pillar1_f3: 'Fetcher 资讯注入：RSS 7 类 21 源 + 新闻 API',
     pillar1_f4: '6 种开头模式池，主动发言不复读自己',
     pillar1_tooltip: '核心配置：proactive_speak 组 22 项参数——开关、检查间隔、触发概率、每日上限、时间窗、静默时段、五路退却时长。',
     pillar2_title: '知进退', pillar2_sub: 'Tactful',
@@ -1719,7 +1719,7 @@ const i18n = {
     f1_tooltip: '配置：proactive_enabled 默认关闭，开启即用\n默认：检查间隔 600s · 冷却 1800s · 每日上限 20 次',
     f2_title: '十二类话题体系', f2_desc: '分享、提问、回忆、锐评资讯……支持自定义话题与按群加权',
     f2_tooltip: '配置：proactive_topic_categories / proactive_custom_topics\n十二类：分享想法、提问讨论、回忆过去、关注某人、活跃气氛、科技资讯、游戏八卦、沙雕新闻、热点事件、游戏、数码科技、开发者',
-    f3_title: '刷资讯发锐评', f3_desc: 'RSS 7 类 22 源 + 新闻 API 双通道，Bot 从索取者变成分享者',
+    f3_title: '刷资讯发锐评', f3_desc: 'RSS 7 类 21 源 + 新闻 API 双通道，Bot 从索取者变成分享者',
     f3_tooltip: '配置：fetcher 组 11 项\n默认：资讯池 15 条 · 缓存 TTL 6 小时 · 跨群共享池子、按群去重',
     f4_title: '防模板化开口', f4_desc: '开头模式池随机 + 三重去重，主动发言不复读自己',
     f4_tooltip: '机制：6 种开头模式池随机注入 + 话题去重 + 开头去重 + 语义去重\n让每次主动发言都有新鲜感',
@@ -1801,13 +1801,13 @@ const i18n = {
     tune4_desc: '小模型上下文压缩 + 增量注入 + 四维度统计（模型/群组/小时/唤醒类型）+ σ 异常告警（σ=2.0）',
     tune5_title: '分层对话记忆',
     tune5_desc: '近期原文（10 轮）+ 远期摘要（30 轮）+ 发送者归属 + 在场用户标注，主动被动共享，不张冠李戴',
-    tune6_title: '图片双通道理解',
-    tune6_desc: '框架图片描述直取为主（零成本）+ 自定义多模态模型降级识别兜底（<code>image_context_custom_model</code>）',
+    tune6_title: '图片理解（官方管线）',
+    tune6_desc: '图片描述由 AstrBot 官方管线（image_caption）提供，插件侧零配置、零额外成本',
     panel_entry: '面板入口：<strong>AstrBot WebUI → 插件管理 → 灵犀 → 配置面板</strong>；所有参数也可在插件配置中直接修改',
     config_title: '十三个<span class="accent">配置分组</span>',
     config_desc: '124 项参数按 13 个分组组织，悬停查看关键默认值',
     config1_name: '🧩 基础设置', config1_desc: '名称关键词、上下文工程、对话记忆、模型路由',
-    config1_tooltip: "34 项：bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · bypass_core_context=true · 上下文压缩/分层记忆/异常检测等",
+    config1_tooltip: "34 项：bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · 分层记忆/异常检测等",
     config2_name: '🔒 群组过滤', config2_desc: '白名单、黑名单、生效群控制',
     config2_tooltip: '3 项：whitelist_enabled=false（默认全部群生效）· enabled_groups=[] · blocked_groups=[]（黑名单优先）',
     config3_name: '⚡ 精力系统', config3_desc: '回复消耗速率、精力恢复速率',
@@ -1820,8 +1820,8 @@ const i18n = {
     config6_tooltip: '22 项：检查 600s · 冷却 1800s · 每日 20 · 触发概率 0.6 · 精力下限 0.15 · 时间窗 09:00–23:00 · 静默 23:00–07:00 · 五路退却时长',
     config7_name: '⏲️ 消息防抖', config7_desc: '按唤醒类型区分的防抖等待',
     config7_tooltip: '5 项：debounce_enabled=true · force_debounce=true · 名称 5s / 概率 10s / 救场 3s 等待',
-    config8_name: '🖼️ 图片上下文', config8_desc: '框架描述直取、自定义模型降级识别',
-    config8_tooltip: "2 项：image_context_custom_model=false（默认用框架描述，零成本）· custom_model_id（降级识别兜底）",
+    config8_name: '🖼️ 图片上下文', config8_desc: '描述由官方管线提供，插件侧零配置',
+    config8_tooltip: "图片描述自 v2.3.1 起由 AstrBot 官方管线（image_caption）提供，本插件不再有自定义降级开关",
     config9_name: '🧹 过滤设置', config9_desc: '思考标签过滤，防草稿泄露',
     config9_tooltip: '1 项：filter_thinking_tags=true；兜底过滤 LLM 思考内容，防提示词泄露',
     config10_name: '🛡️ 回复抑制', config10_desc: '[SKIP] 关键词拦截、小模型合规判别',
@@ -1832,7 +1832,7 @@ const i18n = {
     config12_tooltip: "8 项：enabled=false · 剔除末尾标点 · 智能均分 · 延迟策略 linear · 分段正则可自定义",
     config13_name: '⚙️ 高级设置', config13_desc: '单群参数覆盖、用户概率覆盖、分段高级参数',
     config13_tooltip: '3 项（含 36 个子字段）：group_overrides 单群覆盖 24 项 · user_prob_overrides 用户概率乘数 · splitter_advanced 分段高级参数',
-    config14_name: '📡 外部资讯模块', config14_desc: '内置 7 类 22 源、RSS+API 双通道、跨群去重',
+    config14_name: '📡 外部资讯模块', config14_desc: '内置 7 类 21 源、RSS+API 双通道、跨群去重',
     config14_tooltip: '11 项：enabled=false · rss_enabled=true · cache_ttl=21600s · pool_size=15 · 支持自定义 RSS 源与 HTTP 代理（NSSM 服务场景）',
     install_title: '几分钟<span class="accent">装好即用</span>',
     install_desc: '仅 2 个轻量 pip 依赖（feedparser + aiohttp），124 项参数均有合理默认值',
@@ -1882,7 +1882,7 @@ const i18n = {
     pillar1_desc: 'Beyond passive replies — the AIF proactive engine senses group atmosphere on a schedule and speaks only when the moment is right',
     pillar1_f1: 'AIF engine (passive monitoring ⇄ agent dominant)',
     pillar1_f2: '12 topic types + custom topics + per-group weights',
-    pillar1_f3: 'Fetcher news injection: 22 built-in RSS feeds + news APIs',
+    pillar1_f3: 'Fetcher news injection: 21 built-in RSS feeds + news APIs',
     pillar1_f4: '6 opener patterns so it never repeats itself',
     pillar1_tooltip: 'Config: proactive_speak group, 22 params — enable switch, check interval, trigger probability, daily limit, time window, quiet hours, retreat durations.',
     pillar2_title: 'Tactful', pillar2_sub: 'Knows When to Stop',
@@ -1905,7 +1905,7 @@ const i18n = {
     f1_tooltip: 'Config: proactive_enabled (off by default)\nDefaults: check 600s · cooldown 1800s · daily limit 20',
     f2_title: '12 Topic Types', f2_desc: 'Share, ask, reminisce, comment on news… custom topics with per-group weights',
     f2_tooltip: 'Config: proactive_topic_categories / proactive_custom_topics\n12 types: share ideas, discussions, memories, notice someone, lighten the mood, tech news, gaming gossip, odd news, hot events, gaming, digital tech, developers',
-    f3_title: 'Fetches & Comments', f3_desc: '22 RSS feeds in 7 categories + news APIs; from information seeker to sharer',
+    f3_title: 'Fetches & Comments', f3_desc: '21 RSS feeds in 7 categories + news APIs; from information seeker to sharer',
     f3_tooltip: 'Config: fetcher group, 11 params\nDefaults: pool 15 items · TTL 6h · shared pool, per-group dedup',
     f4_title: 'Anti-Template Openings', f4_desc: '6 opener patterns + triple dedup — never repeats itself',
     f4_tooltip: 'Mechanism: 6 opener patterns randomly injected + topic/opening/semantic dedup',
@@ -1987,13 +1987,13 @@ const i18n = {
     tune4_desc: 'Small-model compression + incremental injection + 4-dimension stats (model/group/hour/wake type) + σ anomaly alerts (σ=2.0)',
     tune5_title: 'Layered Memory',
     tune5_desc: 'Recent verbatim (10 rounds) + long-term summaries (30 rounds) + sender attribution + presence tags — shared by both loops',
-    tune6_title: 'Dual-Channel Vision',
-    tune6_desc: 'Framework image captions first (zero cost) + custom multimodal model fallback (<code>image_context_custom_model</code>)',
+    tune6_title: 'Vision (Official Pipeline)',
+    tune6_desc: 'Image captions come from the AstrBot official pipeline (image_caption) — zero config, zero extra cost on the plugin side',
     panel_entry: 'Panel: <strong>AstrBot WebUI → Plugins → Lingxi → Config Panel</strong>; every param is also editable in plugin config',
     config_title: '13 <span class="accent">Config Groups</span>',
     config_desc: '124 params in 13 groups — hover for key defaults',
     config1_name: '🧩 Basics', config1_desc: 'Names & keywords, context engineering, memory, model routing',
-    config1_tooltip: "34 items: bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · bypass_core_context=true · compression/memory/anomaly detection",
+    config1_tooltip: "34 items: bot_name='Bot' · keyword_reply_prob=0.5 · context_messages_count=10 · layered memory/anomaly detection",
     config2_name: '🔒 Group Filter', config2_desc: 'Whitelist, blacklist, scope control',
     config2_tooltip: '3 items: whitelist_enabled=false (all groups by default) · enabled_groups=[] · blocked_groups=[] (blacklist wins)',
     config3_name: '⚡ Energy', config3_desc: 'Consumption and recovery rates',
@@ -2006,8 +2006,8 @@ const i18n = {
     config6_tooltip: '22 items: check 600s · cooldown 1800s · daily 20 · prob 0.6 · energy floor 0.15 · window 09:00–23:00 · quiet 23:00–07:00 · retreat durations',
     config7_name: '⏲️ Debounce', config7_desc: 'Per-wake-type wait windows',
     config7_tooltip: '5 items: debounce_enabled=true · force_debounce=true · name 5s / prob 10s / rescue 3s',
-    config8_name: '🖼️ Image Context', config8_desc: 'Framework captions, custom model fallback',
-    config8_tooltip: "2 items: custom_model=false (framework captions, zero cost) · custom_model_id (fallback)",
+    config8_name: '🖼️ Image Context', config8_desc: 'Captions via official pipeline, zero plugin config',
+    config8_tooltip: "Image captions have been provided by the AstrBot official pipeline (image_caption) since v2.3.1; the custom fallback switch no longer exists",
     config9_name: '🧹 Filtering', config9_desc: 'Think-tag filter, no draft leaks',
     config9_tooltip: '1 item: filter_thinking_tags=true; filters LLM thinking content',
     config10_name: '🛡️ Reply Suppression', config10_desc: '[SKIP] keyword block + small-model judge',
@@ -2018,7 +2018,7 @@ const i18n = {
     config12_tooltip: "8 items: enabled=false · trailing punctuation strip · smart split · linear delay · custom regex",
     config13_name: '⚙️ Advanced', config13_desc: 'Per-group overrides, user multipliers, splitter advanced',
     config13_tooltip: '3 items (36 sub-fields): group_overrides 24 fields · user_prob_overrides · splitter_advanced',
-    config14_name: '📡 Fetcher', config14_desc: '22 built-in feeds in 7 categories, RSS+API, cross-group dedup',
+    config14_name: '📡 Fetcher', config14_desc: '21 built-in feeds in 7 categories, RSS+API, cross-group dedup',
     config14_tooltip: '11 items: enabled=false · rss_enabled=true · cache_ttl=21600s · pool_size=15 · custom feeds & HTTP proxy',
     install_title: 'Ready in <span class="accent">Minutes</span>',
     install_desc: 'Only 2 lightweight pip deps (feedparser + aiohttp); all 124 params have sensible defaults',

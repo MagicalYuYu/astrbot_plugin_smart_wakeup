@@ -41,7 +41,7 @@ from astrbot.api import logger
 from astrbot.api.star import StarTools
 
 # ============================================================================
-# 插件日志环形缓冲（v2.4.10 S4-2）
+# 插件日志环形缓冲（v2.4.9 S4-2）
 # 原实现探测 data/plugin.log 与 logs/plugin.log，但全插件无任何代码写这两个文件，
 # 面板「日志」Tab 恒为空。AstrBot 以 astrbot.plugin.<插件名> 子记录器为插件打日志
 # （core/log.py PLUGIN_LOGGER_PREFIX），handler 挂该子记录器即可只捕获本插件日志。
@@ -145,7 +145,7 @@ def _extract_defaults_from_schema(plugin_root: str) -> dict:
             if not isinstance(item_def, dict):
                 continue
             default_val = item_def.get("default")
-            # v2.4.10（S1-1）：object/list/template_list 无 default 时填类型空值而非 None——
+            # v2.4.9（S1-1）：object/list/template_list 无 default 时填类型空值而非 None——
             # 「恢复默认值」预设曾把 null 写进框架配置，热重载后 __init__ 读取
             # advanced.splitter_advanced 时 .get() 返回存储的 None，抛 AttributeError，
             # 插件加载坏死（需手改配置 JSON 才能恢复）
@@ -339,7 +339,7 @@ def register_web_apis(plugin, context):
     # 获取插件根目录路径（main.py 所在目录）
     plugin_root = os.path.dirname(os.path.abspath(inspect.getfile(type(plugin))))
 
-    # v2.4.10（红队 ISSUE-1）：注册即挂载日志环形缓冲——
+    # v2.4.9（红队 ISSUE-1）：注册即挂载日志环形缓冲——
     # 原懒挂载会令"首次打开日志页"之前的日志全部丢失
     ensure_plugin_log_ring()
 
@@ -570,6 +570,12 @@ def register_web_apis(plugin, context):
             if preset_config is None:
                 # "default" 预设：从 _conf_schema.json 提取默认值并保存到框架配置
                 default_config = _extract_defaults_from_schema(plugin_root)
+                # v2.4.9（S4-4）：默认预设同样过校验——预设链路此前完全绕过
+                # _validate_config_against_schema，用户 presets.json 可注入错误类型/越界值
+                validation_errors = _validate_config_against_schema(plugin_root, default_config)
+                if validation_errors:
+                    return jsonify({"ok": False, "error": "默认值校验失败",
+                                    "details": validation_errors[:10]}), 400
                 plugin.config.save_config(default_config)
                 logger.info(f"[smart_wakeup] 已应用预设 '{name}'（恢复默认值）")
                 # v2.0.2：应用预设同样触发热重载（此前预设链路完全不重载，永不生效）
@@ -589,6 +595,12 @@ def register_web_apis(plugin, context):
                     current_config[category] = {}
                 if isinstance(items, dict):
                     current_config[category].update(items)
+
+            # v2.4.9（S4-4）：合并结果过 schema 校验，非法类型/越界值拒绝应用
+            validation_errors = _validate_config_against_schema(plugin_root, current_config)
+            if validation_errors:
+                return jsonify({"ok": False, "error": "预设包含非法配置值，已拒绝应用",
+                                "details": validation_errors[:10]}), 400
 
             # v1.9.0 修复：保存到框架配置文件，而非 full_config.json
             plugin.config.save_config(current_config)
@@ -618,7 +630,7 @@ def register_web_apis(plugin, context):
 
             level = request.args.get("level", "").upper()
 
-            # v2.4.10（S4-2）：改读插件日志环形缓冲——原实现探测的两个日志文件
+            # v2.4.9（S4-2）：改读插件日志环形缓冲——原实现探测的两个日志文件
             # 全插件无任何写入者，恒返回"无插件日志文件"
             logs = get_ring_logs(limit=limit)
 
@@ -844,7 +856,9 @@ def _build_runtime_status(plugin) -> dict:
             "proactive_total_retreats": proactive_stats.get("total_retreats", 0),
         },
         "proactive": {
-            "is_running": hasattr(plugin, "_proactive_task") and plugin._proactive_task is not None,
+            # v2.4.9（S4-3）：以任务存活状态判定——原 `is not None` 在调度器异常退出后
+        # 仍显示"运行中"，与 /wakeup_proactive_status 口径对齐
+        "is_running": bool(getattr(plugin, "_proactive_task", None) is not None and not plugin._proactive_task.done()),
             "enabled": getattr(plugin, "_proactive_enabled", False),
             "check_interval": getattr(plugin, "_proactive_check_interval", 600),
             "cooldown": getattr(plugin, "_proactive_cooldown", 1800),

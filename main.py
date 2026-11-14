@@ -49,7 +49,7 @@ class ChatEnergy:
     energy: float = 1.0
     last_reply_time: float = 0.0
     total_replies: int = 0
-    # v2.4.10（M3-1）：恢复检查点——只结算自上次恢复以来的增量，
+    # v2.4.9（M3-1）：恢复检查点——只结算自上次恢复以来的增量，
     # 防止每条群消息重复叠加"距上次回复的完整时长×速率"（超线性膨胀）
     last_recovery_time: float = 0.0
 
@@ -86,7 +86,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.4.10",
+    "2.4.9",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -170,7 +170,18 @@ class LingxiPlugin(Star):
         self.image_caption_wait_timeout = basic.get("image_caption_wait_timeout", 8)
         self.image_caption_recent_window = basic.get("image_caption_recent_window", 10)
         self.recent_rounds_keep = basic.get("recent_rounds_keep", 10)  # 保留最近N轮原文
-        self.summary_rounds_max = basic.get("summary_rounds_max", 30)  # 摘要覆盖的最大轮数
+        self.summary_rounds_max = basic.get("summary_rounds_max", 30)  # 对话记忆总窗口轮数（原文+摘要合计）
+        # v2.4.9（M7-2）：交叉校验——summary_rounds_max 必须 > recent_rounds_keep，
+        # 否则分层摘要静默失效（deque 装不下待摘要轮，摘要区为 0）；schema 无交叉约束，运行时钳制
+        if self.recent_rounds_keep < 1:
+            logger.warning(f"[配置] recent_rounds_keep={self.recent_rounds_keep} < 1，已钳制为 1")
+            self.recent_rounds_keep = 1
+        if self.summary_rounds_max <= self.recent_rounds_keep:
+            _fixed = self.recent_rounds_keep + 10
+            logger.warning(
+                f"[配置] summary_rounds_max({self.summary_rounds_max}) ≤ recent_rounds_keep({self.recent_rounds_keep})，"
+                f"分层摘要将失效，已钳制为 {_fixed}（摘要区={_fixed - self.recent_rounds_keep} 轮）")
+            self.summary_rounds_max = _fixed
         self.summary_model = basic.get("summary_model", "")  # 摘要模型，留空则使用compression_model
 
         # 群白名单/黑名单配置
@@ -210,9 +221,6 @@ class LingxiPlugin(Star):
         # v2.3.1：自定义模型图片识别（image_context_custom_model/_id）已删除——
         # 图片识别由 AstrBot 官方图片描述管线统一处理（GroupChatContext + M3）。
         # 以下属性恒为 False 以保留占位符记录等既有逻辑的兼容性
-        self.image_context_custom_model = False
-        self.image_context_custom_model_id = ""
-        self.image_context_enabled = False
 
         # 精力系统
         energy_config = self.config.get("energy", {})
@@ -425,11 +433,6 @@ class LingxiPlugin(Star):
             "peak_prompt_tokens": 0,
             "peak_prompt_tokens_detail": "",  # "prompt=XXX 群=XXX 唤醒=XXX 时间=XXX"
             # 压缩统计
-            "compression_stats": {
-                "total_original_chars": 0,
-                "total_compressed_chars": 0,
-                "compression_count": 0,
-            },
             # 路由统计
             "routing_stats": {
                 "glm47_count": 0,
@@ -657,7 +660,7 @@ class LingxiPlugin(Star):
             "total_duplicate": 0,      # 去重跳过次数
             "total_send_fail": 0,      # 发送失败次数
             "total_retreats": 0,       # 退让触发次数
-            "retreat_self_talk": 0,    # 退让信号④触发次数
+            # v2.4.9（M12-1）：删除 retreat_self_talk——④ 自说自话信号已无触发来源（死键恒 0）
             "retreat_skip": 0,         # 退让信号⑤触发次数
             "retreat_active_surge": 0, # 退让信号①触发次数
             "retreat_no_response": 0, # 退让信号②触发次数
@@ -1132,6 +1135,14 @@ class LingxiPlugin(Star):
         return False
 
     def _check_forward_repeat_by_buffer(self, event: AstrMessageEvent) -> bool:
+        # v2.4.9（M2-1）：本兜底仅限 Telegram「转发BOT消息」场景——原实现对所有平台
+        # 生效，QQ 用户消息恰为 BOT 近期消息子串（≥4 字且占比≥20%）即被硬跳过，
+        # 绕过 repeat_suppress_enabled 配置且阈值与配置脱钩
+        try:
+            if (event.get_platform_name() or "").lower() != "telegram":
+                return False
+        except Exception:
+            return False
         """兜底检测：无 Reply 组件 + 消息文本与缓冲区中 BOT 消息匹配
 
         Telegram 加一复读的特征：
@@ -1585,9 +1596,6 @@ class LingxiPlugin(Star):
                 self._debug(f"图片记录(待识别) | 群={group_id} 发送者={sender} image_id={image_id}")
 
                 # 自定义模型模式：异步调用多模态模型识别图片
-                if self.image_context_custom_model and image_url:
-                    asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, image_id, buffer))
-
             self._stats["total_messages_recorded"] += 1
             return
 
@@ -1619,8 +1627,6 @@ class LingxiPlugin(Star):
                 if image_url:
                     meta["image_url"] = image_url
                 # 自定义模型模式：异步调用多模态模型识别图片
-                if self.image_context_custom_model and image_url:
-                    asyncio.ensure_future(self._describe_image_custom(group_id, sender, image_url, image_id, buffer))
             self._debug(f"图片记录(带文字) | 群={group_id} 发送者={sender} image_id={image_id} pending={meta.get('image_pending', False)} sticker={is_sticker}")
 
         # 检测回复关系：如果消息链包含 Reply 组件，提取回复目标的发送者
@@ -1651,52 +1657,6 @@ class LingxiPlugin(Star):
         buffer.append((sender, text.strip(), int(time.time()), meta))
         self._stats["total_messages_recorded"] += 1
 
-    async def _describe_image_custom(self, group_id: str, sender: str, image_url: str, image_id: str, buffer):
-        """使用自定义多模态模型识别图片内容"""
-        try:
-            provider = self.context.get_provider_by_id(self.image_context_custom_model_id)
-            if not provider:
-                logger.warning(f"[ImageContext] 未找到自定义图片识别模型 {self.image_context_custom_model_id}")
-                return
-
-            prompt = (
-                "请用简洁的中文描述这张图片的内容，重点关注：\n"
-                "1. 图片的主体内容和主题\n"
-                "2. 如果是表情包/梗图，描述其表达的情绪或含义\n"
-                "3. 如果是截图，描述关键信息\n"
-                "请控制在50字以内。\n\n"
-                f"图片地址：{image_url}"
-            )
-
-            resp = await provider.text_chat(
-                prompt=prompt,
-                session_id=f"img_desc_{group_id}_{int(time.time())}",
-            )
-
-            description = ""
-            if hasattr(resp, 'completion_text'):
-                description = resp.completion_text
-            elif hasattr(resp, 'result'):
-                description = str(resp.result)
-            else:
-                description = str(resp)
-
-            if description:
-                # 通过 image_id 精确匹配缓冲区中的图片占位符
-                for i in range(len(buffer) - 1, -1, -1):
-                    _s, _t, _ts, _m = buffer[i]
-                    if _m and _m.get("image_id") == image_id and _m.get("image_pending"):
-                        new_meta = dict(_m) if _m else {}
-                        new_meta["image_pending"] = False
-                        new_meta["image_description"] = description.strip()
-                        buffer[i] = (_s, f"[图片: {description.strip()}]", _ts, new_meta)
-                        self._debug(f"图片识别(自定义) | 群={group_id} image_id={image_id} 描述='{description.strip()[:50]}'")
-                        break
-
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.warning(f"[ImageContext] 自定义图片识别失败: {e}")
 
     @staticmethod
     def _filter_sticker_noise(text: str) -> str:
@@ -1852,93 +1812,6 @@ class LingxiPlugin(Star):
 
         return "\n".join(filtered_lines)
 
-    async def _compress_context(self, context_text: str, group_id: str) -> str:
-        """使用小模型对群聊上下文进行摘要压缩
-
-        利用火山平台小模型额度充裕的优势，将群聊上下文压缩后再注入主模型，
-        大幅减少主模型的 prompt_tokens 消耗。
-        """
-        try:
-            compress_prompt = (
-                "你是一个信息压缩助手。将以下群聊消息压缩为简洁摘要，要求：\n"
-                "1. 保留所有关键信息和话题\n"
-                "2. 保留发言者昵称\n"
-                "3. 去除寒暄、重复和无关内容\n"
-                "4. 摘要长度不超过原文的30%\n"
-                "5. 【重要】必须保留 BOT 的回复内容要点，特别是 BOT 已回应过的话题和观点，"
-                "以便后续对话中 BOT 知道自己已经说过什么，避免重复回应\n"
-                "6. 【重要】禁止使用'自己'等代词指代他人行为，必须用具体昵称明确行为主体，"
-                "例如'<昵称>吃到撑'而非'吃到撑拿自己垫背'，避免代词指代歧义导致发言者识别错误\n"
-                "7. 【重要】转述他人对 BOT 的行为时，必须标注 BOT 为承受方，"
-                "例如'<用户>祝BOT父亲节快乐'而非'祝自己父亲节快乐'\n\n"
-                f"群聊消息：\n{context_text}"
-            )
-
-            # 尝试使用指定压缩模型或当前LLM提供者
-            if self.compression_model:
-                # 使用指定的压缩模型（提供商ID格式：Volcengine/doubao-seed-2-0-lite-260215）
-                provider = self.context.get_provider_by_id(self.compression_model)
-                if provider:
-                    resp = await provider.text_chat(
-                        prompt=compress_prompt,
-                        session_id=f"compress_{group_id}",
-                    )
-                    compressed = resp.completion_text if hasattr(resp, 'completion_text') else str(resp)
-                else:
-                    logger.warning(
-                        f"[ContextCompress] 未找到提供商 {self.compression_model}，回退到当前提供者"
-                    )
-                    compressed = await self._compress_with_current_provider(compress_prompt)
-            else:
-                compressed = await self._compress_with_current_provider(compress_prompt)
-
-            if compressed and len(compressed) < len(context_text):
-                # 更新压缩统计
-                self._stats["compression_stats"]["total_original_chars"] += len(context_text)
-                self._stats["compression_stats"]["total_compressed_chars"] += len(compressed)
-                self._stats["compression_stats"]["compression_count"] += 1
-                logger.info(
-                    f"[ContextCompress] 群={group_id} 原始={len(context_text)}字符 → "
-                    f"压缩={len(compressed)}字符 ({len(compressed)/len(context_text)*100:.0f}%)"
-                )
-                return compressed
-            else:
-                # 压缩失败或压缩后更长，返回原文
-                self._debug(f"[ContextCompress] 群={group_id} 压缩未生效，使用原文")
-                return context_text
-
-        except asyncio.CancelledError:
-            # 诊断（v1.7.3）：记录完整 traceback，定位 CancelledError 真实来源
-            import traceback as _tb
-            logger.warning(
-                f"[ContextCompress] 群={group_id} 压缩被取消（CancelledError）\n"
-                f"Traceback:\n{_tb.format_exc()}"
-            )
-            return context_text
-        except Exception as e:
-            logger.warning(f"[ContextCompress] 群={group_id} 压缩异常: {e}")
-            return context_text
-
-    async def _compress_with_current_provider(self, prompt: str) -> str:
-        """使用当前LLM提供者进行压缩"""
-        try:
-            provider = self.context.get_using_provider()
-            if provider:
-                resp = await provider.text_chat(
-                    prompt=prompt,
-                    session_id=f"compress_{int(time.time())}",
-                )
-                if hasattr(resp, 'completion_text'):
-                    return resp.completion_text
-                elif hasattr(resp, 'result'):
-                    return str(resp.result)
-                else:
-                    return str(resp)
-        except asyncio.CancelledError:
-            raise  # 向上传播，由 _compress_context 处理
-        except Exception as e:
-            logger.warning(f"[ContextCompress] 当前提供者压缩失败: {e}")
-        return ""
 
     def _determine_routing_model(self, event: AstrMessageEvent) -> str:
         """根据消息特征决定路由到哪个模型
@@ -2247,7 +2120,7 @@ class LingxiPlugin(Star):
         decay_rate = self._get_group_param(group_id, "energy_decay_rate", self.energy_decay_rate)
         state.energy = max(0.1, state.energy - decay_rate)
         state.last_reply_time = time.time()
-        state.last_recovery_time = state.last_reply_time  # v2.4.10（M3-1）：消耗点即恢复基准
+        state.last_recovery_time = state.last_reply_time  # v2.4.9（M3-1）：消耗点即恢复基准
         state.total_replies += 1
         logger.info(f"精力消耗: 群 {group_id} 精力降至 {state.energy:.2f}")
 
@@ -2256,7 +2129,7 @@ class LingxiPlugin(Star):
         if state.last_reply_time == 0:
             return
         now = time.time()
-        # v2.4.10（M3-1）：以 last_recovery_time 为基准结算增量。
+        # v2.4.9（M3-1）：以 last_recovery_time 为基准结算增量。
         # 原实现始终以 last_reply_time 为基准，_update_flow_state（L2277）与
         # on_group_message（L3160）每条群消息各恢复一次，恢复量≈N条消息×rate×elapsed
         # 超线性膨胀，energy_recovery_rate 的"每分钟"语义失效。检查点后重复调用只补 0。
@@ -2649,13 +2522,20 @@ class LingxiPlugin(Star):
         state.last_msg_time = now
         state.last_msg_sender = sender
 
+        # v2.4.9（M4-3）护栏①：持续刷屏下 pending_messages 无界增长（强引用 event 对象），
+        # 达上限立即进入判定不再重睡
+        _MAX_PENDING = 20
+        _over_cap = len(state.pending_messages) >= _MAX_PENDING
+
         # 取消已有的防抖等待任务（前一条消息的 on_group_message 正在等待）
         if state.timer_task is not None and not state.timer_task.done():
             state.timer_task.cancel()
             self._stats["debounce_cancelled"] += 1
 
-        # 确定等待时间（传入已有暂存消息，以便检查名称匹配）
-        wait_time = self._calc_debounce_wait(group_id, event, state.pending_messages)
+        # 确定等待时间（传入已有暂存消息，以便检查名称匹配）；超限则 0 立即判定
+        wait_time = 0 if _over_cap else self._calc_debounce_wait(group_id, event, state.pending_messages)
+        if _over_cap:
+            self._debug(f"防抖护栏 | 群={group_id} 暂存达 {_MAX_PENDING} 条上限，立即判定")
 
         # 记录当前任务，以便下一条消息到来时能取消本任务的等待
         state.timer_task = asyncio.current_task()
@@ -2787,8 +2667,8 @@ class LingxiPlugin(Star):
         if len(senders) == 1:
             texts = [text for _s, text, _t, _e in messages if text.strip()]
             if merge_same:
-                return " ".join(texts)
-            return "\n".join(texts)
+                return " ".join(texts)[-3000:]
+            return "\n".join(texts)[-3000:]
 
         # 多用户窗口：按连续同发送者分块（保持时间序，交错不跨块合并）
         blocks = []  # [(sender, [texts])]
@@ -2807,7 +2687,13 @@ class LingxiPlugin(Star):
                 rendered.append(f"[{self._sanitize_nickname(sender)}] {body}")
             else:
                 rendered.append(body)
-        return "\n".join(rendered)
+        # v2.4.9（M4-3）护栏②：聚合文本超长截断——持续刷屏下无截断的整段文本
+        # 会原样注入 prompt（token 爆炸），超限保留末尾（最新内容优先）
+        _cap = getattr(self, "context_truncation_max_len", 0) or 3000
+        result = "\n".join(rendered)
+        if _cap and len(result) > _cap:
+            result = result[-_cap:]
+        return result
 
     async def _evaluate_debounced_messages(self, group_id: str, event: AstrMessageEvent, messages: list, silence_gap: float = 0.0):
         """防抖到期后执行唤醒判定"""
@@ -2857,7 +2743,7 @@ class LingxiPlugin(Star):
             if flow.state == FlowState.BYSTANDER:
                 self._transition_flow(group_id, FlowState.ATTENTIVE, "回复BOT触发升级")
             event.set_extra("smart_wakeup_triggered", True)
-            event.set_extra("wakeup_type", "name_trigger")
+            event.set_extra("wakeup_type", "reply_to_bot")  # v2.4.9（M4-2）：真实唤醒类型
             self._stats["total_wakeups"] += 1
             self._stats["name_trigger_wakeups"] += 1
             return
@@ -3002,7 +2888,7 @@ class LingxiPlugin(Star):
         """监听群聊消息（Telegram / QQ）
 
         流程：
-        0. BOT自身消息过滤前置（QQ平台回显拦截，v2.4.10）
+        0. BOT自身消息过滤前置（QQ平台回显拦截，v2.4.9）
         1. 记录消息到缓冲区（所有消息，不论是否命中名称）
         2. 指令前缀跳过（含防抖清理，以 / 开头的消息直接跳过并取消已有防抖）
         2.5. 低信息量消息过滤（纯图片/表情包/emoji跳过判定）
@@ -3022,7 +2908,7 @@ class LingxiPlugin(Star):
         sender_name = event.get_sender_name()
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
 
-        # v2.4.10（M5-1）：BOT自身消息过滤前置——QQ(NapCat)会把BOT消息回显为群消息，
+        # v2.4.9（M5-1）：BOT自身消息过滤前置——QQ(NapCat)会把BOT消息回显为群消息，
         # 原过滤点在有效回复重置/厌烦检测/消息记录之后，BOT每发一条主动消息就会
         # 自我重置"无人回应"计数（递进退让在QQ平台永远无法累积）并可能误触厌烦检测。
         if sender_id and sender_id in self._bot_user_ids:
@@ -3156,7 +3042,7 @@ class LingxiPlugin(Star):
             self._debug(f"转发复读过滤 | 消息为转发自BOT的复读，跳过判定 内容='{message_str[:30]}'")
             return
 
-        # 2.7 BOT自身消息过滤：v2.4.10（M5-1）已前置到 sender_id 取得后立即执行
+        # 2.7 BOT自身消息过滤：v2.4.9（M5-1）已前置到 sender_id 取得后立即执行
         # （本处原实现晚于有效回复重置/厌烦检测，QQ平台BOT回显会击穿递进退让机制）
 
         # 3. 检查是否需要定期清理
@@ -3215,7 +3101,7 @@ class LingxiPlugin(Star):
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
         self._debug(f"立即判定开始 | 群={group_id} 消息='{message_str[:40]}'")
 
-        # 0. 检查回复BOT（v2.4.10 M4-1/M5-3）：防抖路径（_evaluate_debounced_messages
+        # 0. 检查回复BOT（v2.4.9 M4-1/M5-3）：防抖路径（_evaluate_debounced_messages
         # step 0）自 v1.8.0 起支持回复BOT确定性唤醒，但关闭防抖/未命中强制防抖的消息
         # 走本立即判定路径时缺同一分支——用户直接回复Bot（不含名称/关键词，如"嗯嗯"）
         # 只剩低概率掷骰，大概率沉默。此处镜像防抖路径语义：用户概率门 + 确定性唤醒。
@@ -3238,7 +3124,7 @@ class LingxiPlugin(Star):
             if flow.state == FlowState.BYSTANDER:
                 self._transition_flow(group_id, FlowState.ATTENTIVE, "回复BOT触发升级")
             event.set_extra("smart_wakeup_triggered", True)
-            event.set_extra("wakeup_type", "name_trigger")
+            event.set_extra("wakeup_type", "reply_to_bot")  # v2.4.9（M4-2）：真实唤醒类型
             self._stats["total_wakeups"] += 1
             self._stats["name_trigger_wakeups"] += 1
             return
@@ -3364,6 +3250,17 @@ class LingxiPlugin(Star):
                 break
 
         if matched_name:
+            # v2.4.9（M5-4）：私聊路径补齐与群路径一致的两道闸——
+            # ① BOT自身消息过滤（NapCat 私聊回显）② 用户概率覆盖（0.0=永不回复该用户）
+            sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
+            if sender_id and sender_id in self._bot_user_ids:
+                return
+            user_prob = self._get_user_prob(sender_id)
+            if user_prob <= 0:
+                logger.info(f"灵犀(私聊): 用户 {sender_id} 概率为 0，跳过")
+                return
+            if user_prob < 1.0 and random.random() > user_prob:
+                return
             logger.info(
                 f"灵犀(私聊): 命中名称 '{matched_name}'，"
                 f"消息内容: {message_str[:50]}"
@@ -3768,7 +3665,7 @@ class LingxiPlugin(Star):
         event.set_extra("smart_wakeup_prompt_len", len(event.message_str or ""))
         event.set_extra("smart_wakeup_system_prompt_len", len(req.system_prompt or ""))
         context_parts_len = sum(len(p.text) for p in parts if hasattr(p, 'text'))
-        # v2.4.10（M6-2）：估算补计框架对话历史 req.contexts（群聊 prompt 大头），
+        # v2.4.9（M6-2）：估算补计框架对话历史 req.contexts（群聊 prompt 大头），
         # 原估算只算本插件注入的 parts，token 报告系统性大幅低估
         try:
             _ctx_len = len(json.dumps(req.contexts, ensure_ascii=False, default=str)) if req.contexts else 0
@@ -3847,7 +3744,7 @@ class LingxiPlugin(Star):
                     completion_tokens = usage.get('completion_tokens') or None
                     total_tokens = usage.get('total_tokens') or None
                 else:
-                    # v2.4.10（M6-1）：AstrBot v4 的 usage 为 TokenUsage 实体
+                    # v2.4.9（M6-1）：AstrBot v4 的 usage 为 TokenUsage 实体
                     # （input_other/input_cached/output，见 core/provider/entities.py），
                     # 无 prompt_tokens 等旧字段——原提取链对 v4 形状 100% 失效，
                     # 永远落入本地估算，token 统计严重失真。优先按 v4 实体提取。
@@ -3914,7 +3811,18 @@ class LingxiPlugin(Star):
         # 获取归因信息
         group_id = event.message_obj.group_id or "unknown"
         wakeup_type = event.get_extra("wakeup_type") or "name_trigger"
+        # v2.4.9（M6-3）：v4 LLMResponse 无 model 字段，原写法恒空串→模型归因恒落 unknown。
+        # 兜底取当前主模型提供商 ID（AstrBot Provider 的 id 属性/meta.id）
         model_name = getattr(resp, 'model', '') or ''
+        if not model_name:
+            try:
+                _prov = self.context.get_using_provider()
+                if _prov is not None:
+                    model_name = (getattr(_prov, "id", None)
+                                  or (_prov.meta.get("id") if isinstance(getattr(_prov, "meta", None), dict) else "")
+                                  or "")
+            except Exception:
+                model_name = ''
         est_tag = "📈" if is_estimated else "📊"
 
         # 使用统一的记录方法
@@ -4162,7 +4070,7 @@ class LingxiPlugin(Star):
             import asyncio
             # P1-9 修复：标记该群摘要任务正在执行，防止并发触发
             self._summary_in_progress.add(group_id)
-            # v2.4.10（M7-1）：把待摘要条数快照传入——摘要 await 期间群内新到的消息
+            # v2.4.9（M7-1）：把待摘要条数快照传入——摘要 await 期间群内新到的消息
             # 不在本次摘要文本里，完成后不得连带挤掉（原 while len>threshold 会误删）
             asyncio.create_task(
                 self._summarize_conversation(group_id, conversation_text, trim_count=len(records_to_summarize))
@@ -4223,7 +4131,7 @@ class LingxiPlugin(Star):
                     self._conversation_summaries[group_id] = summary
 
                 # 从历史中移除已摘要的记录
-                # v2.4.10（M7-1）：按触发时的快照数精确移除最旧记录——
+                # v2.4.9（M7-1）：按触发时的快照数精确移除最旧记录——
                 # 原 while len>threshold 在摘要 await 期间新消息追加后，
                 # 会连带把未进摘要的窗口内记录挤掉（分层记忆永久空洞）
                 history = self._get_conversation_history(group_id)
@@ -4979,8 +4887,9 @@ class LingxiPlugin(Star):
             self._debug(f"[回复抑制] 精力恢复 | 群={group_id} 精力恢复至 {state.energy:.2f}")
 
         # 4. 更新统计（根据实际拦截的方案更新对应计数器）
+        # v2.4.9（M8-3）：补 keyword_prefix 分支——v1.9.8 前缀拦截（思考泄露主力防线）此前从不计数
         suppression_source = event.get_extra("suppression_source", "")
-        if suppression_source == "keyword":
+        if suppression_source in ("keyword", "keyword_prefix"):
             self._stats["suppression_stats"]["keyword_suppressed"] += 1
         elif suppression_source == "judge":
             self._stats["suppression_stats"]["judge_suppressed"] += 1
@@ -5051,7 +4960,10 @@ class LingxiPlugin(Star):
             if json_match:
                 result = json.loads(json_match.group())
                 if "verdict" in result:
-                    self._stats["suppression_stats"]["judge_passed" if result["verdict"] == "pass" else "judge_suppressed"] += 1
+                    # v2.4.9（M8-2）：此处仅计 judge_passed——block 的计数由 _suppress_reply
+                    # 执行点负责，原两处各加一次导致 judge 拦截次数统计翻倍
+                    if result["verdict"] == "pass":
+                        self._stats["suppression_stats"]["judge_passed"] += 1
                     return result
 
             # 无法解析为 JSON，保守放过
@@ -5449,7 +5361,7 @@ class LingxiPlugin(Star):
     # 几乎总是开引号（引用的开始），把它当闭合符会把正确切开的段又合并回去
     # （实测：空行处切分后，引号开头的段被误并回前段，空行留在消息里）
     _LEADING_CLOSER = re.compile(r'^[”’』」》）】〕］)]{1,3}[，,。；;：:]?')
-    # v2.4.10（M8-1）：* 与 # 从段首闭合符集合移除——markdown 加粗/标题行
+    # v2.4.9（M8-1）：* 与 # 从段首闭合符集合移除——markdown 加粗/标题行
     # （**第一**、## 标题）几乎总是合法新段的开始，把它们当闭合符会把正确切分
     # 的段误并回前段，切分被静默撤销（与 v2.4.6 移除直引号同理）。
     # 纯装饰符场景由 _ORPHAN_CLOSER 的全匹配（$ 锚）继续覆盖
@@ -5515,7 +5427,7 @@ class LingxiPlugin(Star):
         merged = []
         for seg in segments:
             t = self._seg_plain_text(seg)
-            # v2.4.10（M9-1）：仅丢弃"无文本且无非 Plain 组件"的段——
+            # v2.4.9（M9-1）：仅丢弃"无文本且无非 Plain 组件"的段——
             # 纯图片/语音段（_split_chain 会将媒体单独成段）此前被当空段
             # 整段删除，多段回复中的媒体静默丢失
             if not t and all(isinstance(c, Plain) for c in seg):
@@ -5706,10 +5618,14 @@ class LingxiPlugin(Star):
         sent_count = 0
         tts_sent = 0  # v2.1.0：本次回复已配音段数（tts_max_per_reply 上限约束）
         try:
+            # v2.4.9（M9-2）：游标定位剩余段——原 sent_count 在空段跳过/语音替换路径下
+            # 与循环位置错位，取消时切片导致已发段重发或未发段错并
+            cursor = 0
             for i in range(len(segments) - 1):
                 seg_chain = segments[i]
                 text_content = "".join([c.text for c in seg_chain if isinstance(c, Plain)])
                 if not text_content.strip(" \t\r\n\u200b") and not any(not isinstance(c, Plain) for c in seg_chain):
+                    cursor = i + 1
                     continue
 
                 # v2.1.0：逐段 TTS 判定（在文本发送前判定，dual_output=false 时语音替换文字）
@@ -5730,6 +5646,7 @@ class LingxiPlugin(Star):
                 if tts_hit and not self._tts_dual_output() and not any(not isinstance(c, Plain) for c in seg_chain):
                     # 语音替换文字：跳过文本段（段内含图片等非文本组件时不替换，防丢图）
                     sent_count += 1  # 计入已处理，避免取消时重复合并
+                    cursor = i + 1
                     await asyncio.sleep(self._calculate_segment_delay(text_content))
                     continue
 
@@ -5740,6 +5657,7 @@ class LingxiPlugin(Star):
                     mc.chain = seg_chain
                     await self.context.send_message(event.unified_msg_origin, mc)
                     sent_count += 1
+                    cursor = i + 1
                     self._stats["splitter_stats"]["total_segments_sent"] += 1
                     await asyncio.sleep(self._calculate_segment_delay(text_content))
                 except Exception as e:
@@ -5747,7 +5665,7 @@ class LingxiPlugin(Star):
         except asyncio.CancelledError:
             # P1-8 修复：取消时合并所有未发送段到 result.chain，而非仅取最后一段
             # 原逻辑 `last_seg = remaining[-1]` 会丢失中间未发送段（如 3 段已发 1 段被取消时，第 2 段丢失）
-            remaining = segments[sent_count:] if sent_count > 0 else segments
+            remaining = segments[cursor:]  # v2.4.9（M9-2）：按游标切片，取消瞬间正在发送的段回流入剩余
             result.chain.clear()
             for seg_chain in remaining:
                 result.chain.extend(seg_chain)
@@ -6161,8 +6079,7 @@ class LingxiPlugin(Star):
           /wakeup_token model    - 按模型分布
           /wakeup_token group    - 按群分布
           /wakeup_token hourly   - 按小时趋势
-          /wakeup_token compress - 压缩效果
-          /wakeup_token route    - 路由效果
+          n route    - 路由效果
           /wakeup_token anomaly  - 异常检测
         """
         if sub == "model":
@@ -6171,8 +6088,6 @@ class LingxiPlugin(Star):
             yield event.plain_result(self._format_token_group_report())
         elif sub == "hourly":
             yield event.plain_result(self._format_token_hourly_report())
-        elif sub == "compress":
-            yield event.plain_result(self._format_token_compress_report())
         elif sub == "route":
             yield event.plain_result(self._format_token_route_report())
         elif sub == "anomaly":
@@ -6390,7 +6305,6 @@ class LingxiPlugin(Star):
         # 退让信号触发明细
         lines.extend([
             "🚫 退让信号触发次数:",
-            f"  ④ 自说自话: {self._proactive_stats['retreat_self_talk']}",
             f"  ⑤ 连续SKIP: {self._proactive_stats['retreat_skip']}",
             f"  ① 活跃激增: {self._proactive_stats['retreat_active_surge']}",
             f"  ② 无人回应: {self._proactive_stats['retreat_no_response']}",
@@ -6483,7 +6397,7 @@ class LingxiPlugin(Star):
 
         lines.extend([
             "",
-            "子命令: model | group | hourly | compress | route | anomaly",
+            "子命令: model | group | hourly | route | anomaly",
         ])
 
         return "\n".join(lines)
@@ -6546,24 +6460,6 @@ class LingxiPlugin(Star):
 
         return "\n".join(lines)
 
-    def _format_token_compress_report(self) -> str:
-        """压缩效果统计"""
-        cs = self._stats["compression_stats"]
-        if cs["compression_count"] == 0:
-            return "📊 压缩效果统计\n━━━━━━━━━━━━━━━━━━━━\n(暂无压缩数据，可能未启用压缩)"
-
-        avg_ratio = (cs["total_compressed_chars"] / cs["total_original_chars"] * 100) if cs["total_original_chars"] > 0 else 0
-        saved_pct = 100 - avg_ratio
-
-        lines = [
-            "📊 压缩效果统计",
-            "━━━━━━━━━━━━━━━━━━━━",
-            f"压缩次数: {cs['compression_count']}",
-            f"原始总字符: {self._fmt_tokens(cs['total_original_chars'])}",
-            f"压缩后总字符: {self._fmt_tokens(cs['total_compressed_chars'])}",
-            f"平均压缩率: {avg_ratio:.1f}% (节省 {saved_pct:.1f}%)",
-        ]
-        return "\n".join(lines)
 
     def _format_token_route_report(self) -> str:
         """路由效果统计"""
@@ -6715,10 +6611,15 @@ class LingxiPlugin(Star):
         # GLM 模型有时会在 content 中输出多段草稿，用 " response" 分隔：
         #   草稿1 response 草稿2（含元数据回显） response 最终版
         # 注意：使用负向前瞻 (?!\w) 避免 "few responses" 等英文常见词汇被误匹配
+        # v2.4.9（M10-2）：保底护栏——仅当存在 ≥2 个 " response" 分隔符（多稿草稿模式）
+        # 且剥离结果非空、长度≥原文 20% 才剥离。单个 " response"（合法英文句子里
+        # 的普通词汇，如 "Thanks for your response, I'll try that"）不再误截
         if re.search(r" response(?!\w)", text):
-            text = re.sub(r'^[\s\S]*? response(?!\w)\s*', '', text)
-        if re.search(r" response(?!\w)", text):
-            text = re.sub(r'^[\s\S]* response(?!\w)\s*', '', text)
+            _parts = re.split(r" response(?!\w)\s*", text)
+            if len(_parts) >= 3:
+                _stripped = _parts[-1]
+                if _stripped and len(_stripped) >= len(text) * 0.2:
+                    text = _stripped
         # 移除模型可能回显的上下文元数据（如 LLMPerception 注入的 [发送时间:...] 等）
         text = re.sub(r'\[发送时间:[^\]]*\]', '', text)
         text = re.sub(r'\[平台:[^\]]*\]', '', text)
@@ -6761,7 +6662,7 @@ class LingxiPlugin(Star):
             # 取最后一个版本（模型的最终修订）
             filtered = parts[-1].strip()
             # 安全检查：最后一段不应以 ``` 开头（否则可能是代码块内部）
-            # v2.4.10（M10-1）：草稿判定加严——被丢弃段须与保留段高相似（≥0.5）
+            # v2.4.9（M10-1）：草稿判定加严——被丢弃段须与保留段高相似（≥0.5）
             # 或含 [SKIP] 标记才判定为草稿分隔。原判定仅凭段数≥3，
             # 会把"含 ≥2 个 fenced 代码块的合法回复"整体截断只剩最后一段
             if not filtered.startswith('```'):
@@ -6873,15 +6774,24 @@ class LingxiPlugin(Star):
         try:
             while True:
                 await asyncio.sleep(self._proactive_check_interval)
-                # v1.8.0 诊断日志：证明调度器循环执行了（排查"主动发言不触发"问题）
-                target_groups = self._get_proactive_target_groups()
-                logger.info(
-                    f"[主动发言] 调度器检查: 目标群={len(target_groups)} 个, "
-                    f"UMO缓存={len(self._group_umo)} 个, "
-                    f"LLM运行中={list(self._llm_running_groups.keys()) if hasattr(self, '_llm_running_groups') else []}"
-                )
-                # Phase 2 退让信号②：检查无人回应追踪（每次循环都检查，不依赖 _should_proactive_speak）
-                self._check_no_response_all_groups()
+                # v2.4.9（M10-4）：循环体整体纳入 try——原实现循环首三步（取目标群/诊断日志/
+                # 无人回应检查）在按群 try 之外，任意一次异常即命中外层 except 导致
+                # 调度器永久死亡（主动发言全线静默）。现在单轮异常只跳过本轮
+                try:
+                    # v1.8.0 诊断日志：证明调度器循环执行了（排查"主动发言不触发"问题）
+                    target_groups = self._get_proactive_target_groups()
+                    logger.info(
+                        f"[主动发言] 调度器检查: 目标群={len(target_groups)} 个, "
+                        f"UMO缓存={len(self._group_umo)} 个, "
+                        f"LLM运行中={list(self._llm_running_groups.keys()) if hasattr(self, '_llm_running_groups') else []}"
+                    )
+                    # Phase 2 退让信号②：检查无人回应追踪（每次循环都检查，不依赖 _should_proactive_speak）
+                    self._check_no_response_all_groups()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.error(f"[主动发言] 调度器本轮前置检查异常（跳过本轮）: {type(e).__name__}: {e}")
+                    continue
                 # v1.7.1：遍历配置群列表 ∪ UMO 缓存群列表，避免沉默群无法被调度
                 for group_id in target_groups:
                     try:
@@ -7110,6 +7020,11 @@ class LingxiPlugin(Star):
         if conv_state == "ACTIVE":
             # 群内活跃，不主动发言（MII Human_Dominant）
             logger.debug(f"[主动发言] 群={group_id} 跳过原因[11b]: 群内活跃（Human_Dominant）")
+            return False
+        if conv_state == "INSUFFICIENT":
+            # v2.4.9（M10-3）：缓冲 1-4 条（min_context_messages 默认 1 与冷场检测门槛 5 脱节）
+            # 时活跃小群也会被插话——数据不足与冷场等效处理，不主动发言
+            logger.debug(f"[主动发言] 群={group_id} 跳过原因[11c]: 上下文数据不足（<5 条）")
             return False
 
         logger.debug(f"[主动发言] 群={group_id} 所有检查通过，准备按概率触发")
@@ -7948,12 +7863,16 @@ class LingxiPlugin(Star):
                re.match(r'^SKIP', stripped):
                 continue
             # v2.3.4：跳过指令回声行（提示词指令头被模型原样复述）
+            # v2.4.9（M11-6）：黑名单补齐——【输出纪律】【硬约束】【Few-Shot 示例】
+            # 【开头去重】及缩进示例行此前不在覆盖内，回声可漏进群聊
             if re.match(r'^\[(思考阶段|决策阶段|生成阶段)\]', stripped) or \
                re.match(r'^(输出结构要求|核心定位|【核心定位)', stripped) or \
                re.match(r'^(本次开头模式建议|【本次开头模式建议)', stripped) or \
                re.match(r'^(硬性禁令|【硬性禁令)', stripped) or \
                re.match(r'^(正面示例|反面示例)', stripped) or \
                re.match(r'^(格式要求|Few-?Shot)', stripped) or \
+               re.match(r'^【(输出纪律|硬约束|Few-?Shot 示例|开头去重)】?', stripped) or \
+               re.match(r'^\d+[.、]\s*(分享|提出|回忆|关注|说点|基于)', stripped) or \
                ('基于外部资讯，用你的人设和说话风格' in stripped):
                 continue
             filtered_lines.append(line)
@@ -8008,7 +7927,7 @@ class LingxiPlugin(Star):
         return False
 
     async def _trigger_test_speak(self, group_id: str, topic: str = "") -> dict:
-        """网页面板「测试发言」入口（v2.4.10 S4-1）
+        """网页面板「测试发言」入口（v2.4.9 S4-1）
 
         web_api.py POST /config/test_speak 自 v1.x 起即调用
         plugin._trigger_test_speak(group_id, topic)，但该方法从未实现，
@@ -8507,7 +8426,10 @@ class LingxiPlugin(Star):
         }
         # Phase 2 统计：记录退让触发
         self._proactive_stats["total_retreats"] += 1
-        retreat_key = f"retreat_{reason}"
+        # v2.4.9（M12-1）：信号⑤的 reason 为 consecutive_skip 而统计键为 retreat_skip——
+        # 原键名错位致 ⑤ 恒 0；归一化映射后口径对齐
+        _key_alias = {"consecutive_skip": "skip"}
+        retreat_key = f"retreat_{_key_alias.get(reason, reason)}"
         if retreat_key in self._proactive_stats:
             self._proactive_stats[retreat_key] += 1
         logger.info(f"[主动发言] 群={group_id} 进入退让状态 {duration}s，原因：{reason}")
@@ -8777,42 +8699,6 @@ class LingxiPlugin(Star):
             self._proactive_outcomes[group_id] = self._proactive_outcomes[group_id][-20:]
         logger.debug(f"[主动发言] 群={group_id} 效果记录: CPS={cps}, adopted={adopted}")
 
-    def _get_proactive_metrics(self, group_id: "str | None" = None) -> dict:
-        """获取主动发言评估指标
-
-        参数 group_id 为 None 时返回全局统计，否则返回指定群的统计。
-        """
-        if group_id is None:
-            # 全局统计
-            stats = dict(self._proactive_stats)
-            # 计算全局 CPS 和采纳率
-            all_outcomes = []
-            for gid, outcomes in self._proactive_outcomes.items():
-                all_outcomes.extend(outcomes)
-            if all_outcomes:
-                total_cps = sum(o[1] for o in all_outcomes)
-                adopted_count = sum(1 for o in all_outcomes if o[2])
-                stats["avg_cps"] = round(total_cps / len(all_outcomes), 2)
-                stats["adoption_rate"] = round(adopted_count / len(all_outcomes) * 100, 1)
-                stats["total_outcomes"] = len(all_outcomes)
-            else:
-                stats["avg_cps"] = 0
-                stats["adoption_rate"] = 0
-                stats["total_outcomes"] = 0
-            return stats
-        else:
-            # 单群统计
-            outcomes = self._proactive_outcomes.get(group_id, [])
-            if not outcomes:
-                return {"avg_cps": 0, "adoption_rate": 0, "total": 0}
-            total_cps = sum(o[1] for o in outcomes)
-            adopted_count = sum(1 for o in outcomes if o[2])
-            return {
-                "avg_cps": round(total_cps / len(outcomes), 2),
-                "adoption_rate": round(adopted_count / len(outcomes) * 100, 1),
-                "total": len(outcomes),
-                "recent": outcomes[-5:],  # 最近5条
-            }
 
     async def terminate(self):
         """插件卸载/停用时调用，清理所有内存数据"""
@@ -8828,7 +8714,7 @@ class LingxiPlugin(Star):
         self._proactive_task = None
 
         # v1.9.7 新增 M3：关闭 FetcherManager 中的持久 aiohttp session
-        # v2.4.10（S3-1）：修正属性名——实例属性为 _fetcher（__init__ 创建），
+        # v2.4.9（S3-1）：修正属性名——实例属性为 _fetcher（__init__ 创建），
         # 原检查 _fetcher_manager 全仓库无赋值点，hasattr 恒 False，
         # RSSFetcher 的持久 session 自 v1.9.7 上线以来每次重载都在泄漏
         if getattr(self, '_fetcher', None) is not None:

@@ -68,7 +68,7 @@
         "description": "🔀 启用智能模型路由",
         "type": "bool",
         "default": false,
-        "hint": "开启后简单消息由小模型生成回复，复杂消息由大模型生成。默认关闭——小模型仅用于上下文压缩，所有回复由大模型生成以保证质量。"
+        "hint": "开启后简单消息由小模型生成回复，复杂消息由大模型生成。默认关闭——小模型仅用于分层记忆摘要与 SKIP 合规判别，所有回复由大模型生成以保证质量。"
       },
       "routing_small_model": {
         "description": "🤖 路由目标小模型提供商 ID",
@@ -142,10 +142,10 @@
         "hint": "保留最近 N 轮对话的原文（每轮包含用户消息和 Bot 回复），超过此数量的旧对话将被压缩为摘要。生效范围：主动发言路径（被动群聊回复的上下文已由官方 GroupChatContext 接管）。"
       },
       "summary_rounds_max": {
-        "description": "📝 摘要覆盖最大轮数",
+        "description": "对话记忆总窗口轮数（原文+摘要合计）。摘要实际最多覆盖 summary_rounds_max - recent_rounds_keep 轮",
         "type": "int",
         "default": 30,
-        "hint": "摘要覆盖的最大轮数，超过此数量的最旧对话将被丢弃。注意：设为 0 表示不保留任何对话历史（分层记忆整体失效），并非只保留 recent_rounds_keep 轮。生效范围：主动发言路径。"
+        "hint": "总窗口语义：如 recent_rounds_keep=10、本项=30，则保留近 10 轮原文 + 最多 20 轮摘要。若想要 15 轮摘要应设为 25 而非 15（须大于 recent_rounds_keep，否则启动时自动钳制）"
       },
       "summary_model": {
         "description": "🤖 摘要模型提供商 ID",

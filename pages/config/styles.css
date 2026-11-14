@@ -1,4 +1,4 @@
-/* ============================================================================
+* ============================================================================
  * 灵犀配置面板 · styles.css
  * ----------------------------------------------------------------------------
  * 设计原则：
@@ -1511,7 +1511,7 @@ a:hover {
 .state-bystander { background: #e0e7ff; color: #3730a3; }
 .state-attentive { background: #dbeafe; color: #1e40af; }
 .state-flow { background: #d1fae5; color: #065f46; }
-.state-fatigue { background: #fee2e2; color: #991b1b; }
+.state-fatigued { background: #fee2e2; color: #991b1b; }
 .state-idle { background: var(--color-bg-muted); color: var(--color-text-muted); }
 
 .status-group-metrics {

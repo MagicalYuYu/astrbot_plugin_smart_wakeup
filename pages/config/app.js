@@ -339,7 +339,13 @@ createApp({
                 // 归一化返回格式：{ok: false} → 抛出错误；{ok: true, data: X} → X；其他原样返回
                 if (result && typeof result === 'object' && result.ok === false) {
                     const errMsg = result.error || result.message || result.msg || 'API 调用失败';
-                    throw new Error(errMsg);
+                    // v2.4.9（S2-7）：携带后端校验明细——保存失败时用户只看到
+                    // 无字段的"配置验证失败"，details 数组被整体丢弃
+                    const err = new Error(errMsg);
+                    if (Array.isArray(result.details) && result.details.length) {
+                        err.details = result.details;
+                    }
+                    throw err;
                 }
                 if (result && typeof result === 'object' && result.ok === true && result.data !== undefined) {
                     return result.data;
@@ -523,6 +529,13 @@ createApp({
                             if (isNaN(num)) {
                                 return `${catSchema.description} > ${itemSchema.description}: 值 "${value}" 不是有效数字`;
                             }
+                            // v2.4.9（S2-8）：schema min/max 前置校验——范围错误拦截在保存前
+                            if (itemSchema.min !== undefined && num < itemSchema.min) {
+                                return `${catSchema.description} > ${itemSchema.description}: ${num} 小于下限 ${itemSchema.min}`;
+                            }
+                            if (itemSchema.max !== undefined && num > itemSchema.max) {
+                                return `${catSchema.description} > ${itemSchema.description}: ${num} 超过上限 ${itemSchema.max}`;
+                            }
                         }
                     }
 
@@ -632,14 +645,15 @@ createApp({
                 const result = await callApi('GET', 'config/logs', { limit: logLimit.value });
                 const rawLogs = Array.isArray(result) ? result : (result?.logs || []);
                 // 解析日志字符串数组，提取 time/level/source/message
-                // 格式：[HH:MM:SS.xxx] [Core] [INFO] [main:XXXX] message
+                // v2.4.9（S2-6）：后端环形缓冲格式 [HH:MM:SS.mmm] [LEVEL] [smart_wakeup] msg
+                // 按位置匹配（第1括号=时间、第2=级别、第3=来源）；级别统一小写供 class 使用
                 logs.value = rawLogs.map(line => {
                     if (typeof line !== 'string') return line;
-                    const match = line.match(/\[(\d{2}:\d{2}:\d{2}\.\d+)\].*?\[(\w+)\].*?\[([^\]]+)\]\s*(.*)/);
+                    const match = line.match(/^\[(\d{2}:\d{2}:\d{2}(?:\.\d+)?)\]\s*\[(\w+)\]\s*\[([^\]]+)\]\s*(.*)/);
                     if (match) {
-                        return { time: match[1], level: match[2], source: match[3], message: match[4] };
+                        return { time: match[1], level: String(match[2]).toLowerCase(), source: match[3], message: match[4] };
                     }
-                    return { time: '', level: 'INFO', source: '', message: line };
+                    return { time: '', level: 'info', source: '', message: line };
                 });
             } catch (err) {
                 console.warn('加载日志失败:', err);
@@ -1108,15 +1122,18 @@ createApp({
         }
 
         // 心流状态标签（英文 → 中文）
+        // v2.4.9（S2-1）：后端下发大写枚举名（BYSTANDER/ATTENTIVE/FLOW/FATIGUED），
+        // 统一转小写再映射；fatigued 键补齐（原写作 fatigue 与后端枚举名不一致）
         function flowStateLabel(state) {
             const labels = {
                 'bystander': '旁观',
                 'attentive': '关注',
                 'flow': '心流',
+                'fatigued': '疲劳',
                 'fatigue': '疲劳',
                 'idle': '空闲'
             };
-            return labels[state] || (state || '未知');
+            return labels[String(state || '').toLowerCase()] || (state || '未知');
         }
 
         // ====================================================================

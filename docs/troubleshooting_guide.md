@@ -40,7 +40,7 @@ AstrBot WebUI → 插件管理 → 灵犀 → 配置 → 基础设置 → **调�
 | 信息 | 说明 |
 |:-----|:-----|
 | 触发类型 | 名称命中 / 关键词命中 / 概率唤醒 / 冷场救场 / 复读抑制 |
-| 概率计算 | base_prob × energy_factor × flow_factor × timing_factor 的具体数值 |
+| 概率计算 | base_prob × energy_factor × timing_factor 的具体数值 |
 | 心流状态 | 当前状态（旁观/关注/心流/疲劳）及转换原因 |
 | 精力值 | 当前精力百分比 |
 | 防抖状态 | 等待时间、暂存消息数 |
@@ -98,7 +98,7 @@ AstrBot 后台日志。查看方式：
 【运行环境】
 - AstrBot 版本：（如 v4.16）
 - 平台：Telegram / QQ (aiocqhttp)
-- 插件版本：2.4.7
+- 插件版本：2.4.9
 
 【调试日志】
 （在这里粘贴从后台复制的日志）
@@ -124,7 +124,7 @@ AstrBot 后台日志。查看方式：
 - AstrBot 版本：
 - 平台：Telegram / QQ (aiocqhttp)
 - Python 版本：
-- 插件版本：2.4.7
+- 插件版本：2.4.9
 
 请分析：
 1. 这个故障是否由插件本身引起？
@@ -185,7 +185,7 @@ AI 分析结果中，关注以下信号：
 - AstrBot 版本：
 - 平台：Telegram / QQ (aiocqhttp)
 - Python 版本：
-- 插件版本：2.4.7
+- 插件版本：2.4.9
 
 ## 补充信息
 （其他有助于排查的信息）
@@ -272,7 +272,7 @@ AI 分析结果中，关注以下信号：
 | Bot 救场太频繁 | `rescue_cooldown` | ↑ | 冷场救场 |
 | Bot 总是打断别人说话 | `debounce_wait_prob` | ↑ | 消息防抖 |
 | 关键词触发概率太高 | `keyword_reply_prob` | ↓ | 基础设置 |
-| Token 消耗太大 | 开启 `context_compression_enabled` | — | 基础设置 |
+| Token 消耗太大 | 调低 `context_messages_count`；官方侧 `llm_compress` + `group_message_max_cnt` | ↓ | 基础/官方 |
 | 长回复一大段不好看 | 开启 `splitter.enabled` | — | 消息分段 |
 | Bot 从不主动发起话题 | 开启 `proactive_enabled` | — | 主动发言 |
 | 主动发言太频繁 | `proactive_daily_limit` / `proactive_probability` | ↓ | 主动发言 |
@@ -303,15 +303,14 @@ Telegram 和 QQ（通过 aiocqhttp 适配器接入）。两个平台功能一致
 
 ### Q: Token 消耗太大怎么办？
 
-1. 开启 `context_compression_enabled`（上下文压缩），用小模型压缩群聊上下文
-2. 开启 `bypass_core_context`（绕过核心上下文），避免重复注入
-3. 减小 `context_messages_count`（上下文消息数量）
-4. 开启 `incremental_context_enabled`（增量注入），避免重复内容
-5. 如有条件，配置独立的小模型用于压缩（`compression_model`）
+1. 调低 `context_messages_count`（上下文消息数量；自 v2.3.0 起该值仅影响主动发言路径的上下文拼装）
+2. 在 AstrBot 官方侧启用 `llm_compress`（官方上下文压缩），并把官方会话设置中的 `group_message_max_cnt` 控制在 30-50 轮
+3. 降低 `context_truncation_max_len`（上下文截断长度），压缩长消息的注入体积
+4. 如有条件，配置独立小模型用于分层记忆摘要与 SKIP 判别（`compression_model`），分担主模型消耗
 
-### Q: 如何选择压缩模型？
+### Q: 如何选择摘要/判别模型（compression_model）？
 
-推荐选择轻量、低延迟、低成本的模型，如：
+`compression_model` 现用于分层记忆摘要与 SKIP 合规判别（不再做上下文压缩）。推荐选择轻量、低延迟、低成本的模型，如：
 - 火山引擎 Doubao Seed Lite
 - DeepSeek V3
 - 其他低成本 API
@@ -359,30 +358,26 @@ Telegram 和 QQ（通过 aiocqhttp 适配器接入）。两个平台功能一致
 
 ### Q: 概率唤醒的概率是怎么计算的？
 
-动态概率公式：`P = base_prob × energy_factor × flow_factor × timing_factor`
+动态概率公式：`P = base_prob × energy_factor × timing_factor`
 
-- `base_prob` 由心流状态决定（旁观 0.08、关注 0.20、心流 0.40）
+- `base_prob` 由心流状态决定（旁观 0.08、关注 0.20、心流 0.40）；旁观态实际按参与度平方在旁观与关注的基础概率之间插值
 - `energy_factor` 等于当前精力值（0.0 ~ 1.0）
-- `flow_factor` 由心流状态映射（旁观/疲劳 0.2、关注 0.8、心流 1.5）
-- `timing_factor` 考虑消息间隔等时间因素（0.5 ~ 1.2）
+- `timing_factor` 时间因子：旁观态 0.5 → 2.0（群越静默值越高）、活跃对话 1.0 → 1.5、首次消息 1.5
+- 疲劳态下概率唤醒完全暂停（概率为 0），等待精力恢复
 
 复读消息的概率还会乘以 `repeat_suppress_factor`（默认 0.1）。
 
 ### Q: 开启图片识别后 Bot 回复变慢了？
 
-自定义模型识别是异步执行的，不会阻塞回复链路。如果感觉回复变慢，优先检查防抖等待参数（`debounce_wait_name`/`debounce_wait_prob`/`debounce_wait_rescue`）是否设置过大；图片描述识别结果会在后台生成并注入下次上下文，不影响本次回复速度。
-
-### Q: 自定义模型图片识别报错"未找到提供商"？
-
-检查 `image_context_custom_model_id` 填写的是完整的提供商 ID（如 `Volcengine/doubao-vision-pro-32k`），而非模型名称。提供商 ID 需与 AstrBot 中配置的 LLM 提供商 ID 完全一致，可在 AstrBot WebUI → 服务提供商中查看。
+图片描述自 v2.3.1 起由 AstrBot 官方管线（image_caption）异步提供，本插件不再有自定义降级开关，也不会阻塞回复链路。如果感觉回复变慢，优先检查防抖等待参数（`debounce_wait_name`/`debounce_wait_prob`/`debounce_wait_rescue`）是否设置过大；图片描述会在后台生成并注入下次上下文，不影响本次回复速度。
 
 ### Q: Bot 仍然对不在场的用户说话？
 
 在场用户感知是提示词层面的约束，通过 `<presence_awareness>` 系统提示引导 LLM 只对近期活跃用户说话。如果人格提示词中包含冲突指令（如"对所有用户友好回应"），可能削弱此约束效果。建议在人格提示词中配合强调"只对在场用户说话"。
 
-### Q: 框架图片描述和自定义模型识别会冲突吗？
+### Q: 图片描述由谁提供，需要配置吗？
 
-不会。两者为主备降级关系：插件优先使用框架（如 `group_chat_context` 插件）提供的图片描述；仅当框架未提供描述时，开启的自定义模型识别才会作为降级方案介入。通常无需开启自定义模型，仅在框架图片描述功能异常时启用。
+图片描述自 v2.3.1 起由 AstrBot 官方管线（image_caption，如 `group_chat_context` 上下文插件）提供，本插件不再有自定义降级开关，插件侧无需任何配置；如需调整图片描述行为，请在 AstrBot 官方侧设置。
 
 ### Q: 开启了主动发言但 Bot 从不主动说话？
 
@@ -402,4 +397,4 @@ Telegram 和 QQ（通过 aiocqhttp 适配器接入）。两个平台功能一致
 
 ### Q: 主动发言的资讯内容从哪里来的？
 
-由 Fetcher 资讯模块提供：RSS 通道内置 7 类 22 条国内直连资讯源（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者），另可配置资讯 API。开启 `fetcher_enabled` 后自动生效；资讯跨群去重，不会多个群发同一条新闻。如需自定义源，在 `fetcher_rss_feeds` 中按每行一条添加。
+由 Fetcher 资讯模块提供：RSS 通道内置 7 类 21 条国内直连资讯源（科技资讯/游戏八卦/沙雕新闻/热点事件/游戏/数码科技/开发者），另可配置资讯 API。开启 `fetcher_enabled` 后自动生效；资讯跨群去重，不会多个群发同一条新闻。如需自定义源，在 `fetcher_rss_feeds` 中按每行一条添加。
