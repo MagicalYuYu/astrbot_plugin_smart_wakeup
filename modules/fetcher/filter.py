@@ -3,6 +3,7 @@
 提供去重、敏感词过滤、有效性检查。
 """
 
+import re
 from typing import List
 
 # 日志必须且只能从 astrbot.api 导入（插件市场合规要求，v2.0.1 移除标准 logging 回退）
@@ -72,6 +73,22 @@ class NewsFilter:
             # 有效性检查
             if not item.title or len(item.title) < 5:
                 logger.debug(f"[NewsFilter] 标题过短: {item.title}")
+                continue
+
+            # v2.4.9 新增：图片板类空条目拦截（煎蛋无聊图类源的典型输出）
+            # 特征：标题以冒号结尾、冒号前是短作者名（如「杯面骑士:」「HeHeDa:」），
+            # 且摘要剥离 HTML 后无文字（纯图）。此类条目无任何可转述事实，
+            # LLM 只能编造「有新消息但不说是什么」的空话。默认源已下线煎蛋，
+            # 此处为通用防线：用户自定义 RSS 填入同类图片板源时不再复发。
+            title_stripped = item.title.rstrip()
+            title_core = title_stripped.rstrip("：: ")
+            summary_text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", item.summary or "")).strip()
+            if (
+                len(title_core) < len(title_stripped)
+                and re.fullmatch(r"[\w\u4e00-\u9fff·\- ]{1,12}", title_core)
+                and len(summary_text) < 10
+            ):
+                logger.debug(f"[NewsFilter] 图片板空条目（仅作者名无正文）: {item.title}")
                 continue
 
             if not item.summary:

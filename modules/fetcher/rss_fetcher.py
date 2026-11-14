@@ -194,11 +194,14 @@ class RSSFetcher(BaseFetcher):
         ],
         "沙雕新闻": [
             # 国内可直连的荒诞/奇趣新闻源极度稀缺
-            # 主源：煎蛋热榜（奇趣图片+短文）
-            "https://rsshub.rssforever.com/jandan/top",  # 煎蛋热榜 - 30条目，4.08s (RSSHub镜像)
-            # v1.9.6 备份源：小众软件（趣味软件推荐，非完美匹配但避免单点故障）
+            # v2.4.9：下线煎蛋热榜（rsshub.rssforever.com/jandan/top），依据 2026-11-15 实测审计：
+            # ① 热榜主体为无聊图纯图片帖：RSS 标题=「作者名:」+空文本、摘要仅 <img>，
+            #    文字管线无事实可转述，主动发言只能反复输出「煎蛋有新消息」式空话（全量垃圾）
+            # ② RSSHub 镜像 rsshub.rssforever.com 已不可用（TCP 通、HTTP 挂死 >15s）
+            # ③ jandan.net 原生 feed 403；官方热榜 API /api/top/4hr 返回 data=null
+            # ④ 唯一有文字的鱼塘 API（/api/forum/posts/112928）内容为社区个人帖，与类别语义不符
             # 长期方案：服务器自建 RSSHub 实例（Docker）可解锁糗事百科/抽屉等更多路由
-            "https://www.appinn.com/feed/",  # 小众软件 - 10条目，0.39s，趣味软件
+            "https://www.appinn.com/feed/",  # 小众软件 - 10条目，0.39s，趣味软件（单源兜底）
         ],
         "热点事件": [
             # plink.anyfeeder.com 响应快（< 1.5s），rsshub.rssforever.com 稍慢
