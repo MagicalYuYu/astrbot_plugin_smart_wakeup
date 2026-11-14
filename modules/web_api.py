@@ -31,6 +31,7 @@ import json
 import time
 import traceback
 import inspect
+import logging as _logging
 from collections import deque
 from typing import Any, Optional
 
@@ -38,6 +39,51 @@ from quart import jsonify, request
 
 from astrbot.api import logger
 from astrbot.api.star import StarTools
+
+# ============================================================================
+# 插件日志环形缓冲（v2.4.10 S4-2）
+# 原实现探测 data/plugin.log 与 logs/plugin.log，但全插件无任何代码写这两个文件，
+# 面板「日志」Tab 恒为空。AstrBot 以 astrbot.plugin.<插件名> 子记录器为插件打日志
+# （core/log.py PLUGIN_LOGGER_PREFIX），handler 挂该子记录器即可只捕获本插件日志。
+# ============================================================================
+
+_PLUGIN_LOGGER_NAME = "astrbot.plugin.astrbot_plugin_smart_wakeup"
+_LOG_RING: deque = deque(maxlen=500)
+_ring_handler = None
+
+
+class _RingBufferHandler(_logging.Handler):
+    def emit(self, record):
+        try:
+            _LOG_RING.append(self.format(record))
+        except Exception:
+            pass
+
+
+class _RingFormatter(_logging.Formatter):
+    r"""输出 [HH:MM:SS.mmm] [LEVEL] [smart_wakeup] msg——与面板 app.js 的
+    日志行解析正则对齐"""
+    def formatTime(self, record, datefmt=None):
+        import time as _t
+        base = _t.strftime("%H:%M:%S", self.converter(record.created))
+        return f"{base}.{int(record.msecs):03d}"
+
+
+def ensure_plugin_log_ring():
+    """挂载插件日志环形缓冲（幂等，可重复调用）"""
+    global _ring_handler
+    if _ring_handler is None:
+        _ring_handler = _RingBufferHandler()
+        _ring_handler.setFormatter(
+            _RingFormatter("[%(asctime)s] [%(levelname)s] [smart_wakeup] %(message)s"))
+        _logging.getLogger(_PLUGIN_LOGGER_NAME).addHandler(_ring_handler)
+
+
+def get_ring_logs(limit: int = 100):
+    """读取环形缓冲内最近日志（时间正序）"""
+    ensure_plugin_log_ring()
+    items = list(_LOG_RING)
+    return items[-limit:] if limit and limit > 0 else items
 
 # 插件名（与 metadata.yaml name 字段一致，用于路由前缀）
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
@@ -98,7 +144,18 @@ def _extract_defaults_from_schema(plugin_root: str) -> dict:
         for item_name, item_def in items.items():
             if not isinstance(item_def, dict):
                 continue
-            category_config[item_name] = item_def.get("default")
+            default_val = item_def.get("default")
+            # v2.4.10（S1-1）：object/list/template_list 无 default 时填类型空值而非 None——
+            # 「恢复默认值」预设曾把 null 写进框架配置，热重载后 __init__ 读取
+            # advanced.splitter_advanced 时 .get() 返回存储的 None，抛 AttributeError，
+            # 插件加载坏死（需手改配置 JSON 才能恢复）
+            if default_val is None:
+                _t = item_def.get("type", "")
+                if _t == "object":
+                    default_val = {}
+                elif _t in ("list", "template_list"):
+                    default_val = []
+            category_config[item_name] = default_val
         config[category_name] = category_config
     return config
 
@@ -281,6 +338,10 @@ def register_web_apis(plugin, context):
     """
     # 获取插件根目录路径（main.py 所在目录）
     plugin_root = os.path.dirname(os.path.abspath(inspect.getfile(type(plugin))))
+
+    # v2.4.10（红队 ISSUE-1）：注册即挂载日志环形缓冲——
+    # 原懒挂载会令"首次打开日志页"之前的日志全部丢失
+    ensure_plugin_log_ring()
 
     prefix = f"/{PLUGIN_NAME}"
 
@@ -557,33 +618,9 @@ def register_web_apis(plugin, context):
 
             level = request.args.get("level", "").upper()
 
-            # 尝试多个可能的日志路径
-            possible_paths = [
-                os.path.join(plugin_root, "data", "plugin.log"),
-                os.path.join(plugin_root, "logs", "plugin.log"),
-            ]
-            log_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    log_path = path
-                    break
-
-            if not log_path:
-                return jsonify({
-                    "ok": True,
-                    "data": [],
-                    "count": 0,
-                    "message": "无插件日志文件",
-                })
-
-            # 使用 deque 保留最后 N 行（避免大文件内存爆炸）
-            logs = []
-            try:
-                with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-                    lines = deque(f, maxlen=limit)
-                logs = [line.rstrip("\n") for line in lines]
-            except Exception as e:
-                logger.warning(f"[smart_wakeup] 读取插件日志失败: {e}")
+            # v2.4.10（S4-2）：改读插件日志环形缓冲——原实现探测的两个日志文件
+            # 全插件无任何写入者，恒返回"无插件日志文件"
+            logs = get_ring_logs(limit=limit)
 
             # 按级别过滤（简单字符串匹配）
             if level:
@@ -593,7 +630,7 @@ def register_web_apis(plugin, context):
                 "ok": True,
                 "data": logs,
                 "count": len(logs),
-                "path": log_path,
+                "message": "" if logs else "暂无插件日志（运行后产生）",
             })
         except Exception as e:
             logger.error(f"[smart_wakeup] GET /config/logs 失败: {e}\n{traceback.format_exc()}")

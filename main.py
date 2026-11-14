@@ -49,6 +49,9 @@ class ChatEnergy:
     energy: float = 1.0
     last_reply_time: float = 0.0
     total_replies: int = 0
+    # v2.4.10（M3-1）：恢复检查点——只结算自上次恢复以来的增量，
+    # 防止每条群消息重复叠加"距上次回复的完整时长×速率"（超线性膨胀）
+    last_recovery_time: float = 0.0
 
 
 @dataclass
@@ -83,7 +86,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.4.7",
+    "2.4.10",
 )
 class LingxiPlugin(Star):
     """灵犀插件
@@ -2244,6 +2247,7 @@ class LingxiPlugin(Star):
         decay_rate = self._get_group_param(group_id, "energy_decay_rate", self.energy_decay_rate)
         state.energy = max(0.1, state.energy - decay_rate)
         state.last_reply_time = time.time()
+        state.last_recovery_time = state.last_reply_time  # v2.4.10（M3-1）：消耗点即恢复基准
         state.total_replies += 1
         logger.info(f"精力消耗: 群 {group_id} 精力降至 {state.energy:.2f}")
 
@@ -2252,11 +2256,17 @@ class LingxiPlugin(Star):
         if state.last_reply_time == 0:
             return
         now = time.time()
-        elapsed = now - state.last_reply_time
+        # v2.4.10（M3-1）：以 last_recovery_time 为基准结算增量。
+        # 原实现始终以 last_reply_time 为基准，_update_flow_state（L2277）与
+        # on_group_message（L3160）每条群消息各恢复一次，恢复量≈N条消息×rate×elapsed
+        # 超线性膨胀，energy_recovery_rate 的"每分钟"语义失效。检查点后重复调用只补 0。
+        base = state.last_recovery_time or state.last_reply_time
+        elapsed = now - base
         recovery_rate = self._get_group_param(group_id, "energy_recovery_rate", self.energy_recovery_rate)
         recovery = recovery_rate * (elapsed / 60.0)
         if recovery > 0:
             state.energy = min(1.0, state.energy + recovery)
+        state.last_recovery_time = now
 
     # ─── 心流状态机 ────────────────────────────────────────
 
@@ -2992,13 +3002,14 @@ class LingxiPlugin(Star):
         """监听群聊消息（Telegram / QQ）
 
         流程：
+        0. BOT自身消息过滤前置（QQ平台回显拦截，v2.4.10）
         1. 记录消息到缓冲区（所有消息，不论是否命中名称）
         2. 指令前缀跳过（含防抖清理，以 / 开头的消息直接跳过并取消已有防抖）
         2.5. 低信息量消息过滤（纯图片/表情包/emoji跳过判定）
         3. 检查是否需要定期清理
         4. 检查群白名单/黑名单
         5. 更新心流状态
-        6. 防抖处理 / 立即判定（受 force_debounce 控制）
+        6. 防抖处理 / 立即判定（受 force_debounce 控制；两条路径均含回复BOT确定性唤醒）
         """
         group_id = event.message_obj.group_id
         # ─── v1.5.0 主动发言：缓存 UMO（unified_msg_origin）用于主动发送消息 ───
@@ -3010,6 +3021,13 @@ class LingxiPlugin(Star):
         message_str = event.message_str or ""
         sender_name = event.get_sender_name()
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
+
+        # v2.4.10（M5-1）：BOT自身消息过滤前置——QQ(NapCat)会把BOT消息回显为群消息，
+        # 原过滤点在有效回复重置/厌烦检测/消息记录之后，BOT每发一条主动消息就会
+        # 自我重置"无人回应"计数（递进退让在QQ平台永远无法累积）并可能误触厌烦检测。
+        if sender_id and sender_id in self._bot_user_ids:
+            self._debug(f"BOT消息过滤(前置) | 发送者={sender_name}({sender_id}) 为BOT自身，跳过判定")
+            return
 
         # ─── v1.6.0 退让信号③：厌烦关键词检测（Phase 3 提前实现，复杂度低） ───
         # 在消息记录之前检测，确保即使指令前缀/媒体过滤也能捕获厌烦信号
@@ -3138,11 +3156,8 @@ class LingxiPlugin(Star):
             self._debug(f"转发复读过滤 | 消息为转发自BOT的复读，跳过判定 内容='{message_str[:30]}'")
             return
 
-        # 2.7 BOT自身消息过滤：BOT通过其他插件发送的消息不应触发唤醒判定
-        # QQ平台（NapCat）会将BOT自身消息作为群消息分发，需在此拦截
-        if sender_id in self._bot_user_ids:
-            self._debug(f"BOT消息过滤 | 发送者={sender_name}({sender_id}) 为BOT自身，跳过判定")
-            return
+        # 2.7 BOT自身消息过滤：v2.4.10（M5-1）已前置到 sender_id 取得后立即执行
+        # （本处原实现晚于有效回复重置/厌烦检测，QQ平台BOT回显会击穿递进退让机制）
 
         # 3. 检查是否需要定期清理
         self._maybe_cleanup()
@@ -3199,6 +3214,34 @@ class LingxiPlugin(Star):
         message_lower = message_str.lower()
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
         self._debug(f"立即判定开始 | 群={group_id} 消息='{message_str[:40]}'")
+
+        # 0. 检查回复BOT（v2.4.10 M4-1/M5-3）：防抖路径（_evaluate_debounced_messages
+        # step 0）自 v1.8.0 起支持回复BOT确定性唤醒，但关闭防抖/未命中强制防抖的消息
+        # 走本立即判定路径时缺同一分支——用户直接回复Bot（不含名称/关键词，如"嗯嗯"）
+        # 只剩低概率掷骰，大概率沉默。此处镜像防抖路径语义：用户概率门 + 确定性唤醒。
+        if self._is_reply_to_bot(event):
+            user_prob = self._get_user_prob(sender_id)
+            self._debug(f"回复BOT(立即) | 发送者={sender_id} 用户概率={user_prob:.2f}")
+            if user_prob <= 0:
+                return
+            if user_prob < 1.0 and random.random() > user_prob:
+                return
+            logger.info(f"灵犀(立即): 检测到回复BOT，确定性唤醒")
+            self._trigger_wake(event)
+            flow = self._get_flow(group_id)
+            if flow.engagement <= 0:
+                flow.conversation_turns = 1
+            else:
+                flow.conversation_turns += 1
+            flow.engagement = 1.0
+            flow.engagement_last_update = time.time()
+            if flow.state == FlowState.BYSTANDER:
+                self._transition_flow(group_id, FlowState.ATTENTIVE, "回复BOT触发升级")
+            event.set_extra("smart_wakeup_triggered", True)
+            event.set_extra("wakeup_type", "name_trigger")
+            self._stats["total_wakeups"] += 1
+            self._stats["name_trigger_wakeups"] += 1
+            return
 
         # 1. 检查名称匹配
         matched_name = None
@@ -3725,7 +3768,13 @@ class LingxiPlugin(Star):
         event.set_extra("smart_wakeup_prompt_len", len(event.message_str or ""))
         event.set_extra("smart_wakeup_system_prompt_len", len(req.system_prompt or ""))
         context_parts_len = sum(len(p.text) for p in parts if hasattr(p, 'text'))
-        event.set_extra("smart_wakeup_context_len", context_parts_len)
+        # v2.4.10（M6-2）：估算补计框架对话历史 req.contexts（群聊 prompt 大头），
+        # 原估算只算本插件注入的 parts，token 报告系统性大幅低估
+        try:
+            _ctx_len = len(json.dumps(req.contexts, ensure_ascii=False, default=str)) if req.contexts else 0
+        except Exception:
+            _ctx_len = 0
+        event.set_extra("smart_wakeup_context_len", context_parts_len + _ctx_len)
 
         req.extra_user_content_parts.extend(parts)
 
@@ -3798,9 +3847,21 @@ class LingxiPlugin(Star):
                     completion_tokens = usage.get('completion_tokens') or None
                     total_tokens = usage.get('total_tokens') or None
                 else:
-                    prompt_tokens = getattr(usage, 'prompt_tokens', None)
-                    completion_tokens = getattr(usage, 'completion_tokens', None)
-                    total_tokens = getattr(usage, 'total_tokens', None)
+                    # v2.4.10（M6-1）：AstrBot v4 的 usage 为 TokenUsage 实体
+                    # （input_other/input_cached/output，见 core/provider/entities.py），
+                    # 无 prompt_tokens 等旧字段——原提取链对 v4 形状 100% 失效，
+                    # 永远落入本地估算，token 统计严重失真。优先按 v4 实体提取。
+                    _io = getattr(usage, 'input_other', None)
+                    _ic = getattr(usage, 'input_cached', None)
+                    _out = getattr(usage, 'output', None)
+                    if _io is not None or _ic is not None or _out is not None:
+                        prompt_tokens = (_io or 0) + (_ic or 0)
+                        completion_tokens = _out or 0
+                        total_tokens = prompt_tokens + completion_tokens
+                    else:
+                        prompt_tokens = getattr(usage, 'prompt_tokens', None)
+                        completion_tokens = getattr(usage, 'completion_tokens', None)
+                        total_tokens = getattr(usage, 'total_tokens', None)
 
         # 方式3-5: 深度搜索（保留但简化）
         if not prompt_tokens:
@@ -4101,15 +4162,17 @@ class LingxiPlugin(Star):
             import asyncio
             # P1-9 修复：标记该群摘要任务正在执行，防止并发触发
             self._summary_in_progress.add(group_id)
+            # v2.4.10（M7-1）：把待摘要条数快照传入——摘要 await 期间群内新到的消息
+            # 不在本次摘要文本里，完成后不得连带挤掉（原 while len>threshold 会误删）
             asyncio.create_task(
-                self._summarize_conversation(group_id, conversation_text)
+                self._summarize_conversation(group_id, conversation_text, trim_count=len(records_to_summarize))
             )
         except Exception as e:
             # 创建任务失败时立即清除标记
             self._summary_in_progress.discard(group_id)
             logger.warning(f"[ConversationMemory] 摘要任务创建失败: {e}")
 
-    async def _summarize_conversation(self, group_id: str, conversation_text: str):
+    async def _summarize_conversation(self, group_id: str, conversation_text: str, trim_count: int = 0):
         """使用小模型对对话历史进行摘要压缩"""
         model = self.summary_model or self.compression_model
         if not model:
@@ -4160,10 +4223,17 @@ class LingxiPlugin(Star):
                     self._conversation_summaries[group_id] = summary
 
                 # 从历史中移除已摘要的记录
+                # v2.4.10（M7-1）：按触发时的快照数精确移除最旧记录——
+                # 原 while len>threshold 在摘要 await 期间新消息追加后，
+                # 会连带把未进摘要的窗口内记录挤掉（分层记忆永久空洞）
                 history = self._get_conversation_history(group_id)
-                threshold = self.recent_rounds_keep * 2
-                while len(history) > threshold:
-                    history.popleft()
+                if trim_count and trim_count > 0:
+                    for _ in range(min(trim_count, len(history))):
+                        history.popleft()
+                else:
+                    threshold = self.recent_rounds_keep * 2
+                    while len(history) > threshold:
+                        history.popleft()
 
                 logger.info(
                     f"[ConversationMemory] 群={group_id} 摘要生成完成 "
@@ -5378,7 +5448,11 @@ class LingxiPlugin(Star):
     # v2.4.6：直引号 " ' 从闭合符集合移除——直引号是双向的，段首的直引号
     # 几乎总是开引号（引用的开始），把它当闭合符会把正确切开的段又合并回去
     # （实测：空行处切分后，引号开头的段被误并回前段，空行留在消息里）
-    _LEADING_CLOSER = re.compile(r'^[”’』」》）】〕］)*#]{1,3}[，,。；;：:]?')
+    _LEADING_CLOSER = re.compile(r'^[”’』」》）】〕］)]{1,3}[，,。；;：:]?')
+    # v2.4.10（M8-1）：* 与 # 从段首闭合符集合移除——markdown 加粗/标题行
+    # （**第一**、## 标题）几乎总是合法新段的开始，把它们当闭合符会把正确切分
+    # 的段误并回前段，切分被静默撤销（与 v2.4.6 移除直引号同理）。
+    # 纯装饰符场景由 _ORPHAN_CLOSER 的全匹配（$ 锚）继续覆盖
     # v2.4.3：列表项起始（序号或子弹）
     _LIST_ITEM_START = re.compile(r'^(\d{1,2}[.、．]\s*\S|[（(]\d{1,2}[)）]\s*\S|[-*•]\s+\S)')
 
@@ -5441,7 +5515,10 @@ class LingxiPlugin(Star):
         merged = []
         for seg in segments:
             t = self._seg_plain_text(seg)
-            if not t:
+            # v2.4.10（M9-1）：仅丢弃"无文本且无非 Plain 组件"的段——
+            # 纯图片/语音段（_split_chain 会将媒体单独成段）此前被当空段
+            # 整段删除，多段回复中的媒体静默丢失
+            if not t and all(isinstance(c, Plain) for c in seg):
                 continue  # 空段丢弃（后处理亦有清理）
             if merged and (self._ORPHAN_CLOSER.match(t) or self._LEADING_CLOSER.match(t)):
                 merged[-1].extend(seg)
@@ -6684,9 +6761,16 @@ class LingxiPlugin(Star):
             # 取最后一个版本（模型的最终修订）
             filtered = parts[-1].strip()
             # 安全检查：最后一段不应以 ``` 开头（否则可能是代码块内部）
+            # v2.4.10（M10-1）：草稿判定加严——被丢弃段须与保留段高相似（≥0.5）
+            # 或含 [SKIP] 标记才判定为草稿分隔。原判定仅凭段数≥3，
+            # 会把"含 ≥2 个 fenced 代码块的合法回复"整体截断只剩最后一段
             if not filtered.startswith('```'):
-                logger.info(f"重复回复过滤: 检测到 {len(parts)} 个版本，保留最终版本（原文 {len(text)} 字 → 过滤后 {len(filtered)} 字）")
-                return filtered
+                discarded = parts[:-1]
+                skip_hit = any('[SKIP]' in p for p in discarded)
+                sim_hit = any(LingxiPlugin._calc_text_similarity(p, filtered) >= 0.5 for p in discarded)
+                if skip_hit or sim_hit:
+                    logger.info(f"重复回复过滤: 检测到 {len(parts)} 个版本，保留最终版本（原文 {len(text)} 字 → 过滤后 {len(filtered)} 字）")
+                    return filtered
 
         # 匹配 ``` 直接跟在文字后面的情况（GLM-4 新模式）：
         # 例如："这么有创意```[SKIP]```\n[SKIP]"
@@ -7923,6 +8007,28 @@ class LingxiPlugin(Star):
 
         return False
 
+    async def _trigger_test_speak(self, group_id: str, topic: str = "") -> dict:
+        """网页面板「测试发言」入口（v2.4.10 S4-1）
+
+        web_api.py POST /config/test_speak 自 v1.x 起即调用
+        plugin._trigger_test_speak(group_id, topic)，但该方法从未实现，
+        面板按钮恒 501。现复用主动发言管线（与 /wakeup_proactive 指令同链路）。
+
+        Args:
+            group_id: 目标群 ID
+            topic: 可选话题类别（如"科技资讯"），空则随机
+
+        Returns:
+            {"ok": bool, "message"/"error": str}
+        """
+        category = (topic or "").strip() or None
+        try:
+            await self._proactive_speak(str(group_id), category_override=category)
+            return {"ok": True, "message": f"测试发言已触发（群={group_id}，类别={category or '随机'}）"}
+        except Exception as e:
+            logger.warning(f"[smart_wakeup] 测试发言失败: {type(e).__name__}: {e}")
+            return {"ok": False, "error": str(e)}
+
     def _select_topic_category(self) -> str:
         """随机选择话题类别"""
         if not self._proactive_topic_categories:
@@ -8722,9 +8828,12 @@ class LingxiPlugin(Star):
         self._proactive_task = None
 
         # v1.9.7 新增 M3：关闭 FetcherManager 中的持久 aiohttp session
-        if hasattr(self, '_fetcher_manager') and self._fetcher_manager is not None:
+        # v2.4.10（S3-1）：修正属性名——实例属性为 _fetcher（__init__ 创建），
+        # 原检查 _fetcher_manager 全仓库无赋值点，hasattr 恒 False，
+        # RSSFetcher 的持久 session 自 v1.9.7 上线以来每次重载都在泄漏
+        if getattr(self, '_fetcher', None) is not None:
             try:
-                await self._fetcher_manager.close()
+                await self._fetcher.close()
             except Exception as e:
                 logger.warning(f"[terminate] 关闭 FetcherManager 失败: {e}")
 

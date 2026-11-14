@@ -88,6 +88,18 @@ class APIFetcher(BaseFetcher):
             logger.debug("[APIFetcher] 创建新的 aiohttp.ClientSession")
         return self._session
 
+    async def close(self):
+        """关闭持久 session（v2.4.10 S3-2）
+
+        与 RSSFetcher.close 对齐。FetcherManager.close 通过
+        hasattr(fetcher, 'close') 跳过无 close 方法的 fetcher——
+        API 源启用时其 session 原本在任何路径下都不会被关闭。
+        """
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+            logger.debug("[APIFetcher] 持久 session 已关闭")
+        self._session = None
+
     def _get_api_key(self) -> str:
         """获取 API Key
 
