@@ -530,6 +530,7 @@ class RSSFetcher(BaseFetcher):
                     # v1.8.0 修复（B1 二次审查 m7）：每个源最多取 max_items*2 条（适度冗余）
                     per_feed_limit = max(max_items * 2, 5)
                     enriched_count = 0  # v2.4.9：本源已富化条数（防请求风暴）
+                    _pending_enrich = []  # [(该条目在 items 中的下标, 文章页链接)]
                     for entry in feed.entries[:per_feed_limit]:
                         # 解析发布时间
                         published_at = datetime.now()
@@ -553,15 +554,14 @@ class RSSFetcher(BaseFetcher):
 
                         # v2.4.9（虎嗅事件）：标题党条目富化——摘要剥 HTML 后不足 30 字时
                         # 抓文章页提取正文（实测虎嗅 RSS 摘要恒空、文章页正文完整可用）。
-                        # 每源最多富化 5 条；失败静默保留原摘要（NewsFilter 兜底丢弃）
+                        # 每源最多富化 5 条（并发执行，最坏 +6s 而非串行 +30s）；
+                        # 失败静默保留原摘要（NewsFilter 兜底丢弃）
                         _plain_len = len(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", raw_summary)).strip())
                         article_url = (entry.get("link") or "").strip()
                         if (_plain_len < 30 and enriched_count < self._MAX_ENRICH_PER_FEED
                                 and article_url.startswith("http") and aiohttp is not None):
-                            enriched_text = await self._enrich_summary_from_article(article_url, proxy_url)
-                            if enriched_text:
-                                raw_summary = enriched_text
-                                enriched_count += 1
+                            _pending_enrich.append((len(items), article_url))
+                            enriched_count += 1
 
                         # v2.4.9：摘要上限 200→600 字——给 LLM 足够事实可转述
                         summary = raw_summary[:600]
@@ -584,6 +584,20 @@ class RSSFetcher(BaseFetcher):
                                 image_url=_extract_first_image(entry),
                             )
                         )
+
+                    # v2.4.9：并发执行待富化条目（红队 minor：串行最坏 +30s → 并发 +6s）
+                    if _pending_enrich:
+                        _enriched = await asyncio.gather(
+                            *(self._enrich_summary_from_article(u, proxy_url) for _i, u in _pending_enrich),
+                            return_exceptions=True,
+                        )
+                        _ok_count = 0
+                        for (_idx, _u), _text in zip(_pending_enrich, _enriched):
+                            if isinstance(_text, str) and _text and _idx < len(items):
+                                items[_idx].summary = _text[:600]
+                                _ok_count += 1
+                        if _ok_count:
+                            logger.info(f"[RSSFetcher] {feed_url} 标题党富化 {_ok_count}/{len(_pending_enrich)} 条成功")
 
                     logger.info(
                         f"[RSSFetcher] {feed_url} 获取 {len(items)} 条 "

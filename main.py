@@ -7823,8 +7823,8 @@ class LingxiPlugin(Star):
         # 移除 < > 字符（替换为全角，保留可读性）
         text = str(text).replace("<", "＜").replace(">", "＞")
         # 限制长度（防止超长内容消耗 token）
-        if len(text) > 500:
-            text = text[:500] + "..."
+        if len(text) > 600:
+            text = text[:600] + "..."
         return text
 
     def _extract_proactive_output(self, text: str) -> str:
