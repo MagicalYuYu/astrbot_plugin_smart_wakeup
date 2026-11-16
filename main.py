@@ -86,7 +86,7 @@ class DebounceState:
     "astrbot_plugin_lingxi",
     "AstrBot Plugin Developer",
     "让群机器人变成真正的群友：会主动找话题、知趣收声、有作息。兼容 QQ 与 Telegram",
-    "2.4.9",
+    "2.4.10",
 )
 class LingxiPlugin(Star):
     """灵犀插件

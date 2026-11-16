@@ -120,7 +120,7 @@ def get_ring_logs(limit: int = 100):
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
 
 # 配置文件版本
-CONFIG_VERSION = "2.4.9"
+CONFIG_VERSION = "2.4.10"
 
 
 # ============================================================================
