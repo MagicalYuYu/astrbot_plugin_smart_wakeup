@@ -16,7 +16,7 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageChain
 from astrbot.api.star import Context, Star, register, StarTools
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.provider import LLMResponse, ProviderRequest
-from astrbot.api.message_components import Plain, BaseMessageComponent, Reply, Record, Image
+from astrbot.api.message_components import Plain, Reply, Record, Image
 
 # 回复抑制：内置默认合规判别提示词
 _DEFAULT_JUDGE_PROMPT = """请判断BOT的回复是否适宜在群聊中发出。
@@ -131,10 +131,10 @@ class LingxiPlugin(Star):
         ]
         self.enable_private_chat = basic.get("enable_private_chat", False)
 
-        # 消息缓冲区配置
-        self.context_messages_count = min(
+        # 消息缓冲区配置（下限 1，上限 200）
+        self.context_messages_count = max(1, min(
             basic.get("context_messages_count", 10), 200
-        )
+        ))
 
         # 上下文优化配置
         self.context_truncation_enabled = basic.get("context_truncation_enabled", True)
@@ -371,6 +371,7 @@ class LingxiPlugin(Star):
         # P1-9 修复：摘要任务并发去重标记，防止多条 assistant 消息触发多个摘要任务并发修改
         # _conversation_history（popleft）和 _conversation_summaries（追加）导致竞态
         self._summary_in_progress: set[str] = set()
+        self._bg_tasks: set = set()  # v2.4.10：后台摘要任务引用集合（防 GC 中途回收）
 
         # 输出去重缓存：防止 LLM 工具调用或重复响应导致同一内容被多次发送
         # _sent_content_cache: {group_id: deque of (fingerprint, timestamp)}
@@ -406,6 +407,7 @@ class LingxiPlugin(Star):
             "total_messages_recorded": 0,
             "total_wakeups": 0,
             "name_trigger_wakeups": 0,
+            "keyword_trigger_wakeups": 0,
             "probability_wakeups": 0,
             "rescue_wakeups": 0,
             "probability_checks": 0,
@@ -435,14 +437,8 @@ class LingxiPlugin(Star):
             # 压缩统计
             # 路由统计
             "routing_stats": {
-                "glm47_count": 0,
+                "model_fallback_count": 0,
                 "small_model_count": 0,
-                "cascade_upgrade_count": 0,
-            },
-            # 分段统计
-            "splitter_stats": {
-                "total_splits": 0,
-                "total_segments_sent": 0,
             },
             # 回复抑制统计
             "suppression_stats": {
@@ -533,7 +529,7 @@ class LingxiPlugin(Star):
         self._proactive_check_interval = max(300, proactive_cfg.get("proactive_check_interval", 600))
         self._proactive_cooldown = max(600, proactive_cfg.get("proactive_cooldown", 1800))
         self._proactive_daily_limit = max(1, proactive_cfg.get("proactive_daily_limit", 20))
-        self._proactive_probability = proactive_cfg.get("proactive_probability", 0.6)
+        self._proactive_probability = max(0.0, min(proactive_cfg.get("proactive_probability", 0.6), 1.0))
         self._proactive_time_window_start = proactive_cfg.get("proactive_time_window_start", "09:00")
         self._proactive_time_window_end = proactive_cfg.get("proactive_time_window_end", "23:00")
         # v1.8.4 新增：静默时段配置（支持多段，如 "23:00-07:00,13:00-14:00"）
@@ -931,19 +927,24 @@ class LingxiPlugin(Star):
                 for name in self.bot_names:
                     if re.search(r'\[引用消息\(' + re.escape(name) + r'[:/\] ]', text):
                         self._debug(f"回复检测 | Plain组件匹配引用BOT名称'{name}'")
-                        # 反向记录：如果此消息有 Reply 组件，其 sender_id 就是 BOT 的数字 ID
-                        if has_reply and reply_sender_id and str(reply_sender_id) not in self._bot_user_ids:
-                            self._bot_user_ids.add(str(reply_sender_id))
-                            self._debug(f"BOT用户ID记录(反向) | 从引用消息推断BOT ID={reply_sender_id}")
+                        # 反向记录：仅当 reply_sender_id 已确认为非当前用户且与 self_id 一致时才写入，
+                        # 防止与 BOT 同名的人类用户被误标记（写入后该用户将被永久跳过）
+                        if has_reply and reply_sender_id:
+                            _sid = str(getattr(message_obj, "self_id", "") or "")
+                            if _sid and str(reply_sender_id) == _sid:
+                                self._bot_user_ids.add(str(reply_sender_id))
+                                self._debug(f"BOT用户ID记录(反向) | reply_sender_id==self_id，确认为BOT ID={reply_sender_id}")
                         return True
 
             # 方式3：检查 message_str 中的引用格式
             if self._detect_quote_reply_to_bot(event):
                 self._debug(f"回复检测 | message_str匹配引用BOT名称")
-                # 同样尝试反向记录
-                if has_reply and reply_sender_id and str(reply_sender_id) not in self._bot_user_ids:
-                    self._bot_user_ids.add(str(reply_sender_id))
-                    self._debug(f"BOT用户ID记录(反向) | 从引用消息推断BOT ID={reply_sender_id}")
+                # 仅当 reply_sender_id 与 self_id 一致时才反向记录（防同名误标）
+                if has_reply and reply_sender_id:
+                    _sid = str(getattr(message_obj, "self_id", "") or "")
+                    if _sid and str(reply_sender_id) == _sid:
+                        self._bot_user_ids.add(str(reply_sender_id))
+                        self._debug(f"BOT用户ID记录(反向) | reply_sender_id==self_id，确认为BOT ID={reply_sender_id}")
                 return True
 
             # 方式4：检查 Telegram 转发来源（加一复读等场景）
@@ -1295,10 +1296,17 @@ class LingxiPlugin(Star):
             return True
 
         # 第四步：检查剩余文本是否包含有效内容
-        # 有效内容 = 中文字符（CJK统一汉字）或连续2个及以上的字母/数字
-        # 纯标点、颜文字如 (¬_¬) ¯\_(ツ)_/¯ 等不含有效内容
-        has_cjk = any(0x4E00 <= ord(ch) <= 0x9FFF or 0x3400 <= ord(ch) <= 0x4DBF for ch in text)
-        if has_cjk:
+        # 有效内容 = CJK 文字（含假名/谚文）、西里尔、希腊字母，或连续 2 个及以上的字母/数字
+        has_text = any(
+            0x0370 <= ord(ch) <= 0x04FF    # 希腊 + 西里尔
+            or 0x3040 <= ord(ch) <= 0x30FF  # 假名
+            or 0x3400 <= ord(ch) <= 0x4DBF  # CJK 扩展 A
+            or 0x4E00 <= ord(ch) <= 0x9FFF  # CJK 统一汉字
+            or 0xAC00 <= ord(ch) <= 0xD7AF  # 谚文音节
+            or 0x20000 <= ord(ch) <= 0x2A6DF  # CJK 扩展 B
+            for ch in text
+        )
+        if has_text:
             return False
 
         has_word = bool(re.search(r'[a-zA-Z0-9]{2,}', text))
@@ -1403,19 +1411,19 @@ class LingxiPlugin(Star):
                 self._debug(f"触发唤醒 | 群={group_id} LLM执行中({elapsed:.0f}秒)，保留首次定时器不覆盖")
 
         event.is_at_or_wake_command = True
+        original = event.message_str or ""
         if self.wake_command_prefix:
-            original = event.message_str or ""
             # 直接使用用户填写的前缀，核心管道会自行处理斜杠
             event.message_str = self.wake_command_prefix + " " + original
             self._debug(f"触发唤醒 | 前缀='{self.wake_command_prefix}' 修改前='{original[:40]}' 修改后='{event.message_str[:40]}'")
         else:
             self._debug(f"触发唤醒 | 无前缀 message_str='{(event.message_str or '')[:40]}'")
 
-        # 记录用户消息到对话历史
+        # 记录用户消息到对话历史（记录原始文本，不含唤醒前缀）
         if self.conversation_memory_enabled:
             group_id = event.message_obj.group_id
             if group_id:
-                self._record_user_message(group_id, event.message_str or "", event.get_sender_name() or "")
+                self._record_user_message(group_id, original, event.get_sender_name() or "")
 
     def _start_llm_flag_timer(self, group_id: str):
         """启动 LLM 执行中标志的主动超时定时器
@@ -1520,7 +1528,7 @@ class LingxiPlugin(Star):
             self._msg_buffer[group_id] = deque(maxlen=maxlen)
         return self._msg_buffer[group_id]
 
-    def _record_message(self, event: AstrMessageEvent, meta=None):
+    def _record_message(self, event: AstrMessageEvent):
         """将群聊消息记录到缓冲区
 
         记录所有群消息（包括未 @ 机器人的），
@@ -1570,7 +1578,7 @@ class LingxiPlugin(Star):
         if has_image and (not text or not text.strip()):
             # 纯图片消息：分配唯一编码，尝试提取框架生成的图片描述
             image_id = f"img_{uuid.uuid4().hex[:8]}"
-            meta = meta or {}
+            meta = {}
             meta["image_id"] = image_id
             if image_url:
                 meta["image_url"] = image_url
@@ -1589,6 +1597,10 @@ class LingxiPlugin(Star):
                 meta["image_description"] = image_desc
                 buffer.append((sender, f"[图片: {image_desc}]", int(time.time()), meta))
                 self._debug(f"图片记录(含描述) | 群={group_id} 发送者={sender} image_id={image_id} 描述='{image_desc[:50]}'")
+            elif is_sticker:
+                # 表情贴图无需识别
+                meta["image_pending"] = False
+                buffer.append((sender, "[图片]", int(time.time()), meta))
             else:
                 # 框架未提供描述：记录占位符，等待自定义模型识别
                 meta["image_pending"] = True
@@ -1604,8 +1616,7 @@ class LingxiPlugin(Star):
 
         # 带文字的图片消息：在文本末尾标注图片编码
         if has_image:
-            if meta is None:
-                meta = {}
+            meta = {}
             image_id = f"img_{uuid.uuid4().hex[:8]}"
             meta["image_id"] = image_id
             # 优先从 message_str 提取框架生成的图片描述，其次从 Image 组件属性获取
@@ -1675,30 +1686,25 @@ class LingxiPlugin(Star):
         text = re.sub(r'Sticker:\s*\S+', '[贴纸]', text)
         return text
 
-    def _format_context(self, group_id: str) -> tuple[str, int, int]:
+    def _format_context(self, group_id: str) -> str:
         """将消息缓冲区格式化为 LLM 可读的上下文文本
-
-        v2.3.1：incremental 增量模式已随自管上下文架构一并删除，
-        统一为全量模式（取最近 context_messages_count 条）。
 
         Args:
             group_id: 群ID
 
         Returns:
-            (formatted_text, new_msg_count, old_msg_count)
+            格式化后的上下文文本
         """
         buffer = self._msg_buffer.get(group_id)
         if not buffer:
-            return "", 0, 0
+            return ""
 
         all_messages = list(buffer)
         # 全量模式：取最近 context_messages_count 条
         messages = all_messages[-self.context_messages_count:]
-        old_msg_count = len(messages)
-        new_msg_count = 0
 
         if not messages:
-            return "", 0, 0
+            return ""
 
         # 统计近期活跃用户（去重，排除 BOT）
         active_users = set()
@@ -1758,7 +1764,7 @@ class LingxiPlugin(Star):
 
             lines.append(f"[{display_name}]{relation_tag}: {text}")
 
-        return "\n".join(lines), new_msg_count, old_msg_count
+        return "\n".join(lines)
 
     def _filter_command_lines_from_context(self, context_text: str) -> str:
         """过滤 context 中的命令文本行（v1.8.1 新增，修复 P0 根因 2）
@@ -2063,11 +2069,15 @@ class LingxiPlugin(Star):
         - debounce_wait_prob: 概率唤醒等待时间
         - debounce_wait_rescue: 冷场救场等待时间
         - keyword_reply_prob: 关键词回复概率
-        - proactive_enabled: 主动发言开关（v1.5.0 新增）
-        - proactive_cooldown: 主动发言冷却（v1.5.0 新增）
-        - proactive_daily_limit: 主动发言每日上限（v1.5.0 新增）
-        - proactive_probability: 主动发言触发概率（v1.5.0 新增）
-        - proactive_min_energy: 主动发言最少精力值（v1.5.0 新增）
+        - proactive_enabled: 主动发言开关
+        - proactive_cooldown: 主动发言冷却
+        - proactive_daily_limit: 主动发言每日上限
+        - proactive_probability: 主动发言触发概率
+        - proactive_min_energy: 主动发言最少精力值
+        - light_response_prob: 轻量回应概率
+        - light_response_cooldown: 轻量回应冷却时间
+        - light_response_max_per_hour: 轻量回应每小时上限
+        - proactive_quiet_hours: 单群静默时段
         """
         overrides = self.group_overrides.get(str(group_id), {})
         if param_name in overrides:
@@ -2239,7 +2249,6 @@ class LingxiPlugin(Star):
     async def _check_probability_wakeup(self, event: AstrMessageEvent):
         group_id = event.message_obj.group_id
         flow = self._get_flow(group_id)
-        energy = self._get_energy(group_id)
         sender_id = str(getattr(event.message_obj.sender, "user_id", ""))
 
         # v1.8.5 新增：退让状态检查（避免概率唤醒绕过递进退让机制）
@@ -2446,13 +2455,20 @@ class LingxiPlugin(Star):
 
         # 计算静默间隔：优先使用防抖状态记录的间隔（准确），
         # 否则从缓冲区计算（适用于非防抖场景）
-        idle_gap = silence_gap
+        # v2.4.10：调用路径上当前消息已入 buffer——buffer[-1] 即当前消息，
+        # now - buffer[-1][2] ≈ 0 会导致冷场救场永远不触发。
+        # 改用 buffer[-2]（当前消息的前一条）计算距上一条的静默时长；
+        # 仅一条时（无前一条）回退传入的 silence_gap。
+        buffer = self._msg_buffer.get(group_id)
+        if buffer and len(buffer) >= 2:
+            idle_gap = now - buffer[-2][2]
+        elif buffer:
+            idle_gap = silence_gap
+        else:
+            idle_gap = silence_gap
         if idle_gap <= 0:
-            buffer = self._msg_buffer.get(group_id)
-            if not buffer or len(buffer) < 2:
-                self._debug(f"冷场救场 | 群={group_id} 缓冲区不足2条，跳过")
-                return
-            idle_gap = buffer[-1][2] - buffer[-2][2]
+            self._debug(f"冷场救场 | 群={group_id} 无可用时间基准，跳过")
+            return
 
         # 冷场判定：静默间隔超过阈值
         idle_threshold = self._get_group_param(group_id, "rescue_idle_threshold", self.rescue_idle_threshold)
@@ -2888,10 +2904,11 @@ class LingxiPlugin(Star):
         """监听群聊消息（Telegram / QQ）
 
         流程：
-        0. BOT自身消息过滤前置（QQ平台回显拦截，v2.4.9）
+        0. BOT自身消息过滤前置（QQ平台回显拦截）
         1. 记录消息到缓冲区（所有消息，不论是否命中名称）
         2. 指令前缀跳过（含防抖清理，以 / 开头的消息直接跳过并取消已有防抖）
         2.5. 低信息量消息过滤（纯图片/表情包/emoji跳过判定）
+        2.6. 转发复读过滤（Telegram 转发BOT消息场景）
         3. 检查是否需要定期清理
         4. 检查群白名单/黑名单
         5. 更新心流状态
@@ -3284,10 +3301,11 @@ class LingxiPlugin(Star):
         if not group_id:
             return
 
-        # 清除 LLM 执行中标志（双重保障：on_decorating_result 也会清除）
-        self._llm_running_groups.pop(group_id, None)
-        # 取消主动超时定时器
-        self._cancel_llm_flag_timer(group_id)
+        # v2.4.10（M5-8）：仅清除本插件唤醒触发的标志——非唤醒消息的 after_message_sent
+        # 不应提前摘除在途唤醒的互斥锁（否则可能双发）
+        if event.get_extra("smart_wakeup_triggered"):
+            self._llm_running_groups.pop(group_id, None)
+            self._cancel_llm_flag_timer(group_id)
 
         # 回复抑制时跳过记录（零宽空格消息不应写入缓冲区和对话历史）
         if event.get_extra("smart_wakeup_suppressed"):
@@ -3649,17 +3667,17 @@ class LingxiPlugin(Star):
                         return
                     else:
                         logger.warning(f"[ModelRoute] 小模型返回为空，回退到主模型")
-                        self._stats["routing_stats"]["glm47_count"] += 1
+                        self._stats["routing_stats"]["model_fallback_count"] += 1
                 else:
                     logger.warning(f"[ModelRoute] 未找到提供商 {routing_model}，回退到主模型")
-                    self._stats["routing_stats"]["glm47_count"] += 1
+                    self._stats["routing_stats"]["model_fallback_count"] += 1
             except asyncio.CancelledError:
                 raise  # Pipeline被取消，向上传播
             except Exception as e:
                 logger.warning(f"[ModelRoute] 小模型调用异常: {e}，回退到主模型")
-                self._stats["routing_stats"]["glm47_count"] += 1
+                self._stats["routing_stats"]["model_fallback_count"] += 1
         else:
-            self._stats["routing_stats"]["glm47_count"] += 1
+            self._stats["routing_stats"]["model_fallback_count"] += 1
 
         # 存储 prompt 文本长度，供 on_llm_response 估算 token 使用
         event.set_extra("smart_wakeup_prompt_len", len(event.message_str or ""))
@@ -3698,10 +3716,8 @@ class LingxiPlugin(Star):
             return
 
         # 检测 tool_call：当 LLM 使用 send_message_to_user 时标记，防止重复输出
-        # v2.4.4：补充 AstrBot 统一实体字段探测（tools_call_args/tools_call_name）
-        # ——原探测只认 OpenAI 格式（finish_reason/tool_calls），对 anthropic 源
-        # 与 openai 源统一封装的 LLMResponse 实体全部失效，anthropic 格式下
-        # send_message_to_user 双发问题因此漏网
+        # v2.4.10（M6-6）：finish_reason/tool_calls 为 OpenAI 原始格式兼容保留——
+        # v4 统一封装后实际走 tools_call_args/tools_call_name 路径
         finish_reason = getattr(resp, 'finish_reason', None)
         tool_calls = getattr(resp, 'tool_calls', None)
         tools_call_args = getattr(resp, 'tools_call_args', None)
@@ -3857,17 +3873,12 @@ class LingxiPlugin(Star):
 
     @filter.on_using_llm_tool()
     async def on_using_llm_tool(self, event: AstrMessageEvent, tool, tool_args: dict):
-        """检测 LLM 工具调用，拦截 send_message_to_user 的重复发送
+        """检测 LLM 工具调用，标记 send_message_to_user 防止双发
 
-        当 LLM 返回 finish_reason='tool_calls' 且同时包含 content 和 tool_calls 时，
-        框架会先通过 on_decorating_result 发送 content，再通过 send_message_to_user 发送相同内容，
-        导致用户看到重复消息。此方法在 tool 执行前拦截重复发送。
-
-        防御机制（三层）：
-        1. 设置 event flag，让后续 on_decorating_result 调用能检测到 tool_call
-        2. 提取 send_message_to_user 的消息文本，与已发送内容比对
-        3. 若重复，同时修改 tool_args 和 tool.handler，双管齐下阻止重复发送
-           注意：tool 对象来自框架 tools_map 共享引用，handler 替换后必须恢复
+        当 LLM 使用 send_message_to_user 工具时，框架的 on_decorating_result
+        可能同时发送 content 导致用户看到重复消息。此方法在 tool 执行前
+        设置标记，让 on_decorating_result 检测到 tool_call 时清空 result.chain，
+        由 tool_loop 成为唯一发送通道。同时对 tool_args 中的文本做思考标签过滤。
         """
         if not event.get_extra("smart_wakeup_triggered"):
             return
@@ -3876,14 +3887,11 @@ class LingxiPlugin(Star):
             group_id = event.message_obj.group_id
             event.set_extra("smart_wakeup_has_tool_call", True)
 
-            # 提取 send_message_to_user 的消息文本
-            tool_text = self._extract_tool_message_text(tool_args)
-
             # P0 修复：对 tool_args 中的文本统一过滤思考标签和上下文标签
             # ToolCall 场景下 LLM 可能在 tool_args 中混入思考标签，此处是唯一的过滤机会
             self._filter_tool_args_text(tool_args)
 
-            # 重新提取过滤后的文本用于日志
+            # 提取过滤后的文本用于日志
             tool_text = self._extract_tool_message_text(tool_args)
 
             # P1-11 修复：移除原去重检查分支（依赖 _sent_content_cache，但 hook 执行顺序
@@ -3977,6 +3985,15 @@ class LingxiPlugin(Star):
         self._stats["token_by_group"][gid]["total"] += total_tokens
         self._stats["token_by_group"][gid]["count"] += 1
 
+        # v2.4.10（M6-8）：归因字典惰性淘汰——按群/模型保留最近 200 键、按小时保留最近 72 小时，
+        # 防止长期运行缓慢膨胀（几百群 × 月级运行可累积数万键）
+        if len(self._stats["token_by_group"]) > 200:
+            _sorted = sorted(self._stats["token_by_group"].items(), key=lambda kv: kv[1]["count"], reverse=True)
+            self._stats["token_by_group"] = dict(_sorted[:200])
+        if len(self._stats["token_by_model"]) > 50:
+            _sorted = sorted(self._stats["token_by_model"].items(), key=lambda kv: kv[1]["count"], reverse=True)
+            self._stats["token_by_model"] = dict(_sorted[:50])
+
         # 按小时统计
         hour_key = datetime.now().strftime("%Y-%m-%dT%H")
         if hour_key not in self._stats["hourly_tokens"]:
@@ -3985,6 +4002,11 @@ class LingxiPlugin(Star):
         self._stats["hourly_tokens"][hour_key]["completion"] += completion_tokens
         self._stats["hourly_tokens"][hour_key]["total"] += total_tokens
         self._stats["hourly_tokens"][hour_key]["count"] += 1
+        # v2.4.10（M6-8）：小时桶只保留最近 72 个
+        if len(self._stats["hourly_tokens"]) > 72:
+            _keys = sorted(self._stats["hourly_tokens"].keys())
+            for _k in _keys[:-72]:
+                del self._stats["hourly_tokens"][_k]
 
         # 峰值追踪
         if prompt_tokens > self._stats["peak_prompt_tokens"]:
@@ -4070,11 +4092,13 @@ class LingxiPlugin(Star):
             import asyncio
             # P1-9 修复：标记该群摘要任务正在执行，防止并发触发
             self._summary_in_progress.add(group_id)
-            # v2.4.9（M7-1）：把待摘要条数快照传入——摘要 await 期间群内新到的消息
-            # 不在本次摘要文本里，完成后不得连带挤掉（原 while len>threshold 会误删）
-            asyncio.create_task(
+            # v2.4.10（M7-9）：create_task 返回值需持引用（set + done 回调 discard），
+            # 防止被 GC 中途回收
+            _task = asyncio.create_task(
                 self._summarize_conversation(group_id, conversation_text, trim_count=len(records_to_summarize))
             )
+            self._bg_tasks.add(_task)
+            _task.add_done_callback(self._bg_tasks.discard)
         except Exception as e:
             # 创建任务失败时立即清除标记
             self._summary_in_progress.discard(group_id)
@@ -4285,6 +4309,9 @@ class LingxiPlugin(Star):
         from astrbot.core.agent.message import TextPart
 
         while time.time() < deadline:
+            # v2.4.10（M7-7）：每轮刷新时间基准——原写法在循环外捕获 now，
+            # 等待窗口（最长 8s）内时间基准冻结，旧图会被误判为"窗口内"
+            now = time.time()
             records = list(gcc.raw_records.get(umo, []))
             id_list = list(getattr(gcc, "_record_ids", {}).get(umo, []))
             record_id = event.get_extra("_group_context_record_id")
@@ -4301,7 +4328,10 @@ class LingxiPlugin(Star):
             if recent_image_recs:
                 # 已到位的近期描述。索引 ≤ cur_idx 的由框架正常注入；
                 # > cur_idx 的（迟到记录，框架会跳过）由本钩子补注
-                late = [rec for rec in recent_image_recs if records.index(rec) > cur_idx]
+                # v2.4.10（M7-6）：身份定位替代 records.index(rec)——
+                # 重复文本记录时按值查位置会取首索引导致串位
+                late = [rec for i, rec in enumerate(records)
+                        if i > cur_idx and any(rec is r for r in recent_image_recs)]
                 for rec in late:
                     req.extra_user_content_parts.append(
                         TextPart(text=f"<recent_image_context>\n{rec}\n</recent_image_context>")
@@ -4520,23 +4550,15 @@ class LingxiPlugin(Star):
             return
 
         # 首次运行时探测 result/event 的可用属性（仅记录一次）
+        # v2.4.10（M7-5）：降为 DEBUG 并截断，避免整段回复内容打进 INFO 日志
         if not getattr(self, '_attr_probe_done', False):
             self._attr_probe_done = True
             _result_attrs = [a for a in dir(result) if not a.startswith('_') and not callable(getattr(result, a, None))]
             _event_llm_attrs = [a for a in dir(event) if 'llm' in a.lower() or 'resp' in a.lower() or 'tool' in a.lower()]
-            logger.info(
+            logger.debug(
                 f"[ToolCallDetect] 属性探测 | result 属性={_result_attrs} | "
                 f"event LLM相关属性={_event_llm_attrs}"
             )
-            # 检查关键属性
-            for attr in ['tool_calls', 'finish_reason', 'result', 'completion_text']:
-                val = getattr(result, attr, 'NOT_FOUND')
-                if val != 'NOT_FOUND':
-                    logger.info(f"[ToolCallDetect] result.{attr} = {val}")
-            for attr in ['_llm_response', 'llm_response', '_resp', 'resp']:
-                val = getattr(event, attr, 'NOT_FOUND')
-                if val != 'NOT_FOUND':
-                    logger.info(f"[ToolCallDetect] event.{attr} type={type(val).__name__}")
 
         # 记录过滤前的文本状态（供分段调试）
         pre_filter_text = ""
@@ -4752,7 +4774,9 @@ class LingxiPlugin(Star):
                     has_tool_call = True
                     logger.info(f"[ToolCallDetect] on_decorating_result 检测到 event LLM 响应中的 tool_call | finish_reason={_event_fr}")
 
-        # 策略4: 深度探测 event 内部属性（遍历所有属性查找 tool_call/finish_reason 信息）
+        # 策略4: 深度探测 event 内部属性（仅当前三种策略均未命中时执行）
+        # v2.4.10（M7-8）：dir(event) 反射有性能开销，正常回复（无 tool_call）每次
+        # 都会空转扫描一遍——加注释说明此策略为防御纵深，实际主路径是策略1/2/3
         if not has_tool_call:
             for attr_name in dir(event):
                 if attr_name.startswith('_'):
@@ -4809,10 +4833,8 @@ class LingxiPlugin(Star):
     def _suppress_reply(self, event: AstrMessageEvent, group_id: str, response_text: str):
         """执行回复抑制：清空输出、撤销对话记忆、恢复精力
 
-        注意：不能使用 result.chain.clear() 清空输出，因为 intelligent_retry 插件
-        会将空回复视为 LLM 调用失败并触发重试，重试结果绕过 on_decorating_result
-        直接发送，导致 [SKIP] 等抑制标记原样输出给用户。
-        解决方案：用零宽空格替换输出内容，使 retry 插件判定为"非空回复"而跳过重试。
+        v2.3.3 起：清空 result.chain（留空 MessageChain），框架 respond 阶段
+        优雅跳过空链。零宽空格方案已在 v2.3.3 废弃。
         """
         # ── 安全话语替代检查 ──
         # 当回复被抑制时，以一定概率输出简短附和语替代完全沉默
@@ -4848,12 +4870,9 @@ class LingxiPlugin(Star):
                             # 更新频率统计
                             self._light_response_last[group_id] = now
                             self._light_response_count[group_id] = count + 1
-                            # 撤销对话记忆中的 LLM 原始输出（被抑制了）
-                            if self.conversation_memory_enabled and group_id in self._conversation_history:
-                                history = self._conversation_history[group_id]
-                                if history and history[-1][0] == "assistant":
-                                    removed = history.pop()
-                                    self._debug(f"[安全话语] 撤销LLM原始输出 | 群={group_id} 内容='{removed[1][:50]}'")
+                            # v2.4.10（M8-4）：移除不可达的对话记忆 pop——本函数运行于
+                            # on_decorating_result 阶段，assistant 消息尚未入史（在
+                            # after_message_sent 才记录），history[-1] 恒为 user
                             # 注意：不恢复精力（BOT 确实发言了）
                             # 注意：不更新抑制统计（这不是抑制，是替代输出）
                             logger.info(
@@ -4984,7 +5003,9 @@ class LingxiPlugin(Star):
         if self.delay_strategy == "log":
             return min(self.log_base + self.log_factor * math.log(len(text) + 1), 5.0)
         if self.delay_strategy == "linear":
-            return self.linear_base + (len(text) * self.linear_factor)
+            # v2.4.10（M8-6）：linear 延迟加单段上限 8s——超长文本累计延迟
+            # 可达数十秒级，串行阻塞 on_decorating_result
+            return min(self.linear_base + (len(text) * self.linear_factor), 8.0)
         return self.fixed_delay
 
     # ─── TTS 分段适配（v2.1.0）──────────────────────────────
@@ -5658,7 +5679,6 @@ class LingxiPlugin(Star):
                     await self.context.send_message(event.unified_msg_origin, mc)
                     sent_count += 1
                     cursor = i + 1
-                    self._stats["splitter_stats"]["total_segments_sent"] += 1
                     await asyncio.sleep(self._calculate_segment_delay(text_content))
                 except Exception as e:
                     logger.error(f"[分段] 发送失败: {e}")
@@ -5684,13 +5704,11 @@ class LingxiPlugin(Star):
                     # 语音替换文字：chain 留空（respond 阶段优雅跳过，after_message_sent 照常）
                     # v2.1.1 修复：原零宽占位符会被当成正常文本发出形成空气泡
                     result.chain.clear()
-                    self._stats["splitter_stats"]["total_splits"] += 1
                     logger.info(f"[分段] 完成: {len(segments)}段, 主动发送{sent_count}段, 末段已配音（替换文字）")
                     return
         result.chain.clear()
         result.chain.extend(last_seg)
 
-        self._stats["splitter_stats"]["total_splits"] += 1
         logger.info(f"[分段] 完成: {len(segments)}段, 主动发送{sent_count}段, 最后1段交由正常流程")
 
     # ─── 调试指令 ──────────────────────────────────────────
@@ -5885,7 +5903,8 @@ class LingxiPlugin(Star):
             yield event.plain_result(
                 f"过期清理完成:\n"
                 f"群数: {before_groups} → {after_groups}\n"
-                f"消息数: {before_total} → {after_total}"
+                f"消息数: {before_total} → {after_total}\n"
+                f"（同时清除过期群的精力/心流/救场/UMO/主动发言状态）"  # v2.4.10：回执补全说明
             )
         else:
             # 清理当前群
@@ -6176,6 +6195,9 @@ class LingxiPlugin(Star):
             return
 
         # 根据计数变化判断是否实际发言
+        # v2.4.10（M9-4）：today 在 await 后重采样——跨零点触发时
+        # count_after 读旧日期计数会误报"未实际发言"
+        today = datetime.now().strftime("%Y-%m-%d")
         count_after = self._proactive_daily_count.get(group_id, {}).get(today, 0)
         if count_after > count_before:
             # v1.8.1：资讯类话题已有 SKIP 保护，此处不再需要降级提示
@@ -6464,17 +6486,17 @@ class LingxiPlugin(Star):
     def _format_token_route_report(self) -> str:
         """路由效果统计"""
         rs = self._stats["routing_stats"]
-        total = rs["glm47_count"] + rs["small_model_count"]
+        total = rs["model_fallback_count"] + rs["small_model_count"]
         if total == 0:
             return "📊 路由效果统计\n━━━━━━━━━━━━━━━━━━━━\n(暂无路由数据，可能未启用路由)"
 
-        glm_pct = rs["glm47_count"] / total * 100
+        glm_pct = rs["model_fallback_count"] / total * 100
         small_pct = rs["small_model_count"] / total * 100
 
         lines = [
             "📊 路由效果统计",
             "━━━━━━━━━━━━━━━━━━━━",
-            f"GLM4.7: {rs['glm47_count']}次 ({glm_pct:.1f}%)",
+            f"GLM4.7: {rs['model_fallback_count']}次 ({glm_pct:.1f}%)",
             f"小模型: {rs['small_model_count']}次 ({small_pct:.1f}%)",
             # P1-10: 级联升级展示行已移除（功能未实现，统计始终为 0）
         ]
@@ -6637,20 +6659,10 @@ class LingxiPlugin(Star):
     def _filter_duplicate_response(text: str) -> str:
         """过滤 LLM 返回的重复回复
 
-        某些模型（如 GLM）会在回复中生成两个版本，用 ``` 或 " response" 分隔。
+        某些模型（如 GLM）会在回复中用 ``` 分隔生成多个版本。
         仅当分隔符符合特定模式时才判定为版本分隔符，避免误切正常内容。
+        " response" 分隔的草稿由 _filter_thinking_tags 统一处理。
         """
-        # 处理 GLM 模型用 " response" 分隔的多段草稿（如推理过程中混入 content 的多个版本）
-        # 取最后一个 " response" 之后的最终版
-        # 注意：使用正则而非简单 split，避免 "few responses" 等英文常见词汇中的 " response" 子串被误匹配
-        # GLM 草稿分隔符格式为 " response\n" 或 " response "，后面不紧跟单词字符
-        if re.search(r" response(?!\w)", text):
-            parts = re.split(r" response(?!\w)\s*", text)
-            if len(parts) > 1:
-                filtered = parts[-1].strip()
-                logger.info(f"重复回复过滤(GLMs): 检测到 {len(parts)} 个版本，保留最终版本（原文 {len(text)} 字 → 过滤后 {len(filtered)} 字）")
-                return filtered
-
         # 匹配 ``` 独占一行的情况：
         # - 前后有换行
         # - ``` 后面只有空白和换行（不是代码语言如 python，也不是颜文字如 (QAQ)）
@@ -6713,7 +6725,7 @@ class LingxiPlugin(Star):
         """框架初始化钩子，启动主动发言调度器（v1.5.0 新增）
 
         总是启动调度器，让单群覆盖的 proactive_enabled 能生效。
-        若全局关闭且无单群覆盖开启，调度器仅空转（每 30 分钟遍历一次，资源消耗极小）。
+        若全局关闭且无单群覆盖开启，调度器仅空转（按 proactive_check_interval 间隔，资源消耗极小）。
         实际开关检查在 _should_proactive_speak 第 0 步执行。
 
         框架接口验证：
@@ -6763,6 +6775,9 @@ class LingxiPlugin(Star):
         "游戏八卦": "基于外部游戏行业八卦，用你的风格转述事实并调侃",
         "沙雕新闻": "基于外部沙雕新闻，用你的风格转述事实并吐槽",
         "热点事件": "基于当前热点事件，用你的风格转述事实并发表看法",
+        "游戏": "基于外部游戏资讯，用你的风格转述事实并聊聊看",
+        "数码科技": "基于外部数码科技资讯，用你的风格转述并加上自己的看法",
+        "开发者": "基于外部开发者社区动态，用你的风格说说这事儿",
     }
 
     async def _proactive_speak_loop(self):
@@ -6780,10 +6795,10 @@ class LingxiPlugin(Star):
                 try:
                     # v1.8.0 诊断日志：证明调度器循环执行了（排查"主动发言不触发"问题）
                     target_groups = self._get_proactive_target_groups()
-                    logger.info(
+                    logger.debug(
                         f"[主动发言] 调度器检查: 目标群={len(target_groups)} 个, "
                         f"UMO缓存={len(self._group_umo)} 个, "
-                        f"LLM运行中={list(self._llm_running_groups.keys()) if hasattr(self, '_llm_running_groups') else []}"
+                        f"LLM运行中={list(self._llm_running_groups.keys())}"
                     )
                     # Phase 2 退让信号②：检查无人回应追踪（每次循环都检查，不依赖 _should_proactive_speak）
                     self._check_no_response_all_groups()
@@ -6842,6 +6857,8 @@ class LingxiPlugin(Star):
             # 跨天：current >= start 或 current <= end（如 23:00-07:00）
             return current >= start or current <= end
 
+    _TIME_RE = re.compile(r'^(\d{1,2}):(\d{2})$')
+
     def _parse_quiet_hours(self, quiet_hours_str: str) -> list:
         """解析静默时段字符串为 (start, end) 元组列表
 
@@ -6865,9 +6882,18 @@ class LingxiPlugin(Star):
             if len(parts) != 2:
                 continue
             start, end = parts[0].strip(), parts[1].strip()
-            # 简单格式校验：HH:MM
-            if len(start) == 5 and len(end) == 5 and start[2] == ":" and end[2] == ":":
-                result.append((start, end))
+            # 格式校验：H:MM 或 HH:MM，0≤H≤23，0≤MM≤59
+            m1 = self._TIME_RE.match(start)
+            m2 = self._TIME_RE.match(end)
+            if m1 and m2:
+                h1, m1v = int(m1.group(1)), int(m1.group(2))
+                h2, m2v = int(m2.group(1)), int(m2.group(2))
+                if h1 <= 23 and m1v <= 59 and h2 <= 23 and m2v <= 59:
+                    result.append((f"{h1:02d}:{m1v:02d}", f"{h2:02d}:{m2v:02d}"))
+                else:
+                    logger.warning(f"[主动发言] 静默时段数值越界: '{segment}'（小时 0-23 / 分钟 0-59），已跳过")
+            else:
+                logger.warning(f"[主动发言] 静默时段格式无效: '{segment}'（应为 HH:MM-HH:MM），已跳过")
         return result
 
     def _is_in_quiet_hours(self, group_id: str, current_time: str) -> bool:
@@ -7112,12 +7138,15 @@ class LingxiPlugin(Star):
             logger.info(
                 f"[主动发言] 群={group_id} 处于退却状态（原因: {reason}），跳过本次触发"
             )
+            # v2.4.10（M11-1）：早退分支补写 skip_reason，手动触发时看到的是本次原因而非上一轮残留
+            self._last_proactive_skip_reason[group_id] = f"退却状态中（原因: {reason}）"
             return
 
         # === 1. 设置 LLM 执行标志（防止与被动回复并发）===
         # P1-1 修复（v1.7.0）：检查是否已有 LLM 请求进行中（防止 TOCTOU 并发风险）
         if group_id in self._llm_running_groups:
             logger.warning(f"[主动发言] 群={group_id} 已有 LLM 请求进行中，跳过本次触发")
+            self._last_proactive_skip_reason[group_id] = "已有 LLM 请求进行中（互斥锁占用）"
             return
         self._llm_running_groups[group_id] = time.time()
         self._start_llm_flag_timer(group_id)
@@ -7129,8 +7158,7 @@ class LingxiPlugin(Star):
         try:
             # === 2. 构建上下文 ===
             memory_text = self._format_conversation_memory(group_id) if self.conversation_memory_enabled else ""
-            # _format_context 返回 (formatted_text, new_msg_count, old_msg_count) 三元组
-            context_text, _, _ = self._format_context(group_id)
+            context_text = self._format_context(group_id)
 
             # v1.8.1 修复 P0 根因 2：过滤 context 中的命令文本
             # 问题：用户发送 /wakeup_proactive 科技资讯 后，命令文本被 _record_message 写入 _msg_buffer，
@@ -7168,9 +7196,6 @@ class LingxiPlugin(Star):
             # 新行为（v1.8.1）：SKIP 本次发言，通过 _last_proactive_skip_reason 通知用户
             # 适用场景：①category_override 显式指定资讯类但 Fetcher 未启用/无可用资讯/异常
             #          ②加权随机选中资讯类但无可用资讯（同样不应降级编造）
-            # 提前初始化 _last_proactive_category 和 _last_proactive_skip_reason，供 SKIP 分支使用
-            if not hasattr(self, '_last_proactive_category'):
-                self._last_proactive_category = {}
             if not hasattr(self, '_last_proactive_skip_reason'):
                 self._last_proactive_skip_reason = {}
             # 清空上次的 skip 原因（新一轮发言开始）
@@ -7179,7 +7204,6 @@ class LingxiPlugin(Star):
             # 降级分支 1：Fetcher 未启用
             if category in self._NEWS_CATEGORIES and not self._fetcher:
                 logger.warning(f"[主动发言] 群={group_id} 资讯类话题={category} 但 Fetcher 未启用，SKIP 本次发言")
-                self._last_proactive_category[group_id] = category
                 self._last_proactive_skip_reason[group_id] = f"资讯类话题 '{category}' 需 Fetcher 但未启用"
                 self._proactive_stats["total_skip"] += 1
                 return
@@ -7210,7 +7234,6 @@ class LingxiPlugin(Star):
                         # 降级分支 2：资讯类话题无可用资讯（池子为空 + 数据源拉取失败/为空）
                         # v1.8.1 修复 P0 根因 5：改为 SKIP 并通知，不降级为"活跃气氛"
                         logger.warning(f"[主动发言] 群={group_id} 资讯类话题={category} 无可用资讯，SKIP 本次发言")
-                        self._last_proactive_category[group_id] = category
                         self._last_proactive_skip_reason[group_id] = (
                             f"资讯类话题 '{category}' 无可用资讯"
                             f"（可能原因：池子已耗尽 / 数据源拉取失败 / 网络异常）"
@@ -7221,14 +7244,9 @@ class LingxiPlugin(Star):
                     # 降级分支 3：Fetcher 异常
                     # v1.8.1 修复 P0 根因 5：异常时也 SKIP，不降级为"活跃气氛"
                     logger.warning(f"[主动发言] 群={group_id} Fetcher 获取资讯失败: {e}，SKIP 本次发言")
-                    self._last_proactive_category[group_id] = category
                     self._last_proactive_skip_reason[group_id] = f"Fetcher 异常: {e}"
                     self._proactive_stats["total_skip"] += 1
                     return
-
-            # v1.8.0 修复（B1 三次审查 M2）：记录实际使用的 category，供调用方对比并通知用户
-            # v1.8.1：SKIP 分支已在上方提前记录并 return，此处仅记录非 SKIP 的最终 category
-            self._last_proactive_category[group_id] = category
 
             # === 4. 检查自定义话题 ===
             custom_topic = None
@@ -7253,6 +7271,7 @@ class LingxiPlugin(Star):
 
             if not text:
                 logger.warning(f"[主动发言] 群={group_id} LLM 返回空内容")
+                self._proactive_stats["total_skip"] += 1  # v2.4.10（M11-7）：补计
                 self._last_proactive_skip_reason[group_id] = "LLM 返回空内容"
                 return
 
@@ -7277,7 +7296,9 @@ class LingxiPlugin(Star):
             # 原因：推理模型可能输出 "[SKIP] + 决策理由 + 偶发回复" 混合体
             # （详见 2026-09-16 22:32 思考泄露事故），精确匹配会漏过导致泄露。
             # 前缀命中即视为 LLM 判断不宜发言，跳过本次主动发言。
-            if not text or text.strip().startswith("[SKIP]"):
+            # v2.4.10（M11-13）：统一 SKIP 判定——裸 SKIP 与 [SKIP] 均视为跳过信号
+            # （提取层黑名单的行首 SKIP 剔除针对整行独立 SKIP 决策，不影响此前缀判定）
+            if not text or text.strip().startswith(("[SKIP]", "SKIP")):
                 logger.info(f"[主动发言] 群={group_id} LLM 判断不宜发言，跳过")
                 self._proactive_stats["total_skip"] += 1  # Phase 2 统计
                 # 连续 [SKIP] 检查（退让信号 ⑤）
@@ -7308,6 +7329,7 @@ class LingxiPlugin(Star):
                 similarity = self._calc_text_similarity(text, last_reply)
                 if similarity >= 0.55:
                     logger.info(f"[主动发言] 群={group_id} 与上次回复语义相似({similarity:.2f})，跳过")
+                    self._proactive_stats["total_skip"] += 1  # v2.4.10（M11-7）：补计
                     self._last_proactive_skip_reason[group_id] = f"与上次回复语义相似（相似度 {similarity:.2f}）"
                     return
 
@@ -7321,11 +7343,18 @@ class LingxiPlugin(Star):
             # === 10.6 敏感词过滤（Phase 2 新增：5指标后处理——接受度验证）===
             if self._filter_sensitive_words(text):
                 logger.warning(f"[主动发言] 群={group_id} 发言含敏感词，跳过")
+                self._proactive_stats["total_skip"] += 1  # v2.4.10（M11-7）：补计
                 self._last_proactive_skip_reason[group_id] = "发言含敏感词"
                 return
 
             # === 11. 发送消息（分段发送，复用 splitter 逻辑模拟真人节奏）===
-            umo_str, _ = self._group_umo[group_id]
+            # v2.4.10（M11-9）：.get 判空——LLM 调用期间群状态清理 pop 后裸索引会 KeyError
+            _umo_entry = self._group_umo.get(group_id)
+            if not _umo_entry:
+                logger.warning(f"[主动发言] 群={group_id} UMO 已被清理（群可能被移除），跳过发送")
+                self._last_proactive_skip_reason[group_id] = "UMO 失效（群状态已清理）"
+                return
+            umo_str, _ = _umo_entry
 
             # 将文本按标点切分成多段（复用 splitter 的 _split_chain）
             # v2.3.8：URL 原子化保护——占位符替换，切分后还原
@@ -7345,11 +7374,10 @@ class LingxiPlugin(Star):
                         if "**" in comp.text:
                             comp.text = comp.text.replace("**", "")
 
-            # v2.0.3 新增：资讯首图（先图后文，失败静默降级纯文本）
+            # v2.0.3 新增：资讯首图（v2.4.10 M11-10：改为正文发送成功后再发图，
+            # 避免正文发送失败/被取消时群内留下无正文孤儿图）
             # v2.0.4 修正：图片取"LLM 实际写的那条资讯"，不再无条件取第 1 条
-            # 根因：LLM 一次拿 3 条任选/融合，第 1 条与其正文常无关 → 图文错配。
-            # 方案：bigram Jaccard 比对正文与每条标题+摘要，取最高分者；
-            # 无条目过阈值则跳过图片（错误配图比无图更糟）。
+            _news_image_to_send = None
             if self._fetcher_send_first_image and news_items_used:
                 best_item, best_score = None, 0.0
                 for item in news_items_used:
@@ -7359,7 +7387,7 @@ class LingxiPlugin(Star):
                     if score > best_score:
                         best_item, best_score = item, score
                 if best_item and best_score >= 0.12:
-                    await self._send_news_first_image(umo_str, best_item.image_url)
+                    _news_image_to_send = best_item.image_url
                 elif best_item:
                     logger.debug(
                         f"[首图] 图文相似度不足（最高 {best_score:.3f}），跳过图片防错配"
@@ -7440,14 +7468,8 @@ class LingxiPlugin(Star):
                         await self.context.send_message(umo_str, mc)
                     sent_count += 1
             except asyncio.CancelledError:
-                # 多段发送被取消：记录已发送段数，记忆中标记为部分发送
+                # 多段发送被取消：记录已发送段数
                 logger.warning(f"[主动发言] 群={group_id} 分段发送被取消，已发送{sent_count}/{len(segments)}段")
-                # 记录实际已发送的文本（而非完整 text），避免记忆与实际不一致
-                sent_text_parts = []
-                for i in range(sent_count):
-                    if i < len(segments):
-                        sent_text_parts.append("".join([c.text for c in segments[i] if isinstance(c, Plain)]))
-                text = "\n".join(sent_text_parts) if sent_text_parts else text
                 # v1.8.0 修复（B1 二次审查 m8）：部分发送的资讯也应标记为已发送
                 # 多段发送时无法判断哪些资讯已在已发送的段中，全部标记避免重复发送
                 # v1.8.1 修复 P0 根因 1：mark_sent 增加 group_id 参数，per-group 标记
@@ -7466,6 +7488,10 @@ class LingxiPlugin(Star):
                 self._proactive_stats["total_send_fail"] += 1  # Phase 2 统计
                 self._last_proactive_skip_reason[group_id] = f"发送失败（UMO 可能失效）: {send_err}"
                 return
+
+            # v2.4.10（M11-10）：正文发送成功后再发资讯配图——正文取消/失败时不留孤儿图
+            if _news_image_to_send and sent_count > 0:
+                await self._send_news_first_image(umo_str, _news_image_to_send)
 
             # === 12. 记录到记忆系统（与被动回复统一）===
             # 12a. 写入消息缓冲区
@@ -7669,7 +7695,6 @@ class LingxiPlugin(Star):
             #   3. 引入 Few-Shot Examples（正面+反面示例）替代纯指令
             #   4. 开头去重机制：记录最近 5 次开头，prompt 显式排除
             #   5. 硬约束 1/2 降级为软约束（"自然融入"而非"必须包含"），保留硬约束 3（空则 SKIP）
-            import random as _random
             # 6 种开头模式随机选 1 种注入（避免 LLM 套用固定模板）
             _OPENER_PATTERNS = [
                 "直接事实型：直接陈述新闻核心事实（如\"OpenAI 刚刚发布了 GPT-5...\"）",
@@ -7679,7 +7704,7 @@ class LingxiPlugin(Star):
                 "对比型：用对比反差突出新闻（如\"昨天还在说 AI 泡沫，今天 OpenAI 就...\"）",
                 "数字震撼型：用数字或规模震撼群友（如\"47 亿美元，字节跳动今年的 AI 投入...\"）",
             ]
-            _chosen_pattern = _random.choice(_OPENER_PATTERNS)
+            _chosen_pattern = random.choice(_OPENER_PATTERNS)
             # 开头去重：获取该群最近 5 次开头，prompt 显式排除
             _recent_openers_str = ""
             if group_id and group_id in self._proactive_recent_openers:
@@ -7952,12 +7977,6 @@ class LingxiPlugin(Star):
             logger.warning(f"[smart_wakeup] 测试发言失败: {type(e).__name__}: {e}")
             return {"ok": False, "error": str(e)}
 
-    def _select_topic_category(self) -> str:
-        """随机选择话题类别"""
-        if not self._proactive_topic_categories:
-            return "分享想法"
-        return random.choice(self._proactive_topic_categories)
-
     def _get_proactive_provider(self):
         """获取主动发言使用的 LLM Provider
 
@@ -7969,7 +7988,11 @@ class LingxiPlugin(Star):
             if provider:
                 return provider
             logger.warning(f"[主动发言] 配置的模型 {self._proactive_model} 不可用，回退到默认")
-        return self.context.get_using_provider()
+        # v2.4.10（M11-12）：兜底也可能返回 None——明确提示而非静默 AttributeError
+        provider = self.context.get_using_provider()
+        if provider is None:
+            logger.warning("[主动发言] 未配置任何 LLM 提供商，无法发起主动发言（请在 AstrBot 中配置至少一个模型提供商）")
+        return provider
 
     def _is_umo_valid(self, group_id: str) -> bool:
         """检查 UMO 缓存是否仍在有效期内"""
@@ -8103,6 +8126,7 @@ class LingxiPlugin(Star):
 
     def _save_sent_news(self):
         """原子写盘发送记录"""
+        tmp_path = None
         try:
             path = self._get_sent_news_path()
             data_dir = os.path.dirname(path)
@@ -8115,6 +8139,13 @@ class LingxiPlugin(Star):
             self._last_save_sent_news_ts = time.time()
         except Exception as e:
             logger.warning(f"[Fetcher] 保存发送记录失败: {e}")
+        finally:
+            # v2.4.10（M12-7）：异常路径清理临时文件——os.replace 失败时 .tmp 残留累积
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     def _get_proactive_target_groups(self) -> set:
         """返回主动发言调度器应遍历的群列表
@@ -8176,17 +8207,14 @@ class LingxiPlugin(Star):
         # 1. 恢复 UMO 缓存（过滤已过期条目）
         try:
             umo_cache = state.get("umo_cache", {})
-            restored_umo = 0
             for gid, item in umo_cache.items():
                 # JSON 列表格式 → 运行时元组
                 if isinstance(item, list) and len(item) == 2:
                     umo_str, cached_time = item[0], item[1]
                     if (now - cached_time) < self.UMO_VALIDITY_PERIOD:
                         self._group_umo[gid] = (umo_str, cached_time)
-                        restored_umo += 1
         except Exception as e:
             logger.warning(f"[主动发言] 恢复 UMO 缓存失败: {e}")
-            restored_umo = 0
         # 2. 恢复去重缓存（过滤已过期条目）
         try:
             dedup_cache = state.get("dedup_cache", {})
@@ -8234,7 +8262,6 @@ class LingxiPlugin(Star):
         # 过滤 speak_time 超过 24h 的过期条目
         try:
             response_tracker = state.get("response_tracker", {})
-            restored_tracker = 0
             for gid, tracker in response_tracker.items():
                 speak_time = tracker.get("speak_time", 0)
                 if speak_time and (now - speak_time) > 86400:
@@ -8251,7 +8278,6 @@ class LingxiPlugin(Star):
                     "cooldown_multiplier": tracker.get("cooldown_multiplier", 1.0),
                     "consecutive_no_response_count": tracker.get("consecutive_no_response_count", 0),
                 }
-                restored_tracker += 1
         except Exception as e:
             logger.warning(f"[主动发言] 恢复 response_tracker 失败: {e}")
         # 6. v1.8.4 新增：恢复 last_speak（每群上次发言时间戳）
@@ -8287,6 +8313,17 @@ class LingxiPlugin(Star):
                     self._proactive_skip_streak[gid] = count
         except Exception as e:
             logger.warning(f"[主动发言] 恢复 skip_streak 失败: {e}")
+
+        # 10. v2.4.10（M11-11）：恢复 recent_openers（开头去重窗口）
+        try:
+            from collections import deque as _dq
+            recent_openers = state.get("recent_openers", {})
+            for gid, openers in recent_openers.items():
+                if isinstance(openers, list) and openers:
+                    self._proactive_recent_openers[gid] = _dq(openers[-5:], maxlen=5)
+        except Exception as e:
+            logger.warning(f"[主动发言] 恢复 recent_openers 失败: {e}")
+
         logger.info(
             f"[主动发言] 持久化状态已加载 | "
             f"UMO={len(self._group_umo)}, 去重={len(self._sent_content_cache)}, "
@@ -8378,6 +8415,8 @@ class LingxiPlugin(Star):
                 "daily_count": daily_count,
                 "retreat": retreat,
                 "skip_streak": skip_streak,
+                # v2.4.10（M11-11）：开头去重窗口持久化——重载后不遗忘近期开场模式
+                "recent_openers": {gid: list(dq) for gid, dq in self._proactive_recent_openers.items()},
                 "saved_at": now,
             }
             # 原子写入：先写临时文件，再 os.replace 覆盖目标文件
@@ -8400,9 +8439,8 @@ class LingxiPlugin(Star):
     def _maybe_save_proactive_state(self):
         """延迟持久化：距离上次成功保存超过 60 秒才保存
 
-        用于 on_group_message 等高频场景，避免每次消息都触发磁盘 IO。
-        发言成功后直接调用 _save_proactive_state() 立即保存。
-        时间戳在保存成功后才更新，失败时下次仍会重试。
+        v2.4.10：采用乐观策略——时间戳无条件前移（含失败场景），
+        依赖高频调用方的自然间隔实现最终重试，不主动立即重试。
         """
         now = time.time()
         if (now - self._last_save_proactive_state_ts) > 60:
@@ -8467,7 +8505,6 @@ class LingxiPlugin(Star):
         若无人回应，设置冷却×2 惩罚（避免下次过早发言）。
         """
         now = time.time()
-        expired_trackers = []
         for group_id, tracker in self._proactive_response_tracker.items():
             if tracker["checked"]:
                 continue
@@ -8526,11 +8563,8 @@ class LingxiPlugin(Star):
                 adopted = cps > 0
                 self._record_proactive_outcome(group_id, cps, adopted)
                 tracker["checked"] = True
-                expired_trackers.append(group_id)
-        # 清理已检查的追踪记录（保留30分钟后清理，避免内存泄漏）
-        for gid in expired_trackers:
-            # 保留 cooldown_multiplier 到下次发言时使用
-            pass  # 不立即删除，在下次 _should_proactive_speak 的冷却检查中读取
+        # 已检查的追踪记录不在此处删除——cooldown_multiplier 在下次 _should_proactive_speak
+        # 的冷却检查中读取，由下次发言时的 tracker 重置机制统一回收
 
     def _count_post_speak_responses(self, group_id: str, speak_time: float) -> int:
         """统计主动发言后30分钟内的用户回复数（CPS 计算）"""
@@ -8781,6 +8815,14 @@ class LingxiPlugin(Star):
         self._proactive_retreat.clear()
         self._proactive_states.clear()
         self._proactive_skip_streak.clear()
+        # v2.4.10（M12-8）：补遗——清理漏掉的三个状态 + 取消后台摘要任务
+        self._proactive_recent_openers.clear()
+        self._last_proactive_skip_reason.clear()
+        self._summary_in_progress.clear()
+        for _bg in list(self._bg_tasks):
+            if not _bg.done():
+                _bg.cancel()
+        self._bg_tasks.clear()
         # ─── v1.6.0 Phase 2/3 新增数据结构清理 ───
         response_tracker_count = len(self._proactive_response_tracker)
         topic_history_count = len(self._proactive_topic_history)

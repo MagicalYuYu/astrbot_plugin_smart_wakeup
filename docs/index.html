@@ -1379,7 +1379,7 @@ a { color: var(--blue); text-decoration: none; }
       <div class="tune-card reveal">
         <div class="tune-icon">💰</div>
         <h3 class="tune-title" data-i18n="tune4_title">Token 精算师</h3>
-        <p class="tune-desc" data-i18n="tune4_desc">小模型上下文压缩 + 增量注入 + 四维度统计（模型/群组/小时/唤醒类型）+ σ 异常告警（σ=2.0）</p>
+        <p class="tune-desc" data-i18n="tune4_desc">分层记忆摘要 + SKIP 合规判别共用小模型 + 四维度统计（模型/群组/小时/唤醒类型）+ σ 异常告警（σ=2.0）</p>
       </div>
       <div class="tune-card reveal reveal-delay-1">
         <div class="tune-icon">🧠</div>
@@ -1451,7 +1451,7 @@ a { color: var(--blue); text-decoration: none; }
           <div class="config-desc" data-i18n="config6_desc">发言节律、每日上限、静默时段、退却参数</div>
         </div>
       </div>
-      <div class="config-item reveal" data-tooltip="5 项：debounce_enabled=true · force_debounce=true · 名称 5s / 概率 10s / 救场 3s 等待" data-i18n-tooltip="config7_tooltip">
+      <div class="config-item reveal" data-tooltip="7 项：debounce_enabled=true · force_debounce=true · 名称 5s / 概率 10s / 救场 3s 等待 · 同用户连发合并 · 跨用户归属标注" data-i18n-tooltip="config7_tooltip">
         <div class="config-num">07</div>
         <div class="config-info">
           <div class="config-name" data-i18n="config7_name">⏲️ 消息防抖</div>
@@ -1798,7 +1798,7 @@ const i18n = {
     tune3_title: '单群单人精调',
     tune3_desc: '24 项参数按群覆盖（<code>group_overrides</code>）+ 用户级回复概率乘数（<code>user_prob_overrides</code>，0 = 永不回复某人）',
     tune4_title: 'Token 精算师',
-    tune4_desc: '小模型上下文压缩 + 增量注入 + 四维度统计（模型/群组/小时/唤醒类型）+ σ 异常告警（σ=2.0）',
+    tune4_desc: '分层记忆摘要 + SKIP 合规判别共用小模型 + 四维度统计（模型/群组/小时/唤醒类型）+ σ 异常告警（σ=2.0）',
     tune5_title: '分层对话记忆',
     tune5_desc: '近期原文（10 轮）+ 远期摘要（30 轮）+ 发送者归属 + 在场用户标注，主动被动共享，不张冠李戴',
     tune6_title: '图片理解（官方管线）',
@@ -1819,7 +1819,7 @@ const i18n = {
     config6_name: '🚀 主动发言', config6_desc: '发言节律、每日上限、静默时段、退却参数',
     config6_tooltip: '22 项：检查 600s · 冷却 1800s · 每日 20 · 触发概率 0.6 · 精力下限 0.15 · 时间窗 09:00–23:00 · 静默 23:00–07:00 · 五路退却时长',
     config7_name: '⏲️ 消息防抖', config7_desc: '按唤醒类型区分的防抖等待',
-    config7_tooltip: '5 项：debounce_enabled=true · force_debounce=true · 名称 5s / 概率 10s / 救场 3s 等待',
+    config7_tooltip: '7 项：debounce_enabled=true · force_debounce=true · 名称 5s / 概率 10s / 救场 3s 等待 · 同用户连发合并 · 跨用户归属标注',
     config8_name: '🖼️ 图片上下文', config8_desc: '描述由官方管线提供，插件侧零配置',
     config8_tooltip: "图片描述自 v2.3.1 起由 AstrBot 官方管线（image_caption）提供，本插件不再有自定义降级开关",
     config9_name: '🧹 过滤设置', config9_desc: '思考标签过滤，防草稿泄露',
@@ -1984,7 +1984,7 @@ const i18n = {
     tune3_title: 'Per-Group / Per-User',
     tune3_desc: '24 per-group overrides (<code>group_overrides</code>) + per-user reply multipliers (<code>user_prob_overrides</code>, 0 = never reply)',
     tune4_title: 'Token Accountant',
-    tune4_desc: 'Small-model compression + incremental injection + 4-dimension stats (model/group/hour/wake type) + σ anomaly alerts (σ=2.0)',
+    tune4_desc: 'Layered memory summarization + SKIP compliance check share a small model + 4-dimension stats (model/group/hour/wake type) + σ anomaly alerts (σ=2.0)',
     tune5_title: 'Layered Memory',
     tune5_desc: 'Recent verbatim (10 rounds) + long-term summaries (30 rounds) + sender attribution + presence tags — shared by both loops',
     tune6_title: 'Vision (Official Pipeline)',
@@ -2005,7 +2005,7 @@ const i18n = {
     config6_name: '🚀 Proactive Speak', config6_desc: 'Cadence, daily limit, quiet hours, retreats',
     config6_tooltip: '22 items: check 600s · cooldown 1800s · daily 20 · prob 0.6 · energy floor 0.15 · window 09:00–23:00 · quiet 23:00–07:00 · retreat durations',
     config7_name: '⏲️ Debounce', config7_desc: 'Per-wake-type wait windows',
-    config7_tooltip: '5 items: debounce_enabled=true · force_debounce=true · name 5s / prob 10s / rescue 3s',
+    config7_tooltip: '7 items: debounce_enabled=true · force_debounce=true · name 5s / prob 10s / rescue 3s · merge same user · cross-user labels',
     config8_name: '🖼️ Image Context', config8_desc: 'Captions via official pipeline, zero plugin config',
     config8_tooltip: "Image captions have been provided by the AstrBot official pipeline (image_caption) since v2.3.1; the custom fallback switch no longer exists",
     config9_name: '🧹 Filtering', config9_desc: 'Think-tag filter, no draft leaks',

@@ -36,6 +36,8 @@ class NewsPool:
     """
 
     def __init__(self, ttl_seconds: int = 21600, pool_size: int = 15):
+        # v2.4.10：_sent_order 记录 per-group 已发送标题的插入序，超限时裁剪最旧半段
+        self._sent_order: dict[str, list] = {}
         """初始化资讯池子
 
         Args:
@@ -153,14 +155,25 @@ class NewsPool:
 
         sent_set = self._sent_per_group[group_id]
         sent_set.add(title)
+        # v2.4.10：记录插入序，供超限裁剪使用（set 本身无序）
+        order = self._sent_order.setdefault(group_id, [])
+        if title not in order:
+            order.append(title)
 
         # 限制大小防止内存泄漏
+        # v2.4.10：超限改为裁剪最旧一半而非整体清空——清空会让该群去重史瞬间归零，
+        # 池内存活条目存在重发窗口；保留新半段即可覆盖池内条目
         if len(sent_set) > self._sent_max_per_group:
-            logger.debug(
-                f"[NewsPool] 群={group_id} sent 集合超过 {self._sent_max_per_group} 条，清空重置"
-            )
-            sent_set.clear()
+            keep_from = len(order) // 2
+            dropped = set(order[:keep_from])
+            order[:] = order[keep_from:]
+            sent_set.difference_update(dropped)
             sent_set.add(title)
+            if title not in order:
+                order.append(title)
+            logger.debug(
+                f"[NewsPool] 群={group_id} sent 集合超过 {self._sent_max_per_group} 条，裁剪最旧半段（余 {len(sent_set)} 条）"
+            )
 
         # v1.8.1 关键变更：不再清除池子缓存（与 v1.8.0 行为不同）
         # 池子要跨群复用，清除缓存会导致其他群拿不到资讯

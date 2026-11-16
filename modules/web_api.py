@@ -89,7 +89,7 @@ def get_ring_logs(limit: int = 100):
 PLUGIN_NAME = "astrbot_plugin_smart_wakeup"
 
 # 配置文件版本
-CONFIG_VERSION = "2.4.8"
+CONFIG_VERSION = "2.4.9"
 
 
 # ============================================================================
@@ -372,7 +372,11 @@ def register_web_apis(plugin, context):
         而非 full_config.json，确保与 AstrBot 默认面板配置一致。
         """
         try:
-            new_config = await request.get_json(force=True, silent=False)
+            new_config = await request.get_json(force=True, silent=True)
+            if new_config is None:
+                # v2.4.10：请求体非法 JSON 时明确返回 400（原 silent=False 抛出的
+                # BadRequest 会被通用 except 误报成 500 服务器错误）
+                return jsonify({"ok": False, "error": "请求体不是合法的 JSON 对象"}), 400
             if not isinstance(new_config, dict):
                 return jsonify({"ok": False, "error": "配置必须是 JSON 对象"}), 400
 
@@ -408,17 +412,31 @@ def register_web_apis(plugin, context):
             # 原问题：save_config(clean_config) 的 self.update() 是浅合并，
             # 嵌套字典（如 proactive_speak）被整体替换，同级字段丢失。
             # 修复：与 post_preset 一致，先读取当前配置，再按 category 合并。
+            # v2.4.10 加固：① 深拷贝隔离——原实现共享 plugin.config 内层引用，
+            # save_config 写盘失败时内存配置已被污染且不回滚；② 仅接受 schema
+            # 已知分类的白名单过滤，未知分类/键不落盘（version 不可被覆写）
+            import copy as _copy
             current_config = {}
             for key, val in dict(plugin.config).items():
-                if key.startswith("_"):
+                if key.startswith("_") or key == "version":
                     continue
-                current_config[key] = val
+                current_config[key] = _copy.deepcopy(val)
+
+            _known_categories = None
+            try:
+                _schema = json.load(open(_get_schema_path(plugin_root), encoding="utf-8"))
+                _known_categories = set(k for k, v in _schema.items() if isinstance(v, dict))
+            except Exception:
+                _known_categories = set(current_config.keys())
 
             for category, items in clean_config.items():
+                if category not in _known_categories:
+                    logger.warning(f"[smart_wakeup] POST /config 拒绝未知分类: {category}")
+                    continue
                 if category not in current_config:
                     current_config[category] = {}
                 if isinstance(items, dict) and isinstance(current_config[category], dict):
-                    current_config[category].update(items)
+                    current_config[category].update(_copy.deepcopy(items))
                 else:
                     current_config[category] = items
 
@@ -591,9 +609,11 @@ def register_web_apis(plugin, context):
                 current_config[key] = val
 
             for category, items in preset_config.items():
-                if category not in current_config:
+                if category not in current_config or current_config[category] is None:
+                    # v2.4.10：目标侧为 None（历史配置遗留空值）时初始化空 dict，
+                    # 避免 None.update 抛 AttributeError 变 500
                     current_config[category] = {}
-                if isinstance(items, dict):
+                if isinstance(items, dict) and isinstance(current_config[category], dict):
                     current_config[category].update(items)
 
             # v2.4.9（S4-4）：合并结果过 schema 校验，非法类型/越界值拒绝应用
@@ -934,6 +954,36 @@ def _reset_group_state(plugin, group_id: str, reset_types: list) -> dict:
                 reset_result["reset"].append("retreat")
             except Exception as e:
                 logger.warning(f"[smart_wakeup] 重置 retreat 失败: {e}")
+
+        # v2.4.10：补齐重置遗漏的四项状态——原实现重置 all/proactive 后
+        # 当日计数/上次发言时间/连跳计数/状态机原样保留，面板显示与实际脱节
+        if hasattr(plugin, "_proactive_daily_count") and group_id in plugin._proactive_daily_count:
+            try:
+                del plugin._proactive_daily_count[group_id]
+                reset_result["reset"].append("daily_count")
+            except Exception as e:
+                logger.warning(f"[smart_wakeup] 重置 daily_count 失败: {e}")
+
+        if hasattr(plugin, "_proactive_last_speak") and group_id in plugin._proactive_last_speak:
+            try:
+                del plugin._proactive_last_speak[group_id]
+                reset_result["reset"].append("last_speak")
+            except Exception as e:
+                logger.warning(f"[smart_wakeup] 重置 last_speak 失败: {e}")
+
+        if hasattr(plugin, "_proactive_skip_streak") and group_id in plugin._proactive_skip_streak:
+            try:
+                del plugin._proactive_skip_streak[group_id]
+                reset_result["reset"].append("skip_streak")
+            except Exception as e:
+                logger.warning(f"[smart_wakeup] 重置 skip_streak 失败: {e}")
+
+        if hasattr(plugin, "_proactive_states") and group_id in plugin._proactive_states:
+            try:
+                del plugin._proactive_states[group_id]
+                reset_result["reset"].append("proactive_state")
+            except Exception as e:
+                logger.warning(f"[smart_wakeup] 重置 proactive_state 失败: {e}")
 
         if hasattr(plugin, "_proactive_recent_openers") and group_id in plugin._proactive_recent_openers:
             try:

@@ -56,10 +56,8 @@ class FetcherManager:
 
         self.filter = NewsFilter()
 
-        # v1.8.1 兼容性：保留 sent_titles 属性供旧代码诊断日志访问
-        # 实际逻辑已迁移到 NewsPool._sent_per_group
-        # 通过 property 动态返回所有群的已发送总数
-        # 注意：此属性为只读，直接修改不会影响 NewsPool 内部状态
+        # v1.8.1 资讯池子（核心重构：替代原 NewsCache + sent_titles 组合）
+        self.pool = NewsPool(ttl_seconds=cache_ttl, pool_size=pool_size)
 
         if self.enabled:
             self._init_fetchers()
@@ -69,18 +67,6 @@ class FetcherManager:
             )
         else:
             logger.info("[FetcherManager] 未启用 Fetcher 模块")
-
-    @property
-    def sent_titles(self) -> set:
-        """v1.8.1 兼容性属性：返回所有群的已发送标题合并集合
-
-        仅供诊断日志读取（如 main.py 中的 FetcherManager 诊断日志）。
-        修改此返回值不会影响 NewsPool 内部状态。
-        """
-        merged = set()
-        for sent_set in self.pool._sent_per_group.values():
-            merged.update(sent_set)
-        return merged
 
     def _init_fetchers(self):
         """根据配置初始化数据源"""

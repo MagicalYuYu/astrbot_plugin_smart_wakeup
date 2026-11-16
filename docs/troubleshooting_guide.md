@@ -64,7 +64,7 @@ AstrBot 后台日志。查看方式：
 | `/wakeup_flow` | 当前群心流状态 |
 | `/wakeup_token` | Token 消耗统计 |
 | `/wakeup_buffer` | 消息缓冲区内容 |
-| `/wakeup_clear` | 清理当前群缓冲区与节律状态 |
+| `/wakeup_clear` | 清理当前群消息缓冲区 |
 | `/wakeup_groups` | 群白名单/黑名单状态与生效群列表 |
 | `/wakeup_debounce` | 当前群消息防抖状态 |
 | `/wakeup_proactive` | 手动触发一次主动发言（可附资讯分类） |

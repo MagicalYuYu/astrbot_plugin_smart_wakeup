@@ -474,9 +474,9 @@
         "type": "int",
         "default": 86400,
         "min": 3600,
-        "max": 604800,
+        "max": 86400,
         "advanced": true,
-        "hint": "v1.9.7 新增：连续无回应退却的最大时长上限。默认 86400 秒（24 小时）。"
+        "hint": "v1.9.7 新增：连续无回应退却的最大时长上限。默认 86400 秒（24 小时），上限 86400。"
       },
       "proactive_retreat_annoyed_secs": {
         "description": "😡 厌烦关键词退却时长（秒）",
@@ -669,7 +669,7 @@
         "description": "⚖️ 智能均分",
         "type": "bool",
         "default": false,
-        "hint": "按总字数和段数尽量均匀分配每段长度，避免碎片化。"
+        "hint": "按总字数和段数尽量均匀分配每段长度，避免碎片化。需开启智能分段生效。"
       },
       "trim_segment_edge_blank_lines": {
         "description": "🧹 清理首尾空行",

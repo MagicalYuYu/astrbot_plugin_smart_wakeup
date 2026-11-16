@@ -141,15 +141,6 @@ input, textarea, select {
     color: var(--color-text);
 }
 
-a {
-    color: var(--color-primary);
-    text-decoration: none;
-}
-
-a:hover {
-    text-decoration: underline;
-}
-
 /* 滚动条样式 */
 ::-webkit-scrollbar {
     width: 8px;
@@ -1195,6 +1186,13 @@ a:hover {
 }
 
 .control-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+}
+
+.control-string {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);

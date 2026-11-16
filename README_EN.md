@@ -156,10 +156,10 @@ Admin-only commands, sent in group chat:
 | `/wakeup_flow` | Current group flow state |
 | `/wakeup_token` | Token usage statistics |
 | `/wakeup_buffer` | Current group message buffer contents |
-| `/wakeup_clear` | Clear the current group's buffer and rhythm state |
+| `/wakeup_clear` | Clear the current group's message buffer |
 | `/wakeup_groups` | Group filter status and effective group list |
 | `/wakeup_debounce` | Current group message debounce state |
-| `/wakeup_proactive` | Manually trigger one proactive message (optional news category, e.g. `/wakeup_proactive tech`) |
+| `/wakeup_proactive` | Manually trigger one proactive message (optional news category, e.g. `/wakeup_proactive 科技资讯`) |
 | `/wakeup_proactive_status` | Proactive speech status: retreat/cooldowns/daily counters/schedule overview |
 | `/wakeup_proactive_metrics` | Proactive speech metrics: CPS and adoption rate over each group's last 20 messages |
 

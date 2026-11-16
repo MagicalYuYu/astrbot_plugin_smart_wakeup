@@ -157,7 +157,7 @@
 | `/wakeup_flow` | 当前群心流状态 |
 | `/wakeup_token` | Token 消耗统计 |
 | `/wakeup_buffer` | 当前群消息缓冲区内容 |
-| `/wakeup_clear` | 清空当前群缓冲区与节律状态 |
+| `/wakeup_clear` | 清空当前群消息缓冲区 |
 | `/wakeup_groups` | 群组过滤状态与生效群列表 |
 | `/wakeup_debounce` | 当前群消息防抖状态 |
 | `/wakeup_proactive` | 手动触发一次主动发言（可指定资讯类别，如 `/wakeup_proactive 科技资讯`） |

@@ -227,7 +227,7 @@
 | `enabled` | bool | `false` | 启用消息分段，默认关闭 |
 | `strip_trailing_punct_enabled` | bool | `true` | 剔除末尾标点，使回复更自然 |
 | `strip_trailing_punct_chars` | string | `。；;：:、` | 需剔除的末尾标点字符集 |
-| `split_regex` | string | `[？？！?!\\n.…]+` | 分段正则，匹配到这些标点时切分 |
+| `split_regex` | string | `[。？！?!\\n…]+` | 分段正则，匹配到这些标点时切分 |
 | `enable_smart_split` | bool | `true` | 智能识别，避免在引号/成对符号/代码块内部切断 |
 | `balanced_split_mode` | bool | `false` | 智能均分，按总字数和段数均匀分配每段长度 |
 | `trim_segment_edge_blank_lines` | bool | `true` | 清理每段首尾空行 |
@@ -755,7 +755,7 @@ LLM 生成回复
 
 ### 5.9 `/wakeup_proactive [分类]`
 
-手动触发一次主动发言，可附带资讯分类参数（如 `/wakeup_proactive tech`）。用于调试主动发言效果，不受冷却和概率限制。
+手动触发一次主动发言，可附带资讯分类参数（如 `/wakeup_proactive 科技资讯`）。用于调试主动发言效果，不受冷却和概率限制。
 
 ### 5.10 `/wakeup_proactive_status`
 

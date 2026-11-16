@@ -8,7 +8,7 @@
  * 主要职责：
  * 1. 调用 AstrBotPluginPage.ready() 等待桥接 SDK 就绪
  * 2. 拉取 schema（/config/schema）和当前配置（/config）
- * 3. 渲染 13 分类共 124 项配置（按 7 大类侧边栏分组）
+ * 3. 渲染 13 分类共 115 项配置（按 6 大类侧边栏分组）
  * 4. 搜索过滤、简单/高级模式切换
  * 5. 保存（/config POST）、重置、导入、导出
  * 6. 预设管理（/config/presets + /config/preset/<name>）
@@ -116,15 +116,26 @@ createApp({
         let statusTimer = null;
         let searchDebounceTimer = null;
         const committedSearchQuery = ref('');
-        // 定时器统一管理（用于 onUnmounted 清理）
+        // 配置是否曾成功加载（saveConfig 的防护标志：加载失败后禁止假报成功）
+        const configLoaded = ref(false);
+        // 一次性定时器统一管理（回调完成后自动从数组移除，防止只增不减）
         const pendingTimers = [];
+        function trackTimer(fn, delay) {
+            const id = setTimeout(() => {
+                fn();
+                const i = pendingTimers.indexOf(id);
+                if (i >= 0) pendingTimers.splice(i, 1);
+            }, delay);
+            pendingTimers.push(id);
+            return id;
+        }
 
         // ====================================================================
         // Computed 计算属性
         // ====================================================================
 
-        // Schema 版本（兜底 2.3.0）
-        const schemaVersion = computed(() => schema.value.version || '2.4.7');
+        // Schema 版本（兜底 2.4.9）
+        const schemaVersion = computed(() => schema.value.version || '2.4.9');
 
         // 总配置项数
         const totalItems = computed(() => {
@@ -463,6 +474,7 @@ createApp({
                 });
                 // 保存快照（深拷贝，避免引用污染）
                 savedConfig.value = JSON.parse(JSON.stringify(config));
+                configLoaded.value = true;
             } catch (err) {
                 showMessage(`加载配置失败: ${err.message}`, 'error');
                 throw err;
@@ -473,6 +485,11 @@ createApp({
 
         // 保存配置（POST /config），保存前会做基本数据验证
         async function saveConfig() {
+            // 防护：配置未成功加载过时保存只会把空白面板当"修改"持久化
+            if (!configLoaded.value) {
+                showMessage('配置尚未成功加载，请刷新页面重试（当前保存已被拒绝以防写入空白配置）', 'error');
+                return;
+            }
             loading.config = true;
             try {
                 // 1. 数据验证（数值类型/必填项）
@@ -482,11 +499,23 @@ createApp({
                     return;
                 }
 
-                // 2. 准备保存的数据（移除 _meta 等内部字段，做深拷贝避免后续修改影响）
+                // 2. 准备保存的数据（移除 _meta 等内部字段与 template_list 条目的 _uid
+                //    前端临时键，做深拷贝避免后续修改影响）
                 const configToSave = {};
                 Object.keys(config).forEach(cat => {
                     if (cat === 'version' || cat === '_meta') return;
                     configToSave[cat] = JSON.parse(JSON.stringify(config[cat]));
+                    // 遍历各分类的值，数组内对象条目剔除 _uid（v-for 临时键不入配置文件）
+                    Object.keys(configToSave[cat]).forEach(key => {
+                        const val = configToSave[cat][key];
+                        if (Array.isArray(val)) {
+                            val.forEach(entry => {
+                                if (entry && typeof entry === 'object' && !Array.isArray(entry) && '_uid' in entry) {
+                                    delete entry._uid;
+                                }
+                            });
+                        }
+                    });
                 });
 
                 // 3. 调用后端保存（v2.0.4：后端保存成功后会自行触发热重载）
@@ -679,7 +708,7 @@ createApp({
                 testSpeakResult.value = typeof result === 'string' ? result : JSON.stringify(result);
                 showMessage('测试发言已触发', 'success');
                 // 延迟刷新状态以反映新发言
-                pendingTimers.push(setTimeout(() => loadStatus(), 1000));
+                trackTimer(() => loadStatus(), 1000);
             } catch (err) {
                 testSpeakResult.value = `错误: ${err.message}`;
                 showMessage(`测试发言失败: ${err.message}`, 'error');
@@ -710,7 +739,7 @@ createApp({
                 resetStateResult.value = typeof result === 'string' ? result : JSON.stringify(result);
                 showMessage('状态已重置', 'success');
                 // 延迟刷新状态
-                pendingTimers.push(setTimeout(() => loadStatus(), 500));
+                trackTimer(() => loadStatus(), 500);
             } catch (err) {
                 resetStateResult.value = `错误: ${err.message}`;
                 showMessage(`重置状态失败: ${err.message}`, 'error');
@@ -765,15 +794,30 @@ createApp({
                         event.target.value = '';
                         return;
                     }
-                    // 合并配置到 reactive config
+                    // 合并配置到 reactive config（分类值须为普通对象，畸形结构跳过）
+                    const skipped = [];
                     Object.keys(data).forEach(cat => {
                         if (cat === 'version' || cat === '_meta') return;
+                        if (typeof data[cat] !== 'object' || data[cat] === null || Array.isArray(data[cat])) {
+                            skipped.push(cat);
+                            return;
+                        }
                         if (!config[cat]) config[cat] = {};
                         Object.keys(data[cat] || {}).forEach(k => {
-                            config[cat][k] = data[cat][k];
+                            let val = data[cat][k];
+                            // 剔除导入文件中残留的 _uid 前端临时键（同 saveConfig）
+                            if (Array.isArray(val)) {
+                                val = JSON.parse(JSON.stringify(val));
+                                val.forEach(e => { if (e && typeof e === 'object' && !Array.isArray(e)) delete e._uid; });
+                            }
+                            config[cat][k] = val;
                         });
                     });
-                    showMessage('配置已导入，请点击"保存"以生效', 'success');
+                    if (skipped.length > 0) {
+                        showMessage(`配置已导入（${skipped.length} 个分类格式异常已跳过：${skipped.join('、')}），请点击"保存"以生效`, 'warning');
+                    } else {
+                        showMessage('配置已导入，请点击"保存"以生效', 'success');
+                    }
                 } catch (err) {
                     showMessage(`导入失败: ${err.message}`, 'error');
                 }
@@ -1082,10 +1126,13 @@ createApp({
         function formatTimeAgo(timeStr) {
             if (!timeStr) return '-';
             try {
-                const time = new Date(timeStr);
+                // 后端部分时间字段（retreat_until/last_speak）为秒级 Unix 时间戳（number），
+                // new Date(秒) 会被当毫秒解析得到 1970 年附近的日期；先 ×1000 归一到毫秒
+                const ms = typeof timeStr === 'number' ? timeStr * 1000 : timeStr;
+                const time = new Date(ms);
                 const now = new Date();
                 const diff = (now - time) / 1000;
-                if (diff < 0) return '未来';  // 时间戳大于当前
+                if (diff < 0) return '未来';
                 if (diff < 60) return '刚刚';
                 if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
                 if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;

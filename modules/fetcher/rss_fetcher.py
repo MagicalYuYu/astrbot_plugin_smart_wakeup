@@ -65,6 +65,9 @@ except ImportError:
     aiohttp = None
     logger.warning("[RSSFetcher] aiohttp 未安装，v1.8.2 异步拉取机制不可用，将回退到 feedparser.parse(url)")
 
+# v2.4.10：代理探测结果缓存的哨兵（区分"未探测"与"探测结果为 None"）
+_unset = object()
+
 from .base import BaseFetcher, NewsItem
 
 
@@ -190,7 +193,7 @@ class RSSFetcher(BaseFetcher):
             "https://www.yystv.cn/rss/feed",         # 游研社 - 12条目，0.32s，游戏文化
             "https://www.gcores.com/rss",            # 机核 - 20条目，0.29s，游戏综合
             "http://www.chuapp.com/feed",            # 触乐 - 30条目，3.43s，游戏行业
-            "https://rsshub.rssforever.com/3dmgame/news",  # 3DM - 20条目，4.69s (RSSHub镜像)
+            "https://rsshub.rssforever.com/3dmgame/news",  # 3DM - 20条目，4.69s（v2.4.10 注：RSSHub 镜像间歇性挂起时 gather 等齐该源会拖慢本批拉取 ~30s，池子不会 miss；长期可换直连源）
         ],
         "沙雕新闻": [
             # 国内可直连的荒诞/奇趣新闻源极度稀缺
@@ -262,6 +265,8 @@ class RSSFetcher(BaseFetcher):
         # 原问题：_fetch_single_feed 每次重试都 async with ClientSession(...)，连接池无法复用
         # 修复：实例级懒加载 session，跨 fetch() 调用复用，降低 TCP 连接开销
         self._session: aiohttp.ClientSession = None  # type: ignore
+        # v2.4.10：系统代理探测结果缓存（自定义源 + 无显式代理场景，避免每源重复探测）
+        self._proxy_probe_cache = _unset
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """v1.9.7 新增 M3：获取或创建持久的 aiohttp.ClientSession
@@ -455,7 +460,11 @@ class RSSFetcher(BaseFetcher):
             logger.info(f"[RSSFetcher] 使用显式配置代理: {proxy_url}")
         else:
             # 回退：尝试自动探测系统代理（独立进程有效，NSSM 服务无效）
-            proxy_url = _get_windows_proxy()
+            # v2.4.10：探测结果缓存——getproxies/winreg 扫描开销不小，
+            # 每轮 N 个自定义源会重复探测 N 次，结果在进程生命周期内稳定
+            if self._proxy_probe_cache is _unset:
+                self._proxy_probe_cache = _get_windows_proxy()
+            proxy_url = self._proxy_probe_cache
             if proxy_url:
                 logger.info(f"[RSSFetcher] 使用自动探测的系统代理: {proxy_url}")
             else:
@@ -622,9 +631,10 @@ class RSSFetcher(BaseFetcher):
                     return items
 
             except asyncio.CancelledError:
-                # 任务被取消，不重试，直接返回已获取的内容
+                # v2.4.10：取消必须向上传播（gather/调度器依赖取消信号收敛），
+                # 吞掉会令任务假装已完工，拖慢插件退出
                 logger.warning(f"[RSSFetcher] {feed_url} 任务被取消")
-                return items
+                raise
 
             except aiohttp.ClientConnectorError as e:
                 last_error_type = "network"

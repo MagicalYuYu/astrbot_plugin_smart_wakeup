@@ -16,7 +16,8 @@ class NewsFilter:
     提供去重、敏感词过滤、有效性检查。
     """
 
-    # 默认敏感词列表（可配置）
+    # 内置默认敏感词列表（v2.4.10 注：当前无对应配置项，不可自定义；
+    # 如需自定义需在 _conf_schema.json 增加配置并经 FetcherManager 传入）
     DEFAULT_SENSITIVE_KEYWORDS = [
         "政治敏感",
         "色情",

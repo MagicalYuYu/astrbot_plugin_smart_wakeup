@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>灵犀配置面板 · astrbot_plugin_smart_wakeup</title>
-    <!-- Vue 3 CDN（生产版，禁止改为 npm 依赖，因为本插件无构建工具链） -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Vue 3 CDN（生产版，禁止改为 npm 依赖，因为本插件无构建工具链）
+         锁定具体版本号，避免 vue@3 浮动引用在大版本更新时引入不兼容变更 -->
+    <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
     <!-- 样式文件（AstrBot 会自动重写为带 asset_token 的绝对路径） -->
     <link rel="stylesheet" href="styles.css?v=2.4.9">
 </head>
@@ -74,7 +75,7 @@
                 <button class="btn btn-secondary" @click="triggerImport" title="从 JSON 文件导入配置">
                     <span>📥</span> 导入
                 </button>
-                <input type="file" ref="importInput" accept=".json" style="display:none" @change="onImportFile">
+                <input type="file" accept=".json" style="display:none" @change="onImportFile">
                 <!-- 导出 -->
                 <button class="btn btn-secondary" @click="exportConfig" title="导出当前配置为 JSON 文件">
                     <span>📤</span> 导出
@@ -190,7 +191,7 @@
                                 :key="item.fullKey"
                                 class="config-item"
                                 :class="{
-                                    'config-item-advanced': item.advanced && !item._isDefaultAdvanced,
+                                    'config-item-advanced': item.advanced,
                                     'config-item-modified': isItemModified(item),
                                     'config-item-full': isComplexType(item)
                                 }"
