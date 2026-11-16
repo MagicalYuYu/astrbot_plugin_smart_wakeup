@@ -1,4 +1,4 @@
-div align="center">
+<div align="center">
 
 [English](README_EN.md) | 中文
 
