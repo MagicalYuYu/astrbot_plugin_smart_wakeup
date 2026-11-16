@@ -7876,6 +7876,7 @@ class LingxiPlugin(Star):
                re.match(r'^(格式要求|Few-?Shot)', stripped) or \
                re.match(r'^【(输出纪律|硬约束|Few-?Shot 示例|开头去重)】?', stripped) or \
                re.match(r'^\d+[.、]\s*(分享|提出|回忆|关注|说点|基于)', stripped) or \
+               re.match(r'^<?/?(proactive_(generate|think|decide))>?$', stripped) or \
                ('基于外部资讯，用你的人设和说话风格' in stripped):
                 continue
             filtered_lines.append(line)
