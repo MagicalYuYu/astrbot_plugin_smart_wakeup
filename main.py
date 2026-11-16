@@ -1641,8 +1641,10 @@ class LingxiPlugin(Star):
             self._debug(f"图片记录(带文字) | 群={group_id} 发送者={sender} image_id={image_id} pending={meta.get('image_pending', False)} sticker={is_sticker}")
 
         # 检测回复关系：如果消息链包含 Reply 组件，提取回复目标的发送者
-        if meta is None:
-            meta = {}
+        # v2.4.10：meta 参数已删除——非图片路径走到此处时 meta 未赋值，
+        # 原代码 if meta is None 引用未绑定变量会抛 UnboundLocalError。
+        # 图片路径已在各自分支内创建并 append，此处直接新建即可。
+        meta = {}
         reply_to = None
         if event.message_obj and event.message_obj.message:
             from astrbot.api.message_components import Reply, Plain
