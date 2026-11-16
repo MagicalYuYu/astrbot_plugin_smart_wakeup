@@ -470,6 +470,8 @@ P = base_prob × energy_factor × timing_factor
 - `model_routing_enabled`：默认关闭，开启后简单消息由小模型回复
 - `routing_small_model`：小模型提供商 ID（如 `Volcengine/doubao-seed-2-0-lite-260215`）
 
+**行为说明：** 路由判定命中小模型时，该次请求的上下文会被临时清空（`req.contexts = []`），以减少小模型的 token 消耗。此操作仅影响已被路由短路的那一次请求，不会落库、不影响后续请求的正常上下文缓存。
+
 ### 4.10 消息分段
 
 将长回复智能分段发送，模拟真人输入节奏。

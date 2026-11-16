@@ -31,7 +31,6 @@ import json
 import time
 import traceback
 import inspect
-import logging as _logging
 from collections import deque
 from typing import Any, Optional
 
@@ -43,45 +42,77 @@ from astrbot.api.star import StarTools
 # ============================================================================
 # 插件日志环形缓冲（v2.4.9 S4-2）
 # 原实现探测 data/plugin.log 与 logs/plugin.log，但全插件无任何代码写这两个文件，
-# 面板「日志」Tab 恒为空。AstrBot 以 astrbot.plugin.<插件名> 子记录器为插件打日志
-# （core/log.py PLUGIN_LOGGER_PREFIX），handler 挂该子记录器即可只捕获本插件日志。
+# 面板「日志」Tab 恒为空。
+#
+# v2.4.10 合规修复：原方案通过 Python logging.Handler 挂载到
+# logging.getLogger() 捕获日志，被插件市场审查驳回（"logger 必须且只能
+# 从 astrbot.api 导入，严禁使用标准 logging 模块"）。
+# 现改为 proxy 代理模式：包装 astrbot.api 的 logger 对象，每条日志
+# 同时写入环形缓冲并转发给真实 logger——全程零 import logging。
 # ============================================================================
 
-_PLUGIN_LOGGER_NAME = "astrbot.plugin.astrbot_plugin_smart_wakeup"
 _LOG_RING: deque = deque(maxlen=500)
-_ring_handler = None
+_proxied_modules: list = []
 
 
-class _RingBufferHandler(_logging.Handler):
-    def emit(self, record):
+class _LogCaptureProxy:
+    """包装 astrbot.api logger，日志同时写入环形缓冲供面板展示。
+
+    不使用 logging 模块的任何类/函数，仅通过 __getattr__ 代理转发。
+    """
+
+    def __init__(self, real_logger):
+        object.__setattr__(self, "_real", real_logger)
+
+    def _capture(self, level: str, msg, *args, **kwargs):
         try:
-            _LOG_RING.append(self.format(record))
+            ts = time.strftime("%H:%M:%S")
+            text = str(msg)
+            if args:
+                text = text % args if len(args) == 1 and isinstance(args[0], dict) else text
+            _LOG_RING.append(f"[{ts}] [{level.upper()}] {text}")
         except Exception:
             pass
 
+    def info(self, msg, *args, **kwargs):
+        self._capture("INFO", msg, *args)
+        object.__getattribute__(self, "_real").info(msg, *args, **kwargs)
 
-class _RingFormatter(_logging.Formatter):
-    r"""输出 [HH:MM:SS.mmm] [LEVEL] [smart_wakeup] msg——与面板 app.js 的
-    日志行解析正则对齐"""
-    def formatTime(self, record, datefmt=None):
-        import time as _t
-        base = _t.strftime("%H:%M:%S", self.converter(record.created))
-        return f"{base}.{int(record.msecs):03d}"
+    def warning(self, msg, *args, **kwargs):
+        self._capture("WARNING", msg, *args)
+        object.__getattribute__(self, "_real").warning(msg, *args, **kwargs)
+
+    def error(self, msg, *args, **kwargs):
+        self._capture("ERROR", msg, *args)
+        object.__getattribute__(self, "_real").error(msg, *args, **kwargs)
+
+    def debug(self, msg, *args, **kwargs):
+        self._capture("DEBUG", msg, *args)
+        object.__getattribute__(self, "_real").debug(msg, *args, **kwargs)
+
+    def critical(self, msg, *args, **kwargs):
+        self._capture("CRITICAL", msg, *args)
+        object.__getattribute__(self, "_real").critical(msg, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_real"), name)
 
 
-def ensure_plugin_log_ring():
-    """挂载插件日志环形缓冲（幂等，可重复调用）"""
-    global _ring_handler
-    if _ring_handler is None:
-        _ring_handler = _RingBufferHandler()
-        _ring_handler.setFormatter(
-            _RingFormatter("[%(asctime)s] [%(levelname)s] [smart_wakeup] %(message)s"))
-        _logging.getLogger(_PLUGIN_LOGGER_NAME).addHandler(_ring_handler)
+def install_log_capture(module_globals: dict):
+    """将指定模块的 logger 替换为代理（捕获到环形缓冲）。
+
+    Args:
+        module_globals: 目标模块的 globals() 字典（如 main.py 的 globals()）
+    """
+    original = module_globals.get("logger")
+    if original is None or isinstance(original, _LogCaptureProxy):
+        return
+    module_globals["logger"] = _LogCaptureProxy(original)
+    _proxied_modules.append(module_globals)
 
 
 def get_ring_logs(limit: int = 100):
     """读取环形缓冲内最近日志（时间正序）"""
-    ensure_plugin_log_ring()
     items = list(_LOG_RING)
     return items[-limit:] if limit and limit > 0 else items
 
@@ -339,9 +370,13 @@ def register_web_apis(plugin, context):
     # 获取插件根目录路径（main.py 所在目录）
     plugin_root = os.path.dirname(os.path.abspath(inspect.getfile(type(plugin))))
 
-    # v2.4.9（红队 ISSUE-1）：注册即挂载日志环形缓冲——
-    # 原懒挂载会令"首次打开日志页"之前的日志全部丢失
-    ensure_plugin_log_ring()
+    # v2.4.10 合规修复：将 main.py 与本模块的 logger 包装为代理，
+    # 日志同时进入环形缓冲（面板日志 Tab 读取）——不使用标准 logging 模块
+    import sys as _sys
+    _plugin_module = _sys.modules.get(type(plugin).__module__)
+    if _plugin_module:
+        install_log_capture(vars(_plugin_module))
+    install_log_capture(globals())
 
     prefix = f"/{PLUGIN_NAME}"
 
